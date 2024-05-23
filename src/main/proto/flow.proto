@@ -1,6 +1,6 @@
 syntax = "proto3";
 
-package com.example.grpc;
+package tech.code0.grpc;
 
 import "node.proto";
 import "type.proto";
