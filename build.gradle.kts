@@ -1,5 +1,8 @@
+import com.google.protobuf.gradle.id
+
 plugins {
     id("java")
+    id ("com.google.protobuf") version "0.9.4"
 }
 
 group = "tech.code0"
@@ -10,10 +13,31 @@ repositories {
 }
 
 dependencies {
-    testImplementation(platform("org.junit:junit-bom:5.10.0"))
-    testImplementation("org.junit.jupiter:junit-jupiter")
+    implementation("io.grpc:grpc-netty-shaded:1.64.0")
+    implementation("io.grpc:grpc-protobuf:1.64.0")
+    implementation("io.grpc:grpc-stub:1.64.0")
+
+    implementation("com.google.protobuf:protobuf-java:4.26.1")
+
+    implementation("javax.annotation:javax.annotation-api:1.3.2")
 }
 
-tasks.test {
-    useJUnitPlatform()
+protobuf {
+    protoc {
+        artifact = "com.google.protobuf:protoc:4.26.1"
+    }
+
+    plugins {
+        id("grpc") {
+            artifact = "io.grpc:protoc-gen-grpc-java:1.64.0"
+        }
+    }
+
+    generateProtoTasks {
+        all().forEach { task ->
+            task.plugins {
+                id("grpc")
+            }
+        }
+    }
 }
