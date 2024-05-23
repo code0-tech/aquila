@@ -1,0 +1,14 @@
+syntax = "proto3";
+
+package com.example.grpc;
+
+import "parameter.proto";
+import "variable.proto";
+
+message Node {
+  string node_id = 1;
+  repeated Parameter parameter = 2;
+  optional string returnType = 3;
+  optional Node nextNode = 4;
+  repeated Variable context = 5;
+}

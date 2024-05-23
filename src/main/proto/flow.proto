@@ -1,0 +1,13 @@
+syntax = "proto3";
+
+package com.example.grpc;
+
+import "node.proto";
+import "type.proto";
+import "variable.proto";
+
+message Flow {
+  Node startingNode = 1;
+  repeated Type types = 2;
+  repeated Variable context = 3;
+}

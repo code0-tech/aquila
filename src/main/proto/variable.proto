@@ -1,0 +1,8 @@
+syntax = "proto3";
+
+package com.example.grpc;
+
+message Variable {
+  string name = 1;
+  string type = 2;
+}
