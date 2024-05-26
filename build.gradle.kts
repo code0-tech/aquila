@@ -28,6 +28,10 @@ dependencies {
     implementation("javax.annotation:javax.annotation-api:1.3.2")
 }
 
+java.toolchain {
+    languageVersion = JavaLanguageVersion.of(21)
+}
+
 protobuf {
     protoc {
         artifact = "com.google.protobuf:protoc:4.26.1"
@@ -46,4 +50,8 @@ protobuf {
             }
         }
     }
+}
+
+tasks.withType<JavaCompile> {
+    options.compilerArgs.add("--enable-preview")
 }
