@@ -20,9 +20,11 @@ public class AquilaConfiguration {
     public AquilaConfiguration() {
         this.logger = Logger.getLogger(AquilaConfiguration.class.getName());
 
-        this.rabbitMQPort = Integer.parseInt(getEnvVar("RABBITMQPORT"));
-        this.redisPort = Integer.parseInt(getEnvVar("RABBITMQPORT"));
         this.logger.info("Initializing environment variables");
+        this.sessionToken = getEnvVar("SESSION_TOKEN");
+        this.backendHost = getEnvVar("BACKEND_HOST");
+        this.rabbitMQHost = getEnvVar("RABBITMQ_HOST");
+        this.redisHost = getEnvVar("RABBITMQ_HOST");
 
         this.rabbitMQPort = Integer.parseInt(getEnvVar("RABBITMQ_PORT"));
         this.redisPort = Integer.parseInt(getEnvVar("RABBITMQ_PORT"));
