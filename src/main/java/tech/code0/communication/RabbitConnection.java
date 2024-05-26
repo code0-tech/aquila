@@ -5,15 +5,18 @@ import com.rabbitmq.client.ConnectionFactory;
 import lombok.Getter;
 import tech.code0.configuration.AquilaConfiguration;
 
-import static tech.code0.util.AquilaLogger.LOGGER;
+import java.util.logging.Logger;
 
-@Getter
 public class RabbitConnection {
 
-    private final Connection connection;
+    @Getter private final Connection connection;
+
+    private final Logger logger;
 
     public RabbitConnection(AquilaConfiguration aquilaConfiguration) {
-        LOGGER.info("Initializing Rabbit connection");
+        this.logger = Logger.getLogger(RabbitConnection.class.getName());
+
+        this.logger.info("Initializing Rabbit connection");
         this.connection = createConnection(aquilaConfiguration);
     }
 
@@ -22,21 +25,21 @@ public class RabbitConnection {
         connectionFactory.setHost(aquilaConfiguration.getRabbitMQHost());
         connectionFactory.setPort(aquilaConfiguration.getRabbitMQPort());
 
-        try (final var connection = connectionFactory.newConnection()) {
-            LOGGER.info("Connected to RabbitMQ");
-            return connection;
+        try {
+            this.logger.info("Connected to RabbitMQ");
+            return connectionFactory.newConnection();
         } catch (Exception exception) {
-            LOGGER.warning("Connection to RabbitMQ failed: " + exception.getMessage());
+            this.logger.warning("Connection to RabbitMQ failed: " + exception.getMessage());
             throw new RuntimeException(exception);
         }
     }
 
     public void close() {
         try {
-            LOGGER.warning("Closing RabbitMQ connection");
+            this.logger.warning("Closing RabbitMQ connection");
             this.connection.close();
         } catch (Exception exception) {
-            LOGGER.severe("Failed to close RabbitMQ connection: " + exception.getMessage());
+            this.logger.severe("Failed to close RabbitMQ connection: " + exception.getMessage());
         }
     }
 }

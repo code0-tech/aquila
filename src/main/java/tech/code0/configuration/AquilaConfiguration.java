@@ -2,31 +2,32 @@ package tech.code0.configuration;
 
 import lombok.Getter;
 
-import static tech.code0.util.AquilaLogger.LOGGER;
+import java.util.logging.Logger;
 
-@Getter
 public class AquilaConfiguration {
 
-    private final String sessionToken;
-    private final String backendHost;
-    private final String rabbitMQHost;
-    private final String redisHost;
+    @Getter private final String sessionToken;
+    @Getter private final String backendHost;
+    @Getter private final String rabbitMQHost;
+    @Getter private final String redisHost;
 
-    private final int backendPort;
-    private final int rabbitMQPort;
-    private final int redisPort;
+    @Getter private final int backendPort;
+    @Getter private final int rabbitMQPort;
+    @Getter private final int redisPort;
+
+    public final Logger logger;
 
     public AquilaConfiguration() {
-        LOGGER.info("Initializing environment variables");
-        this.sessionToken = getEnvVar("SESSIONTOKEN");
-        this.backendHost = getEnvVar("BACKENDHOST");
-        this.rabbitMQHost = getEnvVar("RABBITMQHOST");
-        this.redisHost = getEnvVar("RABBITMQHOST");
+        this.logger = Logger.getLogger(AquilaConfiguration.class.getName());
 
         this.rabbitMQPort = Integer.parseInt(getEnvVar("RABBITMQPORT"));
         this.redisPort = Integer.parseInt(getEnvVar("RABBITMQPORT"));
+        this.logger.info("Initializing environment variables");
 
-        final var port = System.getenv("BACKENDPORT");
+        this.rabbitMQPort = Integer.parseInt(getEnvVar("RABBITMQ_PORT"));
+        this.redisPort = Integer.parseInt(getEnvVar("RABBITMQ_PORT"));
+
+        final var port = System.getenv("BACKEND_PORT");
         this.backendPort = (port != null) ? Integer.parseInt(port) : 0;
     }
 
@@ -34,7 +35,7 @@ public class AquilaConfiguration {
         String value = System.getenv(varName);
 
         if (value == null) {
-            LOGGER.warning("Environment variable " + varName + " is undefined.");
+            this.logger.warning("Environment variable " + varName + " is undefined.");
             throw new IllegalArgumentException("Environment variable '" + varName + "' not found.");
         }
 

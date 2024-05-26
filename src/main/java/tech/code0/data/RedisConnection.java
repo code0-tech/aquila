@@ -5,25 +5,28 @@ import io.lettuce.core.api.StatefulRedisConnection;
 import lombok.Getter;
 import tech.code0.configuration.AquilaConfiguration;
 
-import static tech.code0.util.AquilaLogger.LOGGER;
+import java.util.logging.Logger;
 
-@Getter
 public class RedisConnection {
 
-    private final StatefulRedisConnection<String, String> connection;
-    private final String connectionString;
-    private final RedisClient client;
+    @Getter private final StatefulRedisConnection<String, String> connection;
+    @Getter private final String connectionString;
+    @Getter private final RedisClient client;
+
+    public final Logger logger;
 
     public RedisConnection(AquilaConfiguration configuration) {
-        LOGGER.info("Initializing Redis connection");
+        this.logger = Logger.getLogger(RedisConnection.class.getName());
+
+        this.logger.info("Initializing Redis connection");
         this.connectionString = "redis://:flows@" + configuration.getRedisHost() + ":" + configuration.getRedisPort();
         this.client = RedisClient.create(connectionString);
         this.connection = client.connect();
-        LOGGER.info("Connected to Redis");
+        this.logger.info("Connected to Redis");
     }
 
     public void shutdown() {
-        LOGGER.warning("Shutting down RedisConnection");
+        this.logger.info("Shutting down RedisConnection");
         this.connection.close();
         this.client.shutdown();
     }
