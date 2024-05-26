@@ -13,9 +13,9 @@ repositories {
 }
 
 dependencies {
-    implementation("com.rabbitmq:amqp-client:5.20.0")
+    implementation("com.rabbitmq:amqp-client:5.21.0")
     implementation("io.lettuce:lettuce-core:6.3.2.RELEASE")
-
+    implementation("com.gitlab.taucher2003.t2003-utils:log:1.1-beta.13")
     compileOnly("org.projectlombok:lombok:1.18.30")
     annotationProcessor("org.projectlombok:lombok:1.18.30")
 
