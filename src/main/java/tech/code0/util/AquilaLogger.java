@@ -7,6 +7,6 @@ import java.util.logging.Logger;
 @UtilityClass
 public class AquilaLogger {
 
-    public static final Logger LOGGER = Logger.getLogger("Test");
+    public static final Logger LOGGER = Logger.getLogger(AquilaLogger.class.getName());
 
 }
