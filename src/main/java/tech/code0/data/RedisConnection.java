@@ -5,7 +5,7 @@ import io.lettuce.core.api.StatefulRedisConnection;
 import lombok.Getter;
 import tech.code0.configuration.AquilaConfiguration;
 
-import static tech.code0.AquilaServer.LOGGER;
+import static tech.code0.util.AquilaLogger.LOGGER;
 
 @Getter
 public class RedisConnection {

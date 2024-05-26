@@ -2,7 +2,7 @@ package tech.code0.configuration;
 
 import lombok.Getter;
 
-import static tech.code0.AquilaServer.LOGGER;
+import static tech.code0.util.AquilaLogger.LOGGER;
 
 @Getter
 public class AquilaConfiguration {
