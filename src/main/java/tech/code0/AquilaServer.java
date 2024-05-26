@@ -1,8 +1,13 @@
-package tech.code0;
+import tech.code0.communication.RabbitConnection;
+import tech.code0.configuration.AquilaConfiguration;
+import tech.code0.data.RedisConnection;
 
-public class AquilaServer {
+import static tech.code0.util.AquilaLogger.LOGGER;
 
-    public static void main(String[] args) {
-        System.out.println("Hello world!");
-    }
+void main() {
+
+    LOGGER.info("Starting Aquila Server");
+    final var aquilaConfiguration = new AquilaConfiguration();
+    final var redisConnection = new RedisConnection(aquilaConfiguration);
+    final var rabbitConnection = new RabbitConnection(aquilaConfiguration);
 }
