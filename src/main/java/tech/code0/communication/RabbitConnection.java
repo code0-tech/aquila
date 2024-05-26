@@ -29,7 +29,7 @@ public class RabbitConnection {
             this.logger.info("Connected to RabbitMQ");
             return connectionFactory.newConnection();
         } catch (Exception exception) {
-            this.logger.warning("Connection to RabbitMQ failed: " + exception.getMessage());
+            this.logger.warning(STR."Connection to RabbitMQ failed: \{exception.getMessage()}");
             throw new RuntimeException(exception);
         }
     }
@@ -39,7 +39,7 @@ public class RabbitConnection {
             this.logger.warning("Closing RabbitMQ connection");
             this.connection.close();
         } catch (Exception exception) {
-            this.logger.severe("Failed to close RabbitMQ connection: " + exception.getMessage());
+            this.logger.severe(STR."Failed to close RabbitMQ connection: \{exception.getMessage()}");
         }
     }
 }

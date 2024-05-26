@@ -37,8 +37,8 @@ public class AquilaConfiguration {
         String value = System.getenv(varName);
 
         if (value == null) {
-            this.logger.warning("Environment variable " + varName + " is undefined.");
-            throw new IllegalArgumentException("Environment variable '" + varName + "' not found.");
+            this.logger.warning(STR."Environment variable \{varName} is undefined.");
+            throw new IllegalArgumentException(STR."Environment variable '\{varName}' not found.");
         }
 
         return value;

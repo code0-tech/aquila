@@ -19,7 +19,7 @@ public class RedisConnection {
         this.logger = Logger.getLogger(RedisConnection.class.getName());
 
         this.logger.info("Initializing Redis connection");
-        this.connectionString = "redis://:flows@" + configuration.getRedisHost() + ":" + configuration.getRedisPort();
+        this.connectionString = STR."redis://:flows@\{configuration.getRedisHost()}:\{configuration.getRedisPort()}";
         this.client = RedisClient.create(connectionString);
         this.connection = client.connect();
         this.logger.info("Connected to Redis");
