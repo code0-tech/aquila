@@ -1,0 +1,9 @@
+<configuration>
+
+    <include resource="com/gitlab/taucher2003/t2003-utils/log/defaults.xml"/>
+
+    <root level="info">
+        <appender-ref ref="console"/>
+        <appender-ref ref="file"/>
+    </root>
+</configuration>
