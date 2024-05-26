@@ -2,7 +2,7 @@ import com.google.protobuf.gradle.id
 
 plugins {
     id("java")
-    id ("com.google.protobuf") version "0.9.4"
+    id("com.google.protobuf") version "0.9.4"
 }
 
 group = "tech.code0"
@@ -13,6 +13,12 @@ repositories {
 }
 
 dependencies {
+    implementation("com.rabbitmq:amqp-client:5.20.0")
+    implementation("io.lettuce:lettuce-core:6.3.2.RELEASE")
+
+    compileOnly("org.projectlombok:lombok:1.18.30")
+    annotationProcessor("org.projectlombok:lombok:1.18.30")
+
     implementation("io.grpc:grpc-netty-shaded:1.64.0")
     implementation("io.grpc:grpc-protobuf:1.64.0")
     implementation("io.grpc:grpc-stub:1.64.0")
