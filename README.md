@@ -5,10 +5,10 @@ Requierd Java Version: **21**
 ## Env-Variables
 |Name|Descripton|Notes|
 |-|-|-|
-|SESSIONTOKEN|Session token for authenticated communication between Aquila and Sagittarius|
-|BACKENDHOST|Hostname of the running sagitarius|
-|BACKENDPORT|Port of the running sagitarius instance| Optional (defualt: )|
-|RABBITMQHOST|Hostname of the running RabbitMQ instance|
-|RABBITMQPORT|Port of the running RabbitMQ instance|
-|REDISHOST|Hostname of the running Redis instance|
-|REDISPORT|Port of the running Redis instance|
+|SESSION_TOKEN|Session token for authenticated communication between Aquila and Sagittarius|
+|BACKEND_HOST|Hostname of the running sagitarius|
+|BACKENDP_ORT|Port of the running sagitarius instance| Optional (defualt: 0)|
+|RABBITMQ_HOST|Hostname of the running RabbitMQ instance|
+|RABBITMQ_PORT|Port of the running RabbitMQ instance|
+|REDIS_HOST|Hostname of the running Redis instance|
+|REDIS_PORT|Port of the running Redis instance|
