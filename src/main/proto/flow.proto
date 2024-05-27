@@ -12,4 +12,14 @@ message Flow {
   repeated Type types = 3;
   repeated Variable context = 4;
   string lastUpdated = 5;
+
+}
+
+message FlowRequest {
+  string flow_id = 1;
+  string lastUpdated = 2;
+}
+
+service FlowService {
+  rpc GetFlow (FlowRequest) returns (Flow);
 }
