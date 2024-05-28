@@ -12,7 +12,10 @@ message Flow {
   repeated Type types = 3;
   repeated Variable context = 4;
   string lastUpdated = 5;
+}
 
+message FlowResponse {
+  repeated Flow flows = 1;
 }
 
 message FlowRequest {
