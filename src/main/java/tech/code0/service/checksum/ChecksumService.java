@@ -11,12 +11,12 @@ import tech.code0.grpc.FlowServiceGrpc;
 
 public class ChecksumService {
 
-    private final Logger logger = LoggerFactory.getLogger(ChecksumService.class);
-
+    private final Logger logger;
     private final RedisConnection connection;
     private final AquilaConfiguration configuration;
 
     public ChecksumService(RedisConnection connection, AquilaConfiguration configuration) {
+        this.logger = LoggerFactory.getLogger(ChecksumService.class);
         this.connection = connection;
         this.configuration = configuration;
     }
@@ -32,5 +32,6 @@ public class ChecksumService {
         final var response = asyncStub.getFlow(request);
 
         Futures.addCallback(response, new FlowCallback(), Runnable::run);
+        Futures.addCallback(response, new FlowCallback(, connection, logger), Runnable::run);
     }
 }
