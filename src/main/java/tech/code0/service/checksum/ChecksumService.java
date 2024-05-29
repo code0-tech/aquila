@@ -31,7 +31,7 @@ public class ChecksumService {
         final var request = FlowOuterClass.FlowRequest.newBuilder().setFlowId(flowId).build();
         final var response = asyncStub.getFlow(request);
 
-        Futures.addCallback(response, new FlowCallback(), Runnable::run);
+        final var futureFlow = connection.getAsyncCommands().get(STR."flow:\{flowId}");
         Futures.addCallback(response, new FlowCallback(, connection, logger), Runnable::run);
     }
 }
