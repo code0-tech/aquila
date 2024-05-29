@@ -4,6 +4,7 @@ import com.google.gson.Gson;
 import com.google.gson.JsonSyntaxException;
 import io.lettuce.core.RedisClient;
 import io.lettuce.core.api.StatefulRedisConnection;
+import io.lettuce.core.api.async.RedisAsyncCommands;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import lombok.Getter;
@@ -16,6 +17,8 @@ public class RedisConnection {
 
     @Getter
     private final StatefulRedisConnection<String, String> connection;
+    @Getter
+    private final RedisAsyncCommands<String, String> asyncCommands;
     @Getter
     private final String connectionString;
     @Getter
@@ -30,6 +33,7 @@ public class RedisConnection {
         this.connectionString = STR."redis://:flows@\{configuration.getRedisHost()}:\{configuration.getRedisPort()}";
         this.client = RedisClient.create(connectionString);
         this.connection = client.connect();
+        this.asyncCommands = connection.async();
         this.logger.info("Connected to Redis");
     }
 
