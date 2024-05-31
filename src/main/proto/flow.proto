@@ -19,8 +19,7 @@ message FlowResponse {
 }
 
 message FlowRequest {
-  string flow_id = 1;
-  string lastUpdated = 2;
+  string configuration_id = 1;
 }
 
 service FlowService {
