@@ -12,6 +12,7 @@ import tech.code0.configuration.AquilaConfiguration;
 import tech.code0.grpc.FlowOuterClass;
 
 import java.util.Optional;
+import java.util.concurrent.CompletableFuture;
 
 public class RedisConnection {
 
@@ -43,18 +44,24 @@ public class RedisConnection {
         this.client.shutdown();
     }
 
-    public Optional<FlowOuterClass.Flow> getFlow(String flowId) {
-        final var result = connection.sync().get(flowId);
-        if (result == null) return Optional.empty();
+    public CompletableFuture<Optional<FlowOuterClass.Flow>> getFlow(String flowId) {
+        final var resultFuture = asyncCommands.get(flowId);
+        return resultFuture.thenApply(this::parseFlow).toCompletableFuture();
+    }
+
+    private Optional<FlowOuterClass.Flow> parseFlow(String flow) {
+
+        if (flow == null) return Optional.empty();
 
         try {
-            final var currentFlow = new Gson().fromJson(result, FlowOuterClass.Flow.class);
+
+            final var currentFlow = new Gson().fromJson(flow, FlowOuterClass.Flow.class);
             return Optional.of(currentFlow);
 
         } catch (JsonSyntaxException jsonSyntaxException) {
-            this.logger.warn(STR."Error parsing flow response with id: \{flowId}", jsonSyntaxException);
+
+            this.logger.warn(STR."Error parsing flow response with id: \{flow}", jsonSyntaxException);
             return Optional.empty();
         }
     }
-
 }

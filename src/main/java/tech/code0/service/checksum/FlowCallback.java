@@ -15,7 +15,6 @@ public class FlowCallback implements FutureCallback<FlowOuterClass.FlowResponse>
 
     public FlowCallback(RedisConnection redisConnection, Logger logger) {
         this.logger = logger;
-        this.flowService = flowService;
         this.connection = redisConnection;
     }
 
@@ -31,10 +30,20 @@ public class FlowCallback implements FutureCallback<FlowOuterClass.FlowResponse>
     }
 
     private void checkFlow(FlowOuterClass.Flow reponseFlow) {
-        flowService.getFlow(reponseFlow.getFlowId()).thenAccept(currentFlow -> {
+        connection.getFlow(reponseFlow.getFlowId()).thenAccept(optionalFlow -> {
+
+            if (optionalFlow.isEmpty()) {
+                this.connection.getConnection().async().set(STR."flow:\{reponseFlow.getFlowId()}", reponseFlow.toString());
+                this.logger.info(STR."Flow with \{reponseFlow.getFlowId()} wasn't present in redis. Inserted response!");
+                return;
+            }
+
+            final var currentFlow = optionalFlow.get();
             final var isOutdated = ChecksumValidation.hasEqualTime(currentFlow, reponseFlow);
             if (!isOutdated) return;
+
             this.connection.getConnection().async().set(STR."flow:\{currentFlow.getFlowId()}", reponseFlow.toString());
+            this.logger.info(STR."Flow with id: \{currentFlow.getFlowId()} was outdated and was overwritten!");
         });
     }
 }
