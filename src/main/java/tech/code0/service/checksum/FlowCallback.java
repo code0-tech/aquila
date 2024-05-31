@@ -5,7 +5,6 @@ import io.grpc.Status;
 import org.jetbrains.annotations.NotNull;
 import org.slf4j.Logger;
 import tech.code0.data.RedisConnection;
-import tech.code0.data.flow.FlowService;
 import tech.code0.grpc.FlowOuterClass;
 import tech.code0.validation.ChecksumValidation;
 
@@ -13,9 +12,8 @@ public class FlowCallback implements FutureCallback<FlowOuterClass.FlowResponse>
 
     private final Logger logger;
     private final RedisConnection connection;
-    private final FlowService flowService;
 
-    public FlowCallback(FlowService flowService, RedisConnection redisConnection, Logger logger) {
+    public FlowCallback(RedisConnection redisConnection, Logger logger) {
         this.logger = logger;
         this.flowService = flowService;
         this.connection = redisConnection;

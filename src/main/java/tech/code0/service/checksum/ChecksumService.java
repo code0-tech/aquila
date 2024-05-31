@@ -6,7 +6,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import tech.code0.configuration.AquilaConfiguration;
 import tech.code0.data.RedisConnection;
-import tech.code0.data.flow.FlowService;
 import tech.code0.grpc.FlowOuterClass;
 import tech.code0.grpc.FlowServiceGrpc;
 
@@ -15,14 +14,11 @@ public class ChecksumService {
     private final Logger logger;
     private final RedisConnection connection;
     private final AquilaConfiguration configuration;
-    private final FlowService flowService;
 
     public ChecksumService(RedisConnection connection, AquilaConfiguration configuration) {
         this.logger = LoggerFactory.getLogger(ChecksumService.class);
         this.connection = connection;
         this.configuration = configuration;
-
-        this.flowService = new FlowService(connection.getAsyncCommands());
     }
 
     public void run(String configurationId) {
@@ -37,7 +33,7 @@ public class ChecksumService {
                 .build();
 
         final var response = asyncStub.getFlow(request);
-        Futures.addCallback(response, new FlowCallback(flowService, connection, logger), Runnable::run);
+        Futures.addCallback(response, new FlowCallback(connection, logger), Runnable::run);
 
     }
 }
