@@ -23,5 +23,5 @@ message FlowRequest {
 }
 
 service FlowService {
-  rpc GetFlow (FlowRequest) returns (Flow);
+  rpc GetFlow (FlowRequest) returns (FlowResponse);
 }
