@@ -11,7 +11,7 @@ message Flow {
   Node startingNode = 2;
   repeated Type types = 3;
   repeated Variable context = 4;
-  string lastUpdated = 5;
+  int64 lastUpdated = 5;
 }
 
 message FlowResponse {
