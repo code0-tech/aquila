@@ -23,7 +23,7 @@ dependencies {
     implementation("io.grpc:grpc-protobuf:1.64.0")
     implementation("io.grpc:grpc-stub:1.64.0")
 
-    implementation("com.google.protobuf:protobuf-java:4.26.1")
+    implementation("com.google.protobuf:protobuf-java:4.27.0")
 
     implementation("javax.annotation:javax.annotation-api:1.3.2")
 }
