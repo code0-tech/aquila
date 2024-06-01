@@ -7,7 +7,21 @@ import "type.proto";
 import "variable.proto";
 
 message Flow {
-  Node startingNode = 1;
-  repeated Type types = 2;
-  repeated Variable context = 3;
+  string flow_id = 1;
+  Node startingNode = 2;
+  repeated Type types = 3;
+  repeated Variable context = 4;
+  int64 lastUpdated = 5;
+}
+
+message FlowResponse {
+  repeated Flow flows = 1;
+}
+
+message FlowRequest {
+  string configuration_id = 1;
+}
+
+service FlowService {
+  rpc GetFlow (FlowRequest) returns (FlowResponse);
 }
