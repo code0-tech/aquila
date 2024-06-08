@@ -13,15 +13,3 @@ message Flow {
   repeated Variable context = 4;
   int64 lastUpdated = 5;
 }
-
-message FlowResponse {
-  repeated Flow flows = 1;
-}
-
-message FlowRequest {
-  string configuration_id = 1;
-}
-
-service FlowService {
-  rpc GetFlow (FlowRequest) returns (FlowResponse);
-}
