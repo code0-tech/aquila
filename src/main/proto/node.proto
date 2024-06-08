@@ -1,6 +1,6 @@
 syntax = "proto3";
 
-package tech.code0.grpc;
+package tech.code0.model;
 
 import "variable.proto";
 import "google/protobuf/struct.proto";
