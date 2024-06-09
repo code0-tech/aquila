@@ -1,14 +1,10 @@
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-import tech.code0.communication.RabbitConnection;
-import tech.code0.configuration.AquilaConfiguration;
-import tech.code0.data.RedisConnection;
+package tech.code0;
 
-public final Logger logger = LoggerFactory.getLogger("AquilaServer");
+import io.micronaut.runtime.Micronaut;
 
-void main() {
-    this.logger.info("Starting Aquila Server");
-    final var aquilaConfiguration = new AquilaConfiguration();
-    final var redisConnection = new RedisConnection(aquilaConfiguration);
-    final var rabbitConnection = new RabbitConnection(aquilaConfiguration);
+public class AquilaServer {
+
+    public static void main(String[] args) {
+        Micronaut.run(AquilaServer.class, args);
+    }
 }
