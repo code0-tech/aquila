@@ -6,7 +6,7 @@ import "variable.proto";
 import "google/protobuf/struct.proto";
 
 message Node {
-  string node_id = 1;
+  int64 node_id = 1;
   repeated Parameter parameter = 2;
   optional string returnType = 3;
   optional Node nextNode = 4;
@@ -14,7 +14,7 @@ message Node {
 }
 
 message Parameter {
-  string parameter_id = 1;
+  int64 parameter_id = 1;
   string name = 2;
   string type = 3;
   optional google.protobuf.Struct value = 4;
