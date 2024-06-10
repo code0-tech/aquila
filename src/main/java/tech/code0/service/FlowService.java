@@ -19,11 +19,25 @@ public class FlowService {
         this.commands = connection.async();
     }
 
+    /**
+     * Function to update a specific flow.
+     *
+     * @param organisationId of organisation that contains the flow.
+     * @param flow           that should be updated.
+     * @return <Boolean>true</Boolean> if update was successful.
+     */
     public CompletableFuture<Boolean> updateFlow(long organisationId, FlowOuterClass.Flow flow) {
         final var response = this.commands.set(organisationId + ":" + flow.getFlowId(), flow.toString());
         return response.thenApply(string -> string.equals("OK")).toCompletableFuture();
     }
 
+    /**
+     * Function to update a list of flows.
+     *
+     * @param organisationId of organisation that contains the flows.
+     * @param flows          that should be updated
+     * @return <Boolean>true</Boolean> if update was successful.
+     */
     public CompletableFuture<Boolean> updateFlows(long organisationId, List<FlowOuterClass.Flow> flows) {
         AtomicBoolean success = new AtomicBoolean(true);
 
@@ -37,11 +51,25 @@ public class FlowService {
         return CompletableFuture.completedFuture(success.get());
     }
 
-    public CompletableFuture<Boolean> deleteFlow(long flowId, long organisationId) {
+    /**
+     * Function to delete a specific flow.
+     *
+     * @param organisationId of organisation that contains the flow.
+     * @param flowId         of the flow that will be deleted.
+     * @return <Boolean>true</Boolean> if update was successful.
+     */
+    public CompletableFuture<Boolean> deleteFlow(long organisationId, long flowId) {
         final var response = this.commands.del(organisationId + ":" + flowId);
         return response.thenApply(deletedFlows -> deletedFlows == 1).toCompletableFuture();
     }
 
+    /**
+     * Function to delete a list of flow.
+     *
+     * @param organisationId of organisation that contains the list of flows.
+     * @param flows          that will be deleted.
+     * @return <Boolean>true</Boolean> if update was successful.
+     */
     public CompletableFuture<Boolean> deleteFlows(long organisationId, List<FlowOuterClass.Flow> flows) {
         final var keys = flows.stream().map(flow -> organisationId + ":" + flow.getFlowId()).toList();
         final var response = this.commands.del(keys.toArray(new String[0]));
