@@ -19,9 +19,9 @@ dependencies {
     compileOnly("org.projectlombok:lombok:1.18.34")
     annotationProcessor("org.projectlombok:lombok:1.18.34")
 
-    implementation("io.grpc:grpc-netty-shaded:1.64.0")
-    implementation("io.grpc:grpc-protobuf:1.64.0")
-    implementation("io.grpc:grpc-stub:1.64.0")
+    implementation("io.grpc:grpc-netty-shaded:1.65.0")
+    implementation("io.grpc:grpc-protobuf:1.65.0")
+    implementation("io.grpc:grpc-stub:1.65.0")
 
     implementation("com.google.code.gson:gson:2.11.0")
     implementation("com.google.protobuf:protobuf-java:4.27.2")
@@ -40,7 +40,7 @@ protobuf {
 
     plugins {
         id("grpc") {
-            artifact = "io.grpc:protoc-gen-grpc-java:1.64.0"
+            artifact = "io.grpc:protoc-gen-grpc-java:1.65.0"
         }
     }
 
