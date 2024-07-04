@@ -36,6 +36,12 @@ dependencies {
     compileOnly("org.projectlombok:lombok:1.18.32")
     annotationProcessor("org.projectlombok:lombok:1.18.32")
 
+    testImplementation("io.micronaut.test:micronaut-test-junit5")
+    testImplementation("org.junit.jupiter:junit-jupiter-api")
+    testImplementation("org.mockito:mockito-junit-jupiter")
+    testImplementation("io.grpc:grpc-testing:1.57.0")
+    testRuntimeOnly("org.junit.jupiter:junit-jupiter-engine"
+    )
 }
 
 application {
