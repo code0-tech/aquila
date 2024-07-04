@@ -4,12 +4,14 @@ import io.lettuce.core.api.StatefulRedisConnection;
 import io.lettuce.core.api.async.RedisAsyncCommands;
 import io.micronaut.runtime.context.scope.ThreadLocal;
 import io.micronaut.scheduling.annotation.Scheduled;
+import jakarta.inject.Singleton;
 import tech.code0.model.FlowOuterClass;
 
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicBoolean;
 
+@Singleton
 @ThreadLocal
 public class FlowService {
 
