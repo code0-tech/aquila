@@ -37,14 +37,14 @@ dependencies {
     annotationProcessor("org.projectlombok:lombok:1.18.34")
 
     implementation("com.google.code.gson:gson:2.11.0")
-    implementation("io.grpc:grpc-netty-shaded:1.65.0")
-    implementation("io.grpc:grpc-protobuf:1.65.0")
-    implementation("io.grpc:grpc-stub:1.65.0")
+    implementation("io.grpc:grpc-netty-shaded:1.65.1")
+    implementation("io.grpc:grpc-protobuf:1.65.1")
+    implementation("io.grpc:grpc-stub:1.65.1")
 
     testImplementation("io.micronaut.test:micronaut-test-junit5")
     testImplementation("org.junit.jupiter:junit-jupiter-api")
     testImplementation("org.mockito:mockito-junit-jupiter")
-    testImplementation("io.grpc:grpc-testing:1.57.0")
+    testImplementation("io.grpc:grpc-testing:1.65.1")
     testRuntimeOnly("org.junit.jupiter:junit-jupiter-engine")
 }
 
@@ -73,7 +73,7 @@ protobuf {
 
     plugins {
         id("grpc") {
-            artifact = "io.grpc:protoc-gen-grpc-java:1.65.0"
+            artifact = "io.grpc:protoc-gen-grpc-java:1.65.1"
         }
     }
 
