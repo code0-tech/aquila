@@ -7,7 +7,7 @@ plugins {
     id("io.micronaut.application") version "4.4.0"
     id("io.micronaut.test-resources") version "4.4.0"
     id("com.google.protobuf") version "0.9.4"
-    id("io.github.goooler.shadow") version "8.1.7"
+    id("io.github.goooler.shadow") version "8.1.8"
 }
 
 group = "tech.code0"
