@@ -1,0 +1,6 @@
+applicationType: grpc
+defaultPackage: tech.code0
+testFramework: junit
+sourceLanguage: java
+buildTool: gradle_kotlin
+features: [ app-name, discovery-core, gradle, grpc, http-client-test, java, java-application, junit, logback, micronaut-build, properties, rabbitmq, readme, redis-lettuce, serialization-jackson, shade, test-resources ]
