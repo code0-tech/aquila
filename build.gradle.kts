@@ -30,19 +30,24 @@ dependencies {
     testImplementation("io.micronaut:micronaut-http-client")
 
     implementation("javax.annotation:javax.annotation-api:1.3.2")
-    implementation("com.google.protobuf:protobuf-java:4.27.1")
+    implementation("com.google.protobuf:protobuf-java:4.27.2")
 
     implementation("com.gitlab.taucher2003.t2003-utils:log:1.1-beta.13")
-    compileOnly("org.projectlombok:lombok:1.18.32")
-    annotationProcessor("org.projectlombok:lombok:1.18.32")
+    compileOnly("org.projectlombok:lombok:1.18.34")
+    annotationProcessor("org.projectlombok:lombok:1.18.34")
+
+    implementation("com.google.code.gson:gson:2.11.0")
+    implementation("io.grpc:grpc-netty-shaded:1.65.0")
+    implementation("io.grpc:grpc-protobuf:1.65.0")
+    implementation("io.grpc:grpc-stub:1.65.0")
 
     testImplementation("io.micronaut.test:micronaut-test-junit5")
     testImplementation("org.junit.jupiter:junit-jupiter-api")
     testImplementation("org.mockito:mockito-junit-jupiter")
     testImplementation("io.grpc:grpc-testing:1.57.0")
-    testRuntimeOnly("org.junit.jupiter:junit-jupiter-engine"
-    )
+    testRuntimeOnly("org.junit.jupiter:junit-jupiter-engine")
 }
+
 
 application {
     mainClass = "tech.code0.AquilaServer"
@@ -63,12 +68,12 @@ sourceSets {
 
 protobuf {
     protoc {
-        artifact = "com.google.protobuf:protoc:4.27.1"
+        artifact = "com.google.protobuf:protoc:4.27.2"
     }
 
     plugins {
         id("grpc") {
-            artifact = "io.grpc:protoc-gen-grpc-java:1.64.0"
+            artifact = "io.grpc:protoc-gen-grpc-java:1.65.0"
         }
     }
 
