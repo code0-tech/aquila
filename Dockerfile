@@ -1,4 +1,4 @@
-FROM eclipse-temurin:21-jre
+FROM eclipse-temurin:21.0.3_9-jre
 WORKDIR /home/app
 COPY --link build/docker/main/layers/libs /home/app/libs
 COPY --link build/docker/main/layers/app /home/app/
