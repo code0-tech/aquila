@@ -4,17 +4,18 @@ use redis::aio::MultiplexedConnection;
 use redis::{AsyncCommands, RedisFuture};
 use tokio::sync::Mutex;
 use tonic::{Request, Response, Status};
+use tonic::transport::Channel;
 use crate::endpoint::configuration_endpoint::{Flow, FlowDeleteResponse, FlowGetRequest, FlowUpdateResponse};
 use crate::endpoint::configuration_endpoint::flow_service_client::FlowServiceClient;
 
 pub struct BaseFlowService {
     connection_arc: Arc<Mutex<Box<MultiplexedConnection>>>,
-    client: FlowServiceClient<Flow>,
+    client: FlowServiceClient<Channel>,
 }
 
 impl BaseFlowService {
 
-    pub fn new(connection_arc: Arc<Mutex<Box<MultiplexedConnection>>>, client: FlowServiceClient<Flow>) -> Self {
+    pub fn new(connection_arc: Arc<Mutex<Box<MultiplexedConnection>>>, client: FlowServiceClient<Channel>) -> Self {
         Self { connection_arc, client }
     }
 
