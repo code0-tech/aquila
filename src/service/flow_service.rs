@@ -1,29 +1,61 @@
+use std::ops::Add;
 use std::sync::Arc;
 use redis::aio::MultiplexedConnection;
-use redis::{AsyncCommands};
+use redis::{AsyncCommands, RedisFuture};
 use tokio::sync::Mutex;
-use tonic::Request;
-use crate::endpoint::configuration_endpoint::configuration_service_client::ConfigurationServiceClient;
-use crate::endpoint::configuration_endpoint::{Configuration, Flow, GetConfigurationRequest};
+use tonic::{Request, Response, Status};
+use crate::endpoint::configuration_endpoint::{Flow, FlowDeleteResponse, FlowGetRequest, FlowUpdateResponse};
+use crate::endpoint::configuration_endpoint::flow_service_client::FlowServiceClient;
 
-pub struct FlowService {
+pub struct BaseFlowService {
     connection_arc: Arc<Mutex<Box<MultiplexedConnection>>>,
+    client: FlowServiceClient<Flow>,
 }
 
-impl FlowService {
-    pub fn new(connection_arc: Arc<Mutex<Box<MultiplexedConnection>>>) -> Self {
-        Self { connection_arc }
+impl BaseFlowService {
+
+    pub fn new(connection_arc: Arc<Mutex<Box<MultiplexedConnection>>>, client: FlowServiceClient<Flow>) -> Self {
+        Self { connection_arc, client }
     }
 
-    pub async fn update_flow(&self, configuration_id: i64, flows: Vec<Flow>) {
+    pub async fn update_flow(&self, flow: Flow) -> Result<Response<FlowUpdateResponse>, Status> {
         let mut connection = self.connection_arc.lock().await;
 
-        for flow in flows {
-            let id = format!("{}:{}", configuration_id, flow.flow_id);
-            connection.set(id, serde_json::to_string(&flow).unwrap_or_else(|err| {
-                panic!("Unable to update flow {id}: {err}")
-            }));
-        }
+        let id = flow.flow_id.to_string();
+
+        let serialized_flow = match serde_json::to_string(&flow) {
+            Ok(result) => result,
+            Err(error) => return Err(Status::internal(format!("Flow with id: {} wasn't serili because: {}", id, error)))
+        };
+
+        let operation = connection.set(id, serialized_flow);
+
+        let has_changed = match operation.await
+        {
+            Ok(result) => result,
+            Err(error) => return Err(Status::internal(format!("Flow with id: {} wasn't updated because: {}", id, error)))
+        };
+
+        return Ok(Response::new(FlowUpdateResponse {
+            success: has_changed == "1"
+        }));
+    }
+
+    pub async fn delete_flow(&self, flow_id: i64) -> Result<Response<FlowDeleteResponse>, Status> {
+        let mut connection = self.connection_arc.lock().await;
+
+        let id = flow_id.to_string();
+
+        let operation: RedisFuture<String> = connection.del(id);
+
+        let has_changed = match operation.await {
+            Ok(result) => result,
+            Err(error) => return Err(Status::internal(format!("Flow with id: {} wasn't deleted because: {}", id, error)))
+        };
+
+        return Ok(Response::new(FlowDeleteResponse {
+            success: has_changed == "1"
+        }));
     }
 
     pub async fn send_get_flow_request(&self) -> Request<FlowGetRequest> {
