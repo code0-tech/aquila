@@ -33,8 +33,8 @@ pub struct Parameter {
     pub name: ::prost::alloc::string::String,
     #[prost(string, tag = "3")]
     pub r#type: ::prost::alloc::string::String,
-    #[prost(message, optional, tag = "4")]
-    pub value: ::core::option::Option<::prost_types::Struct>,
+    #[prost(string, optional, tag = "4")]
+    pub value: ::core::option::Option<::prost::alloc::string::String>,
     #[prost(message, optional, tag = "5")]
     pub sub_node: ::core::option::Option<Node>,
     #[prost(int32, optional, tag = "6")]
@@ -46,8 +46,8 @@ pub struct Parameter {
 pub struct Rule {
     #[prost(enumeration = "RuleType", tag = "1")]
     pub r#type: i32,
-    #[prost(message, optional, tag = "2")]
-    pub config: ::core::option::Option<::prost_types::Struct>,
+    #[prost(string, tag = "2")]
+    pub config: ::prost::alloc::string::String,
 }
 #[derive(serde::Serialize, serde::Deserialize)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, ::prost::Enumeration)]
@@ -109,57 +109,62 @@ pub struct Flow {
     #[prost(int64, tag = "5")]
     pub last_updated: i64,
 }
-#[derive(serde::Serialize, serde::Deserialize)]
+/// Sagittarius sends flow to be updated
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
-pub struct Configuration {
-    #[prost(int64, tag = "1")]
-    pub configuration_id: i64,
-    #[prost(int64, tag = "2")]
-    pub last_edited: i64,
-    #[prost(message, repeated, tag = "3")]
-    pub flows: ::prost::alloc::vec::Vec<Flow>,
-}
-#[allow(clippy::derive_partial_eq_without_eq)]
-#[derive(Clone, Copy, PartialEq, ::prost::Message)]
-pub struct GetConfigurationRequest {
-    #[prost(int64, tag = "1")]
-    pub configuration_id: i64,
-}
-#[allow(clippy::derive_partial_eq_without_eq)]
-#[derive(Clone, PartialEq, ::prost::Message)]
-pub struct UpdateConfigurationRequest {
+pub struct FlowUpdateRequest {
     #[prost(message, optional, tag = "1")]
-    pub configuration: ::core::option::Option<Configuration>,
+    pub updated_flow: ::core::option::Option<Flow>,
 }
+/// Aquila response with success or retry of update
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, Copy, PartialEq, ::prost::Message)]
-pub struct UpdateConfigurationResponse {
+pub struct FlowUpdateResponse {
     #[prost(bool, tag = "1")]
     pub success: bool,
 }
-#[allow(clippy::derive_partial_eq_without_eq)]
-#[derive(Clone, PartialEq, ::prost::Message)]
-pub struct DeleteConfigurationRequest {
-    #[prost(message, optional, tag = "1")]
-    pub configuration: ::core::option::Option<Configuration>,
-}
+/// Sagittarius sends flow_id to be updated
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, Copy, PartialEq, ::prost::Message)]
-pub struct DeleteConfigurationResponse {
+pub struct FlowDeleteRequest {
+    #[prost(int64, tag = "1")]
+    pub flow_id: i64,
+}
+/// Aquila response with success or retry of deletion
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, Copy, PartialEq, ::prost::Message)]
+pub struct FlowDeleteResponse {
     #[prost(bool, tag = "1")]
     pub success: bool,
+}
+/// All ids of flows that Aquila holds
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct FlowGetRequest {
+    #[prost(int64, repeated, tag = "1")]
+    pub flow_ids: ::prost::alloc::vec::Vec<i64>,
+}
+/// Sagittarius checks if he holds the flow_ids that Aquila sent
+/// If id is present --> sends flow
+/// If id is not present --> returns id to be deleted
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct FlowGetResponse {
+    #[prost(message, repeated, tag = "1")]
+    pub updated_flows: ::prost::alloc::vec::Vec<Flow>,
+    #[prost(int64, repeated, tag = "2")]
+    pub deleted_flow_ids: ::prost::alloc::vec::Vec<i64>,
 }
 /// Generated client implementations.
-pub mod configuration_service_client {
+pub mod flow_service_client {
     #![allow(unused_variables, dead_code, missing_docs, clippy::let_unit_value)]
     use tonic::codegen::*;
     use tonic::codegen::http::Uri;
     #[derive(Debug, Clone)]
-    pub struct ConfigurationServiceClient<T> {
+    pub struct FlowServiceClient<T> {
         inner: tonic::client::Grpc<T>,
     }
-    impl ConfigurationServiceClient<tonic::transport::Channel> {
+    impl FlowServiceClient<tonic::transport::Channel> {
         /// Attempt to create a new client by connecting to a given endpoint.
         pub async fn connect<D>(dst: D) -> Result<Self, tonic::transport::Error>
         where
@@ -170,7 +175,7 @@ pub mod configuration_service_client {
             Ok(Self::new(conn))
         }
     }
-    impl<T> ConfigurationServiceClient<T>
+    impl<T> FlowServiceClient<T>
     where
         T: tonic::client::GrpcService<tonic::body::BoxBody>,
         T::Error: Into<StdError>,
@@ -188,7 +193,7 @@ pub mod configuration_service_client {
         pub fn with_interceptor<F>(
             inner: T,
             interceptor: F,
-        ) -> ConfigurationServiceClient<InterceptedService<T, F>>
+        ) -> FlowServiceClient<InterceptedService<T, F>>
         where
             F: tonic::service::Interceptor,
             T::ResponseBody: Default,
@@ -202,7 +207,7 @@ pub mod configuration_service_client {
                 http::Request<tonic::body::BoxBody>,
             >>::Error: Into<StdError> + Send + Sync,
         {
-            ConfigurationServiceClient::new(InterceptedService::new(inner, interceptor))
+            FlowServiceClient::new(InterceptedService::new(inner, interceptor))
         }
         /// Compress requests with the given encoding.
         ///
@@ -235,33 +240,11 @@ pub mod configuration_service_client {
             self.inner = self.inner.max_encoding_message_size(limit);
             self
         }
-        pub async fn get(
-            &mut self,
-            request: impl tonic::IntoRequest<super::GetConfigurationRequest>,
-        ) -> std::result::Result<
-            tonic::Response<super::UpdateConfigurationRequest>,
-            tonic::Status,
-        > {
-            self.inner
-                .ready()
-                .await
-                .map_err(|e| {
-                    tonic::Status::new(
-                        tonic::Code::Unknown,
-                        format!("Service was not ready: {}", e.into()),
-                    )
-                })?;
-            let codec = tonic::codec::ProstCodec::default();
-            let path = http::uri::PathAndQuery::from_static("/ConfigurationService/Get");
-            let mut req = request.into_request();
-            req.extensions_mut().insert(GrpcMethod::new("ConfigurationService", "Get"));
-            self.inner.unary(req, path, codec).await
-        }
         pub async fn update(
             &mut self,
-            request: impl tonic::IntoRequest<super::UpdateConfigurationRequest>,
+            request: impl tonic::IntoRequest<super::FlowUpdateRequest>,
         ) -> std::result::Result<
-            tonic::Response<super::UpdateConfigurationResponse>,
+            tonic::Response<super::FlowUpdateResponse>,
             tonic::Status,
         > {
             self.inner
@@ -274,19 +257,16 @@ pub mod configuration_service_client {
                     )
                 })?;
             let codec = tonic::codec::ProstCodec::default();
-            let path = http::uri::PathAndQuery::from_static(
-                "/ConfigurationService/Update",
-            );
+            let path = http::uri::PathAndQuery::from_static("/FlowService/Update");
             let mut req = request.into_request();
-            req.extensions_mut()
-                .insert(GrpcMethod::new("ConfigurationService", "Update"));
+            req.extensions_mut().insert(GrpcMethod::new("FlowService", "Update"));
             self.inner.unary(req, path, codec).await
         }
         pub async fn delete(
             &mut self,
-            request: impl tonic::IntoRequest<super::DeleteConfigurationRequest>,
+            request: impl tonic::IntoRequest<super::FlowDeleteRequest>,
         ) -> std::result::Result<
-            tonic::Response<super::DeleteConfigurationResponse>,
+            tonic::Response<super::FlowDeleteResponse>,
             tonic::Status,
         > {
             self.inner
@@ -299,54 +279,70 @@ pub mod configuration_service_client {
                     )
                 })?;
             let codec = tonic::codec::ProstCodec::default();
-            let path = http::uri::PathAndQuery::from_static(
-                "/ConfigurationService/Delete",
-            );
+            let path = http::uri::PathAndQuery::from_static("/FlowService/Delete");
             let mut req = request.into_request();
-            req.extensions_mut()
-                .insert(GrpcMethod::new("ConfigurationService", "Delete"));
+            req.extensions_mut().insert(GrpcMethod::new("FlowService", "Delete"));
+            self.inner.unary(req, path, codec).await
+        }
+        pub async fn get(
+            &mut self,
+            request: impl tonic::IntoRequest<super::FlowGetRequest>,
+        ) -> std::result::Result<
+            tonic::Response<super::FlowGetResponse>,
+            tonic::Status,
+        > {
+            self.inner
+                .ready()
+                .await
+                .map_err(|e| {
+                    tonic::Status::new(
+                        tonic::Code::Unknown,
+                        format!("Service was not ready: {}", e.into()),
+                    )
+                })?;
+            let codec = tonic::codec::ProstCodec::default();
+            let path = http::uri::PathAndQuery::from_static("/FlowService/Get");
+            let mut req = request.into_request();
+            req.extensions_mut().insert(GrpcMethod::new("FlowService", "Get"));
             self.inner.unary(req, path, codec).await
         }
     }
 }
 /// Generated server implementations.
-pub mod configuration_service_server {
+pub mod flow_service_server {
     #![allow(unused_variables, dead_code, missing_docs, clippy::let_unit_value)]
     use tonic::codegen::*;
-    /// Generated trait containing gRPC methods that should be implemented for use with ConfigurationServiceServer.
+    /// Generated trait containing gRPC methods that should be implemented for use with FlowServiceServer.
     #[async_trait]
-    pub trait ConfigurationService: Send + Sync + 'static {
-        async fn get(
-            &self,
-            request: tonic::Request<super::GetConfigurationRequest>,
-        ) -> std::result::Result<
-            tonic::Response<super::UpdateConfigurationRequest>,
-            tonic::Status,
-        >;
+    pub trait FlowService: Send + Sync + 'static {
         async fn update(
             &self,
-            request: tonic::Request<super::UpdateConfigurationRequest>,
+            request: tonic::Request<super::FlowUpdateRequest>,
         ) -> std::result::Result<
-            tonic::Response<super::UpdateConfigurationResponse>,
+            tonic::Response<super::FlowUpdateResponse>,
             tonic::Status,
         >;
         async fn delete(
             &self,
-            request: tonic::Request<super::DeleteConfigurationRequest>,
+            request: tonic::Request<super::FlowDeleteRequest>,
         ) -> std::result::Result<
-            tonic::Response<super::DeleteConfigurationResponse>,
+            tonic::Response<super::FlowDeleteResponse>,
             tonic::Status,
         >;
+        async fn get(
+            &self,
+            request: tonic::Request<super::FlowGetRequest>,
+        ) -> std::result::Result<tonic::Response<super::FlowGetResponse>, tonic::Status>;
     }
     #[derive(Debug)]
-    pub struct ConfigurationServiceServer<T: ConfigurationService> {
+    pub struct FlowServiceServer<T: FlowService> {
         inner: Arc<T>,
         accept_compression_encodings: EnabledCompressionEncodings,
         send_compression_encodings: EnabledCompressionEncodings,
         max_decoding_message_size: Option<usize>,
         max_encoding_message_size: Option<usize>,
     }
-    impl<T: ConfigurationService> ConfigurationServiceServer<T> {
+    impl<T: FlowService> FlowServiceServer<T> {
         pub fn new(inner: T) -> Self {
             Self::from_arc(Arc::new(inner))
         }
@@ -397,10 +393,9 @@ pub mod configuration_service_server {
             self
         }
     }
-    impl<T, B> tonic::codegen::Service<http::Request<B>>
-    for ConfigurationServiceServer<T>
+    impl<T, B> tonic::codegen::Service<http::Request<B>> for FlowServiceServer<T>
     where
-        T: ConfigurationService,
+        T: FlowService,
         B: Body + Send + 'static,
         B::Error: Into<StdError> + Send + 'static,
     {
@@ -415,70 +410,25 @@ pub mod configuration_service_server {
         }
         fn call(&mut self, req: http::Request<B>) -> Self::Future {
             match req.uri().path() {
-                "/ConfigurationService/Get" => {
+                "/FlowService/Update" => {
                     #[allow(non_camel_case_types)]
-                    struct GetSvc<T: ConfigurationService>(pub Arc<T>);
+                    struct UpdateSvc<T: FlowService>(pub Arc<T>);
                     impl<
-                        T: ConfigurationService,
-                    > tonic::server::UnaryService<super::GetConfigurationRequest>
-                    for GetSvc<T> {
-                        type Response = super::UpdateConfigurationRequest;
-                        type Future = BoxFuture<
-                            tonic::Response<Self::Response>,
-                            tonic::Status,
-                        >;
-                        fn call(
-                            &mut self,
-                            request: tonic::Request<super::GetConfigurationRequest>,
-                        ) -> Self::Future {
-                            let inner = Arc::clone(&self.0);
-                            let fut = async move {
-                                <T as ConfigurationService>::get(&inner, request).await
-                            };
-                            Box::pin(fut)
-                        }
-                    }
-                    let accept_compression_encodings = self.accept_compression_encodings;
-                    let send_compression_encodings = self.send_compression_encodings;
-                    let max_decoding_message_size = self.max_decoding_message_size;
-                    let max_encoding_message_size = self.max_encoding_message_size;
-                    let inner = self.inner.clone();
-                    let fut = async move {
-                        let method = GetSvc(inner);
-                        let codec = tonic::codec::ProstCodec::default();
-                        let mut grpc = tonic::server::Grpc::new(codec)
-                            .apply_compression_config(
-                                accept_compression_encodings,
-                                send_compression_encodings,
-                            )
-                            .apply_max_message_size_config(
-                                max_decoding_message_size,
-                                max_encoding_message_size,
-                            );
-                        let res = grpc.unary(method, req).await;
-                        Ok(res)
-                    };
-                    Box::pin(fut)
-                }
-                "/ConfigurationService/Update" => {
-                    #[allow(non_camel_case_types)]
-                    struct UpdateSvc<T: ConfigurationService>(pub Arc<T>);
-                    impl<
-                        T: ConfigurationService,
-                    > tonic::server::UnaryService<super::UpdateConfigurationRequest>
+                        T: FlowService,
+                    > tonic::server::UnaryService<super::FlowUpdateRequest>
                     for UpdateSvc<T> {
-                        type Response = super::UpdateConfigurationResponse;
+                        type Response = super::FlowUpdateResponse;
                         type Future = BoxFuture<
                             tonic::Response<Self::Response>,
                             tonic::Status,
                         >;
                         fn call(
                             &mut self,
-                            request: tonic::Request<super::UpdateConfigurationRequest>,
+                            request: tonic::Request<super::FlowUpdateRequest>,
                         ) -> Self::Future {
                             let inner = Arc::clone(&self.0);
                             let fut = async move {
-                                <T as ConfigurationService>::update(&inner, request).await
+                                <T as FlowService>::update(&inner, request).await
                             };
                             Box::pin(fut)
                         }
@@ -505,25 +455,25 @@ pub mod configuration_service_server {
                     };
                     Box::pin(fut)
                 }
-                "/ConfigurationService/Delete" => {
+                "/FlowService/Delete" => {
                     #[allow(non_camel_case_types)]
-                    struct DeleteSvc<T: ConfigurationService>(pub Arc<T>);
+                    struct DeleteSvc<T: FlowService>(pub Arc<T>);
                     impl<
-                        T: ConfigurationService,
-                    > tonic::server::UnaryService<super::DeleteConfigurationRequest>
+                        T: FlowService,
+                    > tonic::server::UnaryService<super::FlowDeleteRequest>
                     for DeleteSvc<T> {
-                        type Response = super::DeleteConfigurationResponse;
+                        type Response = super::FlowDeleteResponse;
                         type Future = BoxFuture<
                             tonic::Response<Self::Response>,
                             tonic::Status,
                         >;
                         fn call(
                             &mut self,
-                            request: tonic::Request<super::DeleteConfigurationRequest>,
+                            request: tonic::Request<super::FlowDeleteRequest>,
                         ) -> Self::Future {
                             let inner = Arc::clone(&self.0);
                             let fut = async move {
-                                <T as ConfigurationService>::delete(&inner, request).await
+                                <T as FlowService>::delete(&inner, request).await
                             };
                             Box::pin(fut)
                         }
@@ -535,6 +485,50 @@ pub mod configuration_service_server {
                     let inner = self.inner.clone();
                     let fut = async move {
                         let method = DeleteSvc(inner);
+                        let codec = tonic::codec::ProstCodec::default();
+                        let mut grpc = tonic::server::Grpc::new(codec)
+                            .apply_compression_config(
+                                accept_compression_encodings,
+                                send_compression_encodings,
+                            )
+                            .apply_max_message_size_config(
+                                max_decoding_message_size,
+                                max_encoding_message_size,
+                            );
+                        let res = grpc.unary(method, req).await;
+                        Ok(res)
+                    };
+                    Box::pin(fut)
+                }
+                "/FlowService/Get" => {
+                    #[allow(non_camel_case_types)]
+                    struct GetSvc<T: FlowService>(pub Arc<T>);
+                    impl<
+                        T: FlowService,
+                    > tonic::server::UnaryService<super::FlowGetRequest> for GetSvc<T> {
+                        type Response = super::FlowGetResponse;
+                        type Future = BoxFuture<
+                            tonic::Response<Self::Response>,
+                            tonic::Status,
+                        >;
+                        fn call(
+                            &mut self,
+                            request: tonic::Request<super::FlowGetRequest>,
+                        ) -> Self::Future {
+                            let inner = Arc::clone(&self.0);
+                            let fut = async move {
+                                <T as FlowService>::get(&inner, request).await
+                            };
+                            Box::pin(fut)
+                        }
+                    }
+                    let accept_compression_encodings = self.accept_compression_encodings;
+                    let send_compression_encodings = self.send_compression_encodings;
+                    let max_decoding_message_size = self.max_decoding_message_size;
+                    let max_encoding_message_size = self.max_encoding_message_size;
+                    let inner = self.inner.clone();
+                    let fut = async move {
+                        let method = GetSvc(inner);
                         let codec = tonic::codec::ProstCodec::default();
                         let mut grpc = tonic::server::Grpc::new(codec)
                             .apply_compression_config(
@@ -568,7 +562,7 @@ pub mod configuration_service_server {
             }
         }
     }
-    impl<T: ConfigurationService> Clone for ConfigurationServiceServer<T> {
+    impl<T: FlowService> Clone for FlowServiceServer<T> {
         fn clone(&self) -> Self {
             let inner = self.inner.clone();
             Self {
@@ -580,8 +574,7 @@ pub mod configuration_service_server {
             }
         }
     }
-    impl<T: ConfigurationService> tonic::server::NamedService
-    for ConfigurationServiceServer<T> {
-        const NAME: &'static str = "ConfigurationService";
+    impl<T: FlowService> tonic::server::NamedService for FlowServiceServer<T> {
+        const NAME: &'static str = "FlowService";
     }
 }
