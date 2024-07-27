@@ -26,23 +26,38 @@ impl FlowService {
         }
     }
 
-    pub async fn delete_flow(&self, configuration_id: i64, flows: Vec<Flow>) {
+    pub async fn send_get_flow_request(&self) -> Request<FlowGetRequest> {
         let mut connection = self.connection_arc.lock().await;
 
-        for flow in flows {
-            let id = format!("{}:{}", configuration_id, flow.flow_id);
-            connection.del(id);
+        let string_keys: Vec<String> = connection.keys("*").await.expect("Failed to fetch keys");
+        let int_keys: Vec<i64> = Vec::new();
+
+        for key in string_keys {
+            if let Ok(int_key) = key.parse::<i64>() {
+                int_key.add(int_key);
+            }
         }
+
+        return Request::new(FlowGetRequest {
+            flow_ids: int_keys
+        });
     }
 
-    pub async fn get_flows(&self, client: &mut ConfigurationServiceClient<Configuration>) {
+    pub async fn handle_get_flow_request(&self, update_flows: Vec<Flow>, deleted_flow_ids: Vec<i64>) {
         let mut connection = self.connection_arc.lock().await;
 
-        let request = Request::new(GetConfigurationRequest {
-            configuration_id: 91
-        });
+        connection.del(deleted_flow_ids);
 
-        let response = ConfigurationServiceClient::get(client, request).await;
-        //TODO: store recieved flows into Redis
+        for flow in update_flows {
+            let serialized_flow = serde_json::to_string(&flow);
+
+            match serialized_flow {
+                Ok(value) => {
+                    connection.set(flow.flow_id.to_string(), value);
+                }
+
+                Err(_) => continue
+            }
+        }
     }
 }
