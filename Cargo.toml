@@ -4,7 +4,7 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-redis = { version = "0.25.4", features = ["async-std", "tokio", "aio"] }
+redis = { version = "0.26.0", features = ["async-std", "tokio", "aio"] }
 tonic = "0.12.1"
 prost = { version = "0.13.1" }
 tokio = "1.39"
