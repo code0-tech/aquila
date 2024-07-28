@@ -53,24 +53,39 @@ impl FlowClient {
         self.handle_get_flow_request(
             response.updated_flows,
             response.deleted_flow_ids,
-        )
+        ).await;
     }
 
     pub async fn handle_get_flow_request(&self, update_flows: Vec<Flow>, deleted_flow_ids: Vec<i64>) {
         let mut connection = self.connection_arc.lock().await;
-
-        connection.del(deleted_flow_ids);
+        
+        //todo look over RV generic on redis actions
+        connection.del::<Vec<i64>, i64>(deleted_flow_ids);
 
         for flow in update_flows {
             let serialized_flow = serde_json::to_string(&flow);
 
             match serialized_flow {
                 Ok(value) => {
-                    connection.set(flow.flow_id.to_string(), value);
+                    connection.set::<String, String, i64>(flow.flow_id.to_string(), value);
                 }
 
                 Err(_) => continue
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    
+    #[tokio::test]
+    async fn test_send_get_flow_request() {
+        todo!()
+    }
+    
+    #[tokio::test]
+    async fn test_handle_get_flow_request() {
+        todo!()
     }
 }
