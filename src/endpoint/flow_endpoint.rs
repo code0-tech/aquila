@@ -19,41 +19,32 @@ impl FlowEndpoint {
     pub async fn update_flow(&self, flow: Flow) -> Result<Response<FlowUpdateResponse>, Status> {
         let mut connection = self.connection_arc.lock().await;
 
-        let id = flow.flow_id.to_string();
+        let id = &flow.flow_id.to_string();
 
         let serialized_flow = match serde_json::to_string(&flow) {
             Ok(result) => result,
-            Err(error) => return Err(Status::internal(format!("Flow with id: {} wasn't serili because: {}", id, error)))
+            Err(error) => return Err(Status::internal(format!("Flow with id: {} wasn't serialized because: {}", id, error)))
         };
-
-        let operation = connection.set(id, serialized_flow);
-
-        let has_changed = match operation.await
-        {
-            Ok(result) => result,
-            Err(error) => return Err(Status::internal(format!("Flow with id: {} wasn't updated because: {}", id, error)))
-        };
-
-        return Ok(Response::new(FlowUpdateResponse {
-            success: has_changed == "1"
-        }));
+        
+        let operation = connection.set(id.to_string(), serialized_flow);
+        
+        match operation.await { 
+            Ok(success) => Ok(Response::new(FlowUpdateResponse { success })),
+            Err(err) => Err(Status::internal(format!("Flow with id: {} wasn't updated because: {}", id, err)))
+        }
     }
 
     pub async fn delete_flow(&self, flow_id: i64) -> Result<Response<FlowDeleteResponse>, Status> {
         let mut connection = self.connection_arc.lock().await;
 
-        let id = flow_id.to_string();
+        let id = &flow_id.to_string();
 
         let operation: RedisFuture<String> = connection.del(id);
-
-        let has_changed = match operation.await {
-            Ok(result) => result,
-            Err(error) => return Err(Status::internal(format!("Flow with id: {} wasn't deleted because: {}", id, error)))
-        };
-
-        return Ok(Response::new(FlowDeleteResponse {
-            success: has_changed == "1"
-        }));
+        
+        match operation.await {
+            Ok(success_str) => Ok(Response::new(FlowDeleteResponse { success: success_str.eq("1") })),
+            Err(err) => Err(Status::internal(format!("Flow with id: {} wasn't deleted because: {}", id, err)))
+        }
     }
 }
 
@@ -67,5 +58,14 @@ impl FlowAquilaService for FlowEndpoint {
     async fn delete(&self, request: Request<FlowDeleteRequest>) -> Result<Response<FlowDeleteResponse>, Status> {
         let req = request.into_inner();
         self.delete_flow(req.flow_id).await
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    
+    #[tokio::test]
+    async fn test_update_flow() {
+        todo!()
     }
 }
