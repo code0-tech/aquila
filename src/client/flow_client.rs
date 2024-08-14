@@ -5,8 +5,8 @@ use redis::AsyncCommands;
 use tokio::sync::Mutex;
 use tonic::Request;
 use tonic::transport::Channel;
-use crate::endpoint::configuration_endpoint::{Flow, FlowGetRequest};
-use crate::endpoint::configuration_endpoint::flow_sagittarius_service_client::FlowSagittariusServiceClient;
+use tucana_internal::internal::flow_sagittarius_service_client::FlowSagittariusServiceClient;
+use tucana_internal::internal::{Flow, FlowGetRequest};
 
 pub struct FlowClient {
     connection_arc: Arc<Mutex<Box<MultiplexedConnection>>>,

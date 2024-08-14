@@ -3,8 +3,8 @@ use redis::aio::MultiplexedConnection;
 use redis::{AsyncCommands, RedisFuture};
 use tokio::sync::Mutex;
 use tonic::{Request, Response, Status};
-use crate::endpoint::configuration_endpoint::{Flow, FlowDeleteRequest, FlowDeleteResponse, FlowUpdateRequest, FlowUpdateResponse};
-use crate::endpoint::configuration_endpoint::flow_aquila_service_server::FlowAquilaService;
+use tucana_internal::internal::{Flow, FlowDeleteRequest, FlowDeleteResponse, FlowUpdateRequest, FlowUpdateResponse};
+use tucana_internal::internal::flow_aquila_service_server::FlowAquilaService;
 
 pub struct FlowEndpoint {
     connection_arc: Arc<Mutex<Box<MultiplexedConnection>>>,
