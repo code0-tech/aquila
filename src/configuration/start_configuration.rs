@@ -52,13 +52,48 @@ pub async fn init_client(connection_arc: Arc<Mutex<Box<MultiplexedConnection>>>)
     let schedule_interval = get_env_with_default("UPDATE_SCHEDULE_INTERVAL", 0);
     let mut scheduler = AsyncScheduler::new();
 
-    todo!("Work on the shit below");
-    /*
-    scheduler.every(schedule_interval.seconds()).run(move || {
-        async {
-            let flw = flow_client_arc.lock().await;
-            //flow_client.send_get_flow_request().await;
+        todo!("Work on the shit below");
+        /*
+        scheduler.every(schedule_interval.seconds()).run(move || {
+            async {
+                let flw = flow_client_arc.lock().await;
+                //flow_client.send_get_flow_request().await;
+            }
+        });
+        */
+    }
+
+    pub async fn init_json(mut self) {
+        let has_grpc = get_env_with_default("ENABLE_GRPC_UPDATE", false);
+        let has_endpoint = get_env_with_default("ENABLE_SCHEDULED_UPDATE", false);
+
+        if has_grpc && has_endpoint {
+            return;
         }
-    });
-    */
+
+        let mut data = String::new();
+        let mut file = File::open("./configuration/configuration.json").unwrap_or_else(|err| {
+            panic!("Cannot find file {err}")
+        });
+
+        file.read_to_string(&mut data).expect("TODO: panic message");
+        let flows: Vec<Flow> = serde_json::from_str(&data).expect("Failed to parse JSON to list of flows");
+
+        self.flow_client.insert_flows(flows).await;
+    }
+}
+
+fn get_env_with_default<T>(name: &str, default: T) -> T
+where
+    T: FromStr,
+{
+    let env_variable = match std::env::var(name) {
+        Ok(env) => env,
+        Err(find_error) => {
+            error!("Env. Variable {name} wasn't found. Reason: {find_error}");
+            return default;
+        }
+    };
+
+    env_variable.parse::<T>().unwrap_or_else(|_| default)
 }
