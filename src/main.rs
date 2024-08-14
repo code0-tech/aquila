@@ -1,18 +1,9 @@
 extern crate core;
 
-use std::str::FromStr;
-use tokio::sync::Mutex;
-use std::sync::{Arc};
-use ::redis::aio::MultiplexedConnection;
-use clokwerk::{AsyncScheduler};
-use log::{error, info};
-use tonic::transport::Server;
-use tucana_internal::internal::flow_aquila_service_server::FlowAquilaServiceServer;
-use tucana_internal::internal::flow_sagittarius_service_client::FlowSagittariusServiceClient;
-use crate::client::flow_client::FlowClient;
-use crate::configuration::configuration::{init_client, init_endpoints};
-use crate::endpoint::flow_endpoint::FlowEndpoint;
+use crate::configuration::start_configuration::{init_client, init_endpoints, init_json, StartConfiguration};
 use crate::redis::build_connection;
+use std::sync::Arc;
+use tokio::sync::Mutex;
 
 mod client;
 mod endpoint;
@@ -27,7 +18,9 @@ async fn main() {
     let client = build_connection();
     let con = client.get_multiplexed_async_connection().await.unwrap();
     let connection = Arc::new(Mutex::new(Box::new(con)));
-
+    
+    let configuration = StartConfiguration::
     init_endpoints(connection.clone()).await;
-    init_client(connection).await;
+    init_client(connection.clone()).await;
+    init_json(connection).await;
 }
