@@ -1,6 +1,4 @@
-extern crate core;
-
-use crate::configuration::start_configuration::{init_client, init_endpoints, init_json, StartConfiguration};
+use crate::configuration::start_configuration::StartConfiguration;
 use crate::redis::build_connection;
 use std::sync::Arc;
 use tokio::sync::Mutex;
@@ -18,9 +16,9 @@ async fn main() {
     let client = build_connection();
     let con = client.get_multiplexed_async_connection().await.unwrap();
     let connection = Arc::new(Mutex::new(Box::new(con)));
-    
-    let configuration = StartConfiguration::
-    init_endpoints(connection.clone()).await;
-    init_client(connection.clone()).await;
-    init_json(connection).await;
+
+    let mut configuration = StartConfiguration::new(connection).await;
+    configuration.init_endpoints().await;
+    configuration.init_client().await;
+    configuration.init_json().await;
 }

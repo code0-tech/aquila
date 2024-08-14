@@ -1,8 +1,9 @@
+use core::task;
 use std::fs::File;
 use std::io::Read;
 use std::str::FromStr;
 use std::sync::Arc;
-use clokwerk::AsyncScheduler;
+use clokwerk::{AsyncScheduler, TimeUnits};
 use log::{error, info};
 use redis::aio::MultiplexedConnection;
 use tokio::sync::Mutex;
@@ -15,11 +16,10 @@ use crate::endpoint::flow_endpoint::FlowEndpoint;
 
 pub struct StartConfiguration {
     connection_arc: Arc<Mutex<Box<MultiplexedConnection>>>,
-    flow_client: FlowClient
+    flow_client: FlowClient,
 }
 
 impl StartConfiguration {
-
     pub async fn new(connection_arc: Arc<Mutex<Box<MultiplexedConnection>>>) -> Self {
         let client = match FlowSagittariusServiceClient::connect("https://[::1]:50051").await {
             Ok(res) => res,
@@ -28,12 +28,12 @@ impl StartConfiguration {
             }
         };
 
-        let flow_client = FlowClient::new(connection_arc.clone(), client).await;  
+        let flow_client = FlowClient::new(connection_arc.clone(), client).await;
         Self { connection_arc, flow_client }
     }
 
 
-    pub async fn init_endpoints(&self, connection_arc: Arc<Mutex<Box<MultiplexedConnection>>>) {
+    pub async fn init_endpoints(&self) {
         let has_grpc_enabled = get_env_with_default("ENABLE_GRPC_UPDATE", false);
 
         if !has_grpc_enabled {
@@ -41,7 +41,7 @@ impl StartConfiguration {
         }
 
         let addr = "[::1]:50051".parse().unwrap();
-        let service = FlowEndpoint::new(connection_arc);
+        let service = FlowEndpoint::new(self.connection_arc.clone());
 
         let server = Server::builder()
             .add_service(FlowAquilaServiceServer::new(service))
@@ -64,15 +64,19 @@ impl StartConfiguration {
         let schedule_interval = get_env_with_default("UPDATE_SCHEDULE_INTERVAL", 0);
         let mut scheduler = AsyncScheduler::new();
 
-        todo!("Work on the shit below");
-        /*
-        scheduler.every(schedule_interval.seconds()).run(move || {
-            async {
-                let flw = flow_client_arc.lock().await;
-                //flow_client.send_get_flow_request().await;
-            }
-        });
-        */
+        let flow_client_arc = Arc::new(Mutex::new(self.flow_client.clone()));
+
+        scheduler
+            .every(schedule_interval.seconds())
+            .run(move ||  { 
+                let local_flow_client = flow_client_arc.clone();
+                
+                async move {
+                    let mut current_flow_client = local_flow_client.lock().await;
+                    current_flow_client.send_get_flow_request().await
+                }
+            });
+            
     }
 
     pub async fn init_json(mut self) {
@@ -84,11 +88,9 @@ impl StartConfiguration {
         }
 
         let mut data = String::new();
-        let mut file = File::open("./configuration/configuration.json").unwrap_or_else(|err| {
-            panic!("Cannot find file {err}")
-        });
-
-        file.read_to_string(&mut data).expect("TODO: panic message");
+        let mut file = File::open("./configuration/configuration.json").expect("Cannot open file");
+        
+        file.read_to_string(&mut data).expect("Cannot read file");
         let flows: Vec<Flow> = serde_json::from_str(&data).expect("Failed to parse JSON to list of flows");
 
         self.flow_client.insert_flows(flows).await;

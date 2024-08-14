@@ -8,6 +8,7 @@ use tonic::transport::Channel;
 use tucana_internal::internal::flow_sagittarius_service_client::FlowSagittariusServiceClient;
 use tucana_internal::internal::{Flow, FlowGetRequest};
 
+#[derive(Clone)]
 pub struct FlowClient {
     connection_arc: Arc<Mutex<Box<MultiplexedConnection>>>,
     client: FlowSagittariusServiceClient<Channel>,
