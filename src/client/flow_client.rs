@@ -5,9 +5,10 @@ use redis::AsyncCommands;
 use tokio::sync::Mutex;
 use tonic::Request;
 use tonic::transport::Channel;
-use crate::endpoint::configuration_endpoint::{Flow, FlowGetRequest};
-use crate::endpoint::configuration_endpoint::flow_sagittarius_service_client::FlowSagittariusServiceClient;
+use tucana_internal::internal::flow_sagittarius_service_client::FlowSagittariusServiceClient;
+use tucana_internal::internal::{Flow, FlowGetRequest};
 
+#[derive(Clone)]
 pub struct FlowClient {
     connection_arc: Arc<Mutex<Box<MultiplexedConnection>>>,
     client: FlowSagittariusServiceClient<Channel>,
@@ -19,6 +20,22 @@ impl FlowClient {
         Self { connection_arc, client }
     }
 
+    pub async fn insert_flows(&mut self, flows: Vec<Flow>) {
+        let mut connection = self.connection_arc.lock().await;
+    
+        for flow in flows {
+            
+            let serialized_flow = serde_json::to_string(&flow);
+            
+            match serialized_flow { 
+                Ok(parsed_flow) => {
+                    connection.set::<String, String, i64>(flow.flow_id.to_string(), parsed_flow);
+                },
+                Err(_) => continue
+            }
+        }
+    }
+    
     pub async fn send_get_flow_request(&mut self) {
         let mut connection = self.connection_arc.lock().await;
 
