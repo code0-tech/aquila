@@ -2,7 +2,7 @@ use std::sync::Arc;
 use redis::aio::MultiplexedConnection;
 use redis::{AsyncCommands, RedisFuture};
 use tokio::sync::Mutex;
-use tonic::{Request, Response, Status};
+use tonic::{async_trait, Request, Response, Status};
 use tucana_internal::internal::{Flow, FlowDeleteRequest, FlowDeleteResponse, FlowUpdateRequest, FlowUpdateResponse};
 use tucana_internal::internal::flow_aquila_service_server::FlowAquilaService;
 
@@ -48,6 +48,7 @@ impl FlowEndpoint {
     }
 }
 
+#[async_trait]
 impl FlowAquilaService for FlowEndpoint {
 
     async fn update(&self, request: Request<FlowUpdateRequest>) -> Result<Response<FlowUpdateResponse>, Status> {
