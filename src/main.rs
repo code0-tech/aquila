@@ -10,6 +10,13 @@ mod configuration;
 
 #[tokio::main]
 async fn main() {
+    
+    let result = dotenv::from_filename(".env");
+    match result {
+        Ok(_) => println!(".env file loaded successfully"),
+        Err(e) => eprintln!("Error loading .env file: {}", e),
+    }
+    
     json_env_logger2::init();
     json_env_logger2::panic_hook();
 

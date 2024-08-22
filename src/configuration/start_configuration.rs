@@ -1,4 +1,3 @@
-use core::task;
 use std::fs::File;
 use std::io::Read;
 use std::str::FromStr;
@@ -7,7 +6,7 @@ use clokwerk::{AsyncScheduler, TimeUnits};
 use log::{error, info};
 use redis::aio::MultiplexedConnection;
 use tokio::sync::Mutex;
-use tonic::transport::{Channel, Server};
+use tonic::transport::{Server};
 use tucana_internal::internal::Flow;
 use tucana_internal::internal::flow_aquila_service_server::FlowAquilaServiceServer;
 use tucana_internal::internal::flow_sagittarius_service_client::FlowSagittariusServiceClient;
