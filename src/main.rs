@@ -7,6 +7,7 @@ mod client;
 mod endpoint;
 mod redis;
 mod configuration;
+mod rabbitmq;
 
 #[tokio::main]
 async fn main() {
