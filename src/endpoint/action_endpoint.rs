@@ -9,7 +9,6 @@ pub struct ActionEndpoint {
 }
 
 impl ActionTransferService for ActionEndpoint {
-
     async fn transfer(&mut self, request: Request<Streaming<InformationRequest>>) -> Result<Response<InformationResponse>, Status> {
         let mut identifier_option: Option<String> = None;
         let mut stream = request.into_inner();

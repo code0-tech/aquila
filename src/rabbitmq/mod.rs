@@ -12,7 +12,7 @@ pub async fn init_rabbitmq() -> Arc<Mutex<Box<Environment>>> {
         .expect("Cannot get RabbitMQ password from .env");
 
     let port = get_env_with_default("RABBITMQ_PORT", 0);
-    
+
     Arc::new(Mutex::new(Box::new(connect(&host, port, &username, &password).await)))
 }
 

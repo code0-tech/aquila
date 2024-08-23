@@ -10,7 +10,6 @@ pub struct ActionClient {
 }
 
 impl ActionClient {
-
     pub async fn new() -> Self {
         let client = ActionServiceClient::connect("https://[::1]:50051")
             .await

@@ -11,7 +11,6 @@ pub struct FlowEndpoint {
 }
 
 impl FlowEndpoint {
-
     pub fn new(connection_arc: Arc<Mutex<Box<MultiplexedConnection>>>) -> Self {
         Self { connection_arc }
     }
@@ -25,10 +24,10 @@ impl FlowEndpoint {
             Ok(result) => result,
             Err(error) => return Err(Status::internal(format!("Flow with id: {} wasn't serialized because: {}", id, error)))
         };
-        
+
         let operation = connection.set(id.to_string(), serialized_flow);
-        
-        match operation.await { 
+
+        match operation.await {
             Ok(success) => Ok(Response::new(FlowUpdateResponse { success })),
             Err(err) => Err(Status::internal(format!("Flow with id: {} wasn't updated because: {}", id, err)))
         }
@@ -40,7 +39,7 @@ impl FlowEndpoint {
         let id = &flow_id.to_string();
 
         let operation: RedisFuture<String> = connection.del(id);
-        
+
         match operation.await {
             Ok(success_str) => Ok(Response::new(FlowDeleteResponse { success: success_str.eq("1") })),
             Err(err) => Err(Status::internal(format!("Flow with id: {} wasn't deleted because: {}", id, err)))
@@ -50,7 +49,6 @@ impl FlowEndpoint {
 
 #[async_trait]
 impl FlowAquilaService for FlowEndpoint {
-
     async fn update(&self, request: Request<FlowUpdateRequest>) -> Result<Response<FlowUpdateResponse>, Status> {
         let req = request.into_inner();
         self.update_flow(req.updated_flow.unwrap()).await
@@ -64,7 +62,6 @@ impl FlowAquilaService for FlowEndpoint {
 
 #[cfg(test)]
 mod tests {
-    
     #[tokio::test]
     async fn test_update_flow() {
         todo!()

@@ -15,27 +15,25 @@ pub struct FlowClient {
 }
 
 impl FlowClient {
-
     pub async fn new(connection_arc: Arc<Mutex<Box<MultiplexedConnection>>>, client: FlowSagittariusServiceClient<Channel>) -> Self {
         Self { connection_arc, client }
     }
 
     pub async fn insert_flows(&mut self, flows: Vec<Flow>) {
         let mut connection = self.connection_arc.lock().await;
-    
+
         for flow in flows {
-            
             let serialized_flow = serde_json::to_string(&flow);
-            
-            match serialized_flow { 
+
+            match serialized_flow {
                 Ok(parsed_flow) => {
                     connection.set::<String, String, i64>(flow.flow_id.to_string(), parsed_flow);
-                },
+                }
                 Err(_) => continue
             }
         }
     }
-    
+
     pub async fn send_get_flow_request(&mut self) {
         let mut connection = self.connection_arc.lock().await;
 
@@ -75,7 +73,7 @@ impl FlowClient {
 
     pub async fn handle_get_flow_request(&self, update_flows: Vec<Flow>, deleted_flow_ids: Vec<i64>) {
         let mut connection = self.connection_arc.lock().await;
-        
+
         //todo look over RV generic on redis actions
         connection.del::<Vec<i64>, i64>(deleted_flow_ids);
 
@@ -95,12 +93,11 @@ impl FlowClient {
 
 #[cfg(test)]
 mod tests {
-    
     #[tokio::test]
     async fn test_send_get_flow_request() {
         todo!()
     }
-    
+
     #[tokio::test]
     async fn test_handle_get_flow_request() {
         todo!()
