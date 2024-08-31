@@ -1401,9 +1401,9 @@ dependencies = [
 
 [[package]]
 name = "rabbitmq-stream-client"
-version = "0.4.4"
+version = "0.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "26db8c0eba34b3cfbb7eebe3cd661f3de34ec6e6ccecb1a4adfeebf4dd2d97ad"
+checksum = "8128d4e137384a90b705926c97acc76dfd983866e009167a96162b2f757d3bfe"
 dependencies = [
  "async-trait",
  "bytes",
@@ -1424,9 +1424,9 @@ dependencies = [
 
 [[package]]
 name = "rabbitmq-stream-protocol"
-version = "0.4.3"
+version = "0.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "618143b5c7af2535255838bc25444db6b12b8e70ad3d3b93aa6ef51423de1130"
+checksum = "410d6bbee10ce9a81ec3b66dce6d4eeb69e450f5e9000ff507952849bce935fa"
 dependencies = [
  "byteorder",
  "chrono",
@@ -2020,9 +2020,9 @@ checksum = "e421abadd41a4225275504ea4d6566923418b7f05506fbc9c0fe86ba7396114b"
 
 [[package]]
 name = "tucana-internal"
-version = "0.0.6"
+version = "0.0.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "af0b46c8d85f73715c886a291683579fb0cb3cdcf64735a442a40962346bb8f7"
+checksum = "5b88dea23048b0fdc81086c090672ecbc338604ab7807904257cac4fee0dbdbe"
 dependencies = [
  "prost",
  "prost-serde-derive",
