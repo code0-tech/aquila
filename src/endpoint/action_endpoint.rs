@@ -11,6 +11,13 @@ pub struct ActionEndpoint {
 }
 
 impl ActionEndpoint {
+
+    pub async fn new() -> Self {
+        let client = ActionClient::new().await;
+        let arc = Arc::new(Mutex::new(Box::new(client)));
+        Self { client_arc: arc }
+    }
+    
     async fn receive_transfer(&self, request: Request<Streaming<InformationRequest>>) -> Result<Response<InformationResponse>, Status> {
         let mut identifier_option: Option<String> = None;
         let mut stream = request.into_inner();

@@ -2,6 +2,7 @@ use crate::configuration::start_configuration::StartConfiguration;
 use crate::redis::build_connection;
 use std::sync::Arc;
 use tokio::sync::Mutex;
+use crate::endpoint::action_endpoint::ActionEndpoint;
 
 mod client;
 mod endpoint;
@@ -29,4 +30,6 @@ async fn main() {
     configuration.init_endpoints().await;
     configuration.init_client().await;
     configuration.init_json().await;
+    
+    ActionEndpoint::new().await;
 }
