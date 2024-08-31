@@ -7,7 +7,7 @@ edition = "2021"
 redis = { version = "0.26.0", features = ["async-std", "tokio", "aio", "tokio-comp", "async-std-comp"] }
 tonic = "0.12.1"
 prost = { version = "0.13.1" }
-tokio = { version = "1.39", features = ["rt-multi-thread"] }
+tokio = { version = "1.39", features = ["rt-multi-thread", "rt", "macros"] }
 futures = "0.3"
 prost-types = { version = "0.13.1" }
 serde = { version = "1.0", features = ["derive"] }
@@ -15,5 +15,6 @@ serde_json = { version = "1.0" }
 json_env_logger2 = "0.2"
 log = "0.4.22"
 clokwerk = { version = "0.4", features = ["async"] }
-tucana-internal = "0.0.6"
+tucana-internal = "0.0.8"
 dotenv = "0.15.0"
+rabbitmq-stream-client = "0.5.0"

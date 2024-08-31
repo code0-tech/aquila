@@ -1,17 +1,16 @@
 use std::fs::File;
 use std::io::Read;
-use std::str::FromStr;
 use std::sync::Arc;
 use clokwerk::{AsyncScheduler, TimeUnits};
-use log::{error, info};
 use redis::aio::MultiplexedConnection;
 use tokio::sync::Mutex;
-use tonic::transport::{Server};
+use tucana_internal::internal::action_service_client::ActionServiceClient;
 use tucana_internal::internal::Flow;
-use tucana_internal::internal::flow_aquila_service_server::FlowAquilaServiceServer;
-use tucana_internal::internal::flow_sagittarius_service_client::FlowSagittariusServiceClient;
+use tucana_internal::internal::flow_service_client::FlowServiceClient;
+use crate::client::action_client::ActionClient;
 use crate::client::flow_client::FlowClient;
-use crate::endpoint::flow_endpoint::FlowEndpoint;
+use crate::endpoint::action_endpoint::ActionEndpoint;
+use crate::env::environment::get_env_with_default;
 
 pub struct StartConfiguration {
     connection_arc: Arc<Mutex<Box<MultiplexedConnection>>>,
@@ -20,7 +19,7 @@ pub struct StartConfiguration {
 
 impl StartConfiguration {
     pub async fn new(connection_arc: Arc<Mutex<Box<MultiplexedConnection>>>) -> Self {
-        let client = match FlowSagittariusServiceClient::connect("https://[::1]:50051").await {
+        let client = match FlowServiceClient::connect("https://[::1]:50051").await {
             Ok(res) => res,
             Err(start_error) => {
                 panic!("Can't start client {start_error}");
@@ -39,17 +38,15 @@ impl StartConfiguration {
             return;
         }
 
-        let addr = "[::1]:50051".parse().unwrap();
-        let service = FlowEndpoint::new(self.connection_arc.clone());
+        let client = match FlowServiceClient::connect("https://[::1]:50051").await {
+            Ok(res) => res,
+            Err(start_error) => {
+                panic!("Can't start client {start_error}");
+            }
+        };
 
-        let server = Server::builder()
-            .add_service(FlowAquilaServiceServer::new(service))
-            .serve(addr).await;
-
-        match server {
-            Ok(_) => info!("Started Flow-Endpoint"),
-            Err(server_error) => error!("Can't start Flow-Endpoint {server_error}")
-        }
+        let mut flow_client = FlowClient::new(self.connection_arc.clone(), client).await;
+        flow_client.logon().await
     }
 
     pub async fn init_client(&mut self) {
@@ -67,15 +64,14 @@ impl StartConfiguration {
 
         scheduler
             .every(schedule_interval.seconds())
-            .run(move ||  { 
+            .run(move || {
                 let local_flow_client = flow_client_arc.clone();
-                
+
                 async move {
                     let mut current_flow_client = local_flow_client.lock().await;
                     current_flow_client.send_get_flow_request().await
                 }
             });
-            
     }
 
     pub async fn init_json(mut self) {
@@ -88,25 +84,10 @@ impl StartConfiguration {
 
         let mut data = String::new();
         let mut file = File::open("./configuration/configuration.json").expect("Cannot open file");
-        
+
         file.read_to_string(&mut data).expect("Cannot read file");
         let flows: Vec<Flow> = serde_json::from_str(&data).expect("Failed to parse JSON to list of flows");
 
         self.flow_client.insert_flows(flows).await;
     }
-}
-
-fn get_env_with_default<T>(name: &str, default: T) -> T
-where
-    T: FromStr,
-{
-    let env_variable = match std::env::var(name) {
-        Ok(env) => env,
-        Err(find_error) => {
-            error!("Env. Variable {name} wasn't found. Reason: {find_error}");
-            return default;
-        }
-    };
-
-    env_variable.parse::<T>().unwrap_or_else(|_| default)
 }
