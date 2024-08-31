@@ -1,9 +1,9 @@
 use log::error;
 use tonic::{Request};
 use tonic::transport::Channel;
-use crate::external::external::{ActionLogoffRequest, ActionLogonRequest, InformationRequest};
-use crate::external::external::action_service_client::ActionServiceClient;
-use crate::external::external::action_service_server::ActionService;
+use tucana_internal::actions::InformationRequest;
+use tucana_internal::internal::action_service_client::ActionServiceClient;
+use tucana_internal::internal::{ActionLogoffRequest, ActionLogonRequest};
 
 pub struct ActionClient {
     client: ActionServiceClient<Channel>,
@@ -25,22 +25,24 @@ impl ActionClient {
             parameter_definition: information.parameter_definition,
         });
 
-        match self.client.logon(request) {
-            Err(err) => {
+        match self.client.logon(request).await {
+            Err(_) => {
                 error!("Failed to send logon request");
-            }
+            },
+            Ok(_) => {}
         };
     }
 
-    pub fn logoff(&mut self, identifier: String) {
+    pub async fn logoff(&mut self, identifier: String) {
         let request = Request::new(ActionLogoffRequest {
             identifier
         });
 
-        match self.client.logoff(request) {
-            Err(err) => {
+        match self.client.logoff(request).await {
+            Err(_) => {
                 error!("Failed to send logoff request");
-            }
+            },
+            Ok(_) => {}
         };
     }
 }
