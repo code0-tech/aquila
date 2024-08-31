@@ -10,8 +10,6 @@ mod configuration;
 mod rabbitmq;
 mod env;
 
-pub mod external;
-
 #[tokio::main]
 async fn main() {
     let result = dotenv::from_filename(".env");
