@@ -2,15 +2,11 @@ use std::fs::File;
 use std::io::Read;
 use std::sync::Arc;
 use clokwerk::{AsyncScheduler, TimeUnits};
-use log::{error, info};
 use redis::aio::MultiplexedConnection;
 use tokio::sync::Mutex;
-use tonic::transport::{Server};
 use tucana_internal::internal::Flow;
-use tucana_internal::internal::flow_aquila_service_server::FlowAquilaServiceServer;
-use tucana_internal::internal::flow_sagittarius_service_client::FlowSagittariusServiceClient;
+use tucana_internal::internal::flow_service_client::FlowServiceClient;
 use crate::client::flow_client::FlowClient;
-use crate::endpoint::flow_endpoint::FlowEndpoint;
 use crate::env::environment::get_env_with_default;
 
 pub struct StartConfiguration {
@@ -20,7 +16,7 @@ pub struct StartConfiguration {
 
 impl StartConfiguration {
     pub async fn new(connection_arc: Arc<Mutex<Box<MultiplexedConnection>>>) -> Self {
-        let client = match FlowSagittariusServiceClient::connect("https://[::1]:50051").await {
+        let client = match FlowServiceClient::connect("https://[::1]:50051").await {
             Ok(res) => res,
             Err(start_error) => {
                 panic!("Can't start client {start_error}");
@@ -39,17 +35,15 @@ impl StartConfiguration {
             return;
         }
 
-        let addr = "[::1]:50051".parse().unwrap();
-        let service = FlowEndpoint::new(self.connection_arc.clone());
+        let client = match FlowServiceClient::connect("https://[::1]:50051").await {
+            Ok(res) => res,
+            Err(start_error) => {
+                panic!("Can't start client {start_error}");
+            }
+        };
 
-        let server = Server::builder()
-            .add_service(FlowAquilaServiceServer::new(service))
-            .serve(addr).await;
-
-        match server {
-            Ok(_) => info!("Started Flow-Endpoint"),
-            Err(server_error) => error!("Can't start Flow-Endpoint {server_error}")
-        }
+        let mut flow_client = FlowClient::new(self.connection_arc.clone(), client).await;
+        flow_client.logon().await
     }
 
     pub async fn init_client(&mut self) {
