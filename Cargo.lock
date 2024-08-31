@@ -1693,9 +1693,9 @@ checksum = "e421abadd41a4225275504ea4d6566923418b7f05506fbc9c0fe86ba7396114b"
 
 [[package]]
 name = "tucana-internal"
-version = "0.0.6"
+version = "0.0.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "af0b46c8d85f73715c886a291683579fb0cb3cdcf64735a442a40962346bb8f7"
+checksum = "5b88dea23048b0fdc81086c090672ecbc338604ab7807904257cac4fee0dbdbe"
 dependencies = [
  "prost",
  "prost-serde-derive",
