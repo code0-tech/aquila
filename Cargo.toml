@@ -18,3 +18,4 @@ clokwerk = { version = "0.4", features = ["async"] }
 tucana-internal = "0.0.8"
 dotenv = "0.15.0"
 rabbitmq-stream-client = "0.5.0"
+thiserror = "1.0.63"
