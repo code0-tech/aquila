@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   app:
     build:
@@ -18,5 +16,15 @@ services:
       - redis_data:/data
     command: redis-server --appendonly yes
 
+  redisinsight:
+    image: redis/redisinsight:latest
+    ports:
+      - "5540:5540"
+    depends_on:
+      - redis
+    environment:
+      - INSIGHT_REDIS_HOST=redis
+      - INSIGHT_REDIS_PORT=6379
 volumes:
   redis_data:
+  redisinsight_data:
