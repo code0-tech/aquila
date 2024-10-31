@@ -1004,6 +1004,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "defc4c55412d89136f966bbb339008b474350e5e6e78d2714439c386b3137a03"
 
 [[package]]
+name = "murmur3"
+version = "0.5.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9252111cf132ba0929b6f8e030cac2a24b507f3a4d6db6fb2896f27b354c714b"
+
+[[package]]
 name = "num-bigint"
 version = "0.4.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1293,14 +1299,15 @@ dependencies = [
 
 [[package]]
 name = "rabbitmq-stream-client"
-version = "0.5.0"
+version = "0.6.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8128d4e137384a90b705926c97acc76dfd983866e009167a96162b2f757d3bfe"
+checksum = "5593cbaf327ac4519ed52dd8e65cbe1ae200702fb18c92d07cd4e1006965fcbc"
 dependencies = [
  "async-trait",
  "bytes",
  "dashmap",
  "futures",
+ "murmur3",
  "pin-project",
  "rabbitmq-stream-protocol",
  "rand",
@@ -1316,9 +1323,9 @@ dependencies = [
 
 [[package]]
 name = "rabbitmq-stream-protocol"
-version = "0.5.0"
+version = "0.6.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "410d6bbee10ce9a81ec3b66dce6d4eeb69e450f5e9000ff507952849bce935fa"
+checksum = "9d246a874fc1a30cf07d2a82835c2534acae424a6f9f650db79bf766031abb24"
 dependencies = [
  "byteorder",
  "chrono",
