@@ -8,7 +8,7 @@ pub struct Config {
     pub environment: Environment,
     pub redis_url: String,
     pub enable_scheduled_update: bool,
-    pub update_schedule_interval: i64,
+    pub update_schedule_interval: u32,
     pub enable_grpc_update: bool,
     pub session_token: String,
     pub backend_url: String,
@@ -29,7 +29,7 @@ impl Config {
             environment: Self::get_environment("ENVIRONMENT", "development"),
             redis_url: Self::get_string("REDIS_URL", "redis://redis:6379"),
             enable_scheduled_update: Self::get_bool("ENABLE_SCHEDULED_UPDATE", false),
-            update_schedule_interval: Self::get_i64("UPDATE_SCHEDULE_INTERVAL", 3600),
+            update_schedule_interval: Self::get_u32("UPDATE_SCHEDULE_INTERVAL", 3600),
             enable_grpc_update: Self::get_bool("ENABLE_GRPC_UPDATE", false),
             session_token: Self::get_string("SESSION_TOKEN", "default_session_token"),
             backend_url: Self::get_string("BACKEND_URL", "http://localhost:8080"),
@@ -61,8 +61,7 @@ impl Config {
     fn get_bool(key: &str, default: bool) -> bool {
         Self::get_env_with_default(key, default)
     }
-
-    fn get_i64(key: &str, default: i64) -> i64 {
+    fn get_u32(key: &str, default: u32) -> u32 {
         Self::get_env_with_default(key, default)
     }
 
@@ -93,7 +92,7 @@ impl Config {
                 default
             }
         };
-        
+
         info!("Env. variable {} was set to the value: {:?}", name, result);
         result
     }

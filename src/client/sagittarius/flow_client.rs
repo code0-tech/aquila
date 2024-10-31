@@ -13,6 +13,7 @@ use crate::service::flow_service::{FlowService, FlowServiceBase};
 const INSERT: i32 = FlowCommandType::Insert as i32;
 const DELETE: i32 = FlowCommandType::Delete as i32;
 
+#[derive(Clone)]
 pub struct SagittariusFlowClientBase {
     flow_service: Arc<Mutex<FlowServiceBase>>,
     client: FlowServiceClient<Channel>,

@@ -17,7 +17,7 @@ pub trait FlowService {
     async fn insert_flows(&mut self, flows: Vec<Flow>);
     async fn delete_flow(&mut self, flow_id: i64);
     async fn delete_flows(&mut self, flow_ids: Vec<i64>);
-    async fn get_all_flow_ids(&mut self) -> Result<Vec<String>, RedisError>;
+    async fn get_all_flow_ids(&mut self) -> Result<Vec<i64>, RedisError>;
 }
 
 #[async_trait]
@@ -62,12 +62,24 @@ impl FlowService for FlowServiceBase {
     }
 
     
-    async fn get_all_flow_ids(&mut self) -> Result<Vec<String>, RedisError> {
+    async fn get_all_flow_ids(&mut self) -> Result<Vec<i64>, RedisError> {
         let mut connection = self.redis_client_arc.lock().await;
+        
+        let string_keys: Vec<String> = {
+            match connection.keys("*").await {
+                Ok(res) => res,
+                Err(error) => {
+                    print!("Can't retrieve keys from redis. Reason: {error}");
+                    return Err(error)
+                }
+            }
+        };
 
-        match connection.keys("*").await {
-            Ok(res) => Ok(res),
-            Err(error) => Err(error)
-        }
+        let int_keys: Vec<i64> = string_keys
+            .into_iter()
+            .filter_map(|key| key.parse::<i64>().ok())
+            .collect();
+        
+        Ok(int_keys)
     }
 }
