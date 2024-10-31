@@ -1,0 +1,52 @@
+[
+  {
+    "flow_id": 1,
+    "start_node": {
+      "definition": {
+        "id": "function_1"
+      },
+      "next_node": {
+        "definition": {
+          "id": "function_2"
+        },
+        "next_node": null,
+        "parameters": [
+          {
+            "definition": {
+              "name": "param1"
+            },
+            "value": "value1",
+            "sub_node": null
+          }
+        ]
+      },
+      "parameters": []
+    },
+    "definition": {}
+  },
+  {
+    "flow_id": 2,
+    "start_node": {
+      "definition": {
+        "id": "function_3"
+      },
+      "next_node": null,
+      "parameters": [
+        {
+          "definition": {
+            "name": "param2"
+          },
+          "value": "value2",
+          "sub_node": {
+            "definition": {
+              "id": "function_4"
+            },
+            "next_node": null,
+            "parameters": []
+          }
+        }
+      ]
+    },
+    "definition": {}
+  }
+]

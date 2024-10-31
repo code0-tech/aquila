@@ -1,93 +1,78 @@
 use std::fs::File;
 use std::io::Read;
 use std::sync::Arc;
+use std::time::Duration;
+use async_trait::async_trait;
 use clokwerk::{AsyncScheduler, TimeUnits};
+use clokwerk::Interval::Seconds;
+use log::{error, info};
 use redis::aio::MultiplexedConnection;
 use tokio::sync::Mutex;
-use tucana_internal::internal::action_service_client::ActionServiceClient;
-use tucana_internal::internal::Flow;
-use tucana_internal::internal::flow_service_client::FlowServiceClient;
-use crate::client::action_client::ActionClient;
-use crate::client::flow_client::FlowClient;
-use crate::endpoint::action_endpoint::ActionEndpoint;
-use crate::env::environment::get_env_with_default;
+use tokio::time::Interval;
+use tucana_internal::sagittarius::Flow;
+use tucana_internal::sagittarius::flow_service_client::FlowServiceClient;
+use crate::client::sagittarius::flow_client::{SagittariusFlowClient, SagittariusFlowClientBase};
+use crate::configuration::config::Config;
+use crate::service::flow_service::{FlowService, FlowServiceBase};
 
-pub struct StartConfiguration {
+pub struct StartConfigurationBase {
     connection_arc: Arc<Mutex<Box<MultiplexedConnection>>>,
-    flow_client: FlowClient,
+    config: Config,
 }
 
-impl StartConfiguration {
-    pub async fn new(connection_arc: Arc<Mutex<Box<MultiplexedConnection>>>) -> Self {
-        let client = match FlowServiceClient::connect("https://[::1]:50051").await {
-            Ok(res) => res,
-            Err(start_error) => {
-                panic!("Can't start client {start_error}");
-            }
-        };
+#[async_trait]
+pub trait StartConfiguration {
+    async fn new(connection_arc: Arc<Mutex<Box<MultiplexedConnection>>>, config: Config) -> StartConfigurationBase;
+    async fn init_flows_from_sagittarius(&mut self);
+    async fn init_flows_from_json(mut self);
+}
 
-        let flow_client = FlowClient::new(connection_arc.clone(), client).await;
-        Self { connection_arc, flow_client }
+#[async_trait]
+impl StartConfiguration for StartConfigurationBase {
+    async fn new(connection_arc: Arc<Mutex<Box<MultiplexedConnection>>>, config: Config) -> StartConfigurationBase {
+        StartConfigurationBase { connection_arc, config }
     }
 
+    async fn init_flows_from_sagittarius(&mut self) {
+        let flow_service = FlowServiceBase::new(self.connection_arc.clone()).await;
+        let flow_service_arc = Arc::new(Mutex::new(flow_service));
+        let mut sagittarius_client = SagittariusFlowClientBase::new(self.config.backend_url.clone(), flow_service_arc).await;
 
-    pub async fn init_endpoints(&self) {
-        let has_grpc_enabled = get_env_with_default("ENABLE_GRPC_UPDATE", false);
-
-        if !has_grpc_enabled {
+        if !self.config.enable_scheduled_update {
+            info!("Receiving flows from sagittarius once");
+            sagittarius_client.send_start_request().await;
             return;
         }
 
-        let client = match FlowServiceClient::connect("https://[::1]:50051").await {
-            Ok(res) => res,
-            Err(start_error) => {
-                panic!("Can't start client {start_error}");
-            }
-        };
-
-        let mut flow_client = FlowClient::new(self.connection_arc.clone(), client).await;
-        flow_client.logon().await
-    }
-
-    pub async fn init_client(&mut self) {
-        let has_scheduled_enabled = get_env_with_default("ENABLE_SCHEDULED_UPDATE", false);
-
-        if !has_scheduled_enabled {
-            self.flow_client.send_get_flow_request().await;
-            return;
-        }
-
-        let schedule_interval = get_env_with_default("UPDATE_SCHEDULE_INTERVAL", 0);
+        info!("Receiving flows from sagittarius on a scheduled basis");
+        let schedule_interval = self.config.update_schedule_interval;
         let mut scheduler = AsyncScheduler::new();
 
-        let flow_client_arc = Arc::new(Mutex::new(self.flow_client.clone()));
-
         scheduler
-            .every(schedule_interval.seconds())
+            .every(Seconds(schedule_interval))
             .run(move || {
-                let local_flow_client = flow_client_arc.clone();
+                let local_flow_client = Arc::new(Mutex::new(sagittarius_client.clone()));
 
                 async move {
                     let mut current_flow_client = local_flow_client.lock().await;
-                    current_flow_client.send_get_flow_request().await
+                    current_flow_client.send_start_request().await
                 }
             });
     }
 
-    pub async fn init_json(mut self) {
-        let has_grpc = get_env_with_default("ENABLE_GRPC_UPDATE", false);
-        let has_endpoint = get_env_with_default("ENABLE_SCHEDULED_UPDATE", false);
-
-        if has_grpc && has_endpoint {
+    async fn init_flows_from_json(mut self) {
+        if self.config.enable_grpc_update || self.config.enable_scheduled_update {
             return;
         }
 
+        let mut flow_service = FlowServiceBase::new(self.connection_arc).await;
         let mut data = String::new();
-        let mut file = File::open("./configuration/configuration.json").expect("Cannot open file");
+        let mut file = File::open("configuration/configuration.json").expect("Cannot open file");
 
         file.read_to_string(&mut data).expect("Cannot read file");
         let flows: Vec<Flow> = serde_json::from_str(&data).expect("Failed to parse JSON to list of flows");
-
-        self.flow_client.insert_flows(flows).await;
+       
+        info!("Loaded {} Flows!", &flows.len());
+        flow_service.insert_flows(flows).await;
     }
 }
