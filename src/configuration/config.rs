@@ -1,6 +1,7 @@
 use std::env;
+use std::fmt::{Debug, Display};
 use std::str::FromStr;
-use log::{error, info};
+use log::{error, info, log};
 use crate::configuration::environment::Environment;
 
 pub struct Config {
@@ -68,10 +69,12 @@ impl Config {
     pub fn get_env_with_default<T>(name: &str, default: T) -> T
     where
         T: FromStr,
+        T: Display,
+        T: Debug
     {
         let env_variable = match env::var(name) {
             Ok(result) => {
-                error!("Env. Variable {name} found.");
+                info!("Env. Variable {name} found.");
                 result
             }
             Err(find_error) => {
@@ -80,15 +83,18 @@ impl Config {
             }
         };
 
-        match env_variable.parse::<T>() {
+       let result = match env_variable.parse::<T>() {
             Ok(parsed_result) => {
-                error!("Env. Variable {name} was successfully parsed.");
+                info!("Env. Variable {name} was successfully parsed.");
                 parsed_result
             }
             Err(_) => {
                 error!("Env. Variable {name} wasn't parsable.");
                 default
             }
-        }
+        };
+        
+        info!("Env. variable {} was set to the value: {:?}", name, result);
+        result
     }
 }
