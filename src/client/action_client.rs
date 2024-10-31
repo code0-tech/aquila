@@ -1,9 +1,9 @@
 use log::error;
 use tonic::{Request};
 use tonic::transport::Channel;
-use tucana_internal::actions::InformationRequest;
-use tucana_internal::internal::action_service_client::ActionServiceClient;
-use tucana_internal::internal::{ActionLogoffRequest, ActionLogonRequest};
+use tucana_internal::aquila::InformationRequest;
+use tucana_internal::sagittarius::action_service_client::ActionServiceClient;
+use tucana_internal::sagittarius::{ActionLogoffRequest, ActionLogonRequest};
 
 pub struct ActionClient {
     client: ActionServiceClient<Channel>,

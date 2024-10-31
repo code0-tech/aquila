@@ -6,8 +6,8 @@ use redis::AsyncCommands;
 use tokio::sync::Mutex;
 use tonic::Request;
 use tonic::transport::Channel;
-use tucana_internal::internal::{Flow, FlowCommandType, FlowGetRequest, FlowLogonRequest};
-use tucana_internal::internal::flow_service_client::FlowServiceClient;
+use tucana_internal::sagittarius::flow_service_client::FlowServiceClient;
+use tucana_internal::sagittarius::{Flow, FlowCommandType, FlowGetRequest, FlowLogonRequest};
 
 const INSERT: i32 = FlowCommandType::Insert as i32;
 const DELETE: i32 = FlowCommandType::Delete as i32;

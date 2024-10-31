@@ -2,8 +2,8 @@ use std::sync::{Arc};
 use futures::StreamExt;
 use tokio::sync::Mutex;
 use tonic::{async_trait, Request, Response, Status, Streaming};
-use tucana_internal::actions::action_transfer_service_server::ActionTransferService;
-use tucana_internal::actions::{InformationRequest, InformationResponse};
+use tucana_internal::aquila::{InformationRequest, InformationResponse};
+use tucana_internal::aquila::action_transfer_service_server::ActionTransferService;
 use crate::client::action_client::ActionClient;
 
 pub struct ActionEndpoint {
