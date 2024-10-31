@@ -5,7 +5,7 @@ use std::time::Duration;
 use async_trait::async_trait;
 use clokwerk::{AsyncScheduler, TimeUnits};
 use clokwerk::Interval::Seconds;
-use log::info;
+use log::{error, info};
 use redis::aio::MultiplexedConnection;
 use tokio::sync::Mutex;
 use tokio::time::Interval;
@@ -40,7 +40,7 @@ impl StartConfiguration for StartConfigurationBase {
 
         if !self.config.enable_scheduled_update {
             info!("Receiving flows from sagittarius once");
-            sagittarius_client.send_flow_update_request().await;
+            sagittarius_client.send_start_request().await;
             return;
         }
 
@@ -55,23 +55,24 @@ impl StartConfiguration for StartConfigurationBase {
 
                 async move {
                     let mut current_flow_client = local_flow_client.lock().await;
-                    current_flow_client.send_flow_update_request().await
+                    current_flow_client.send_start_request().await
                 }
             });
     }
 
     async fn init_flows_from_json(mut self) {
-        if self.config.enable_grpc_update && self.config.enable_scheduled_update {
+        if self.config.enable_grpc_update || self.config.enable_scheduled_update {
             return;
         }
 
         let mut flow_service = FlowServiceBase::new(self.connection_arc).await;
         let mut data = String::new();
-        let mut file = File::open("./configuration/configuration.json").expect("Cannot open file");
+        let mut file = File::open("configuration/configuration.json").expect("Cannot open file");
 
         file.read_to_string(&mut data).expect("Cannot read file");
         let flows: Vec<Flow> = serde_json::from_str(&data).expect("Failed to parse JSON to list of flows");
-
+       
+        info!("Loaded {} Flows!", &flows.len());
         flow_service.insert_flows(flows).await;
     }
 }
