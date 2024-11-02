@@ -118,3 +118,7 @@ impl SagittariusFlowClient for SagittariusFlowClientBase {
         }
     }
 }
+
+mod tests {
+    //TODO: Write tests
+}

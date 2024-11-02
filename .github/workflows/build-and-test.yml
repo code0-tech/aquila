@@ -1,0 +1,19 @@
+name: Build packages
+
+on:
+  push:
+
+jobs:
+  aquila:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup rust
+        run: rustup update --no-self-update stable
+      - name: Build Aquila
+        run: PATH=${{ runner.temp }}/proto/bin:$PATH cargo build
+        env:
+          RUST_BACKTRACE: 'full'
+      - name: Run Tests
+        run: cargo test
