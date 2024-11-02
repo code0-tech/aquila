@@ -84,7 +84,7 @@ impl SagittariusFlowClient for SagittariusFlowClientBase {
                 INSERT => {
                     let flow = response.updated_flow;
                     if flow.is_none() {
-                        info!("Recieved insert request without any flow");
+                        info!("Received insert request without any flow");
                         return;
                     }
 
@@ -93,14 +93,14 @@ impl SagittariusFlowClient for SagittariusFlowClientBase {
                 DELETE => {
                     let flow = response.updated_flow;
                     if flow.is_none() {
-                        info!("Recieved delete request without any flow");
+                        info!("Received delete request without any flow");
                         return;
                     }
 
                     flow_service.insert_flow(flow.unwrap()).await;
                 }
                 _ => {
-                    error!("Recieved unkown respone type")
+                    error!("Received unknown response type")
                 }
             }
         }
