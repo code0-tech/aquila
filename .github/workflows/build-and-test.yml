@@ -7,11 +7,6 @@ jobs:
   aquila:
     runs-on: ubuntu-latest
 
-    defaults:
-      run:
-        shell: bash
-        working-directory: build/rust
-
     steps:
       - uses: actions/checkout@v4
       - name: Setup rust
