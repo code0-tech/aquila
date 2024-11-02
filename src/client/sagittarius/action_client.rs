@@ -63,3 +63,8 @@ impl SagittariusActionClient for SagittariusActionClientBase {
         };
     }
 }
+
+
+mod tests {
+    //TODO: Write tests
+}
