@@ -8,7 +8,7 @@ use tokio::sync::Mutex;
 use tucana_internal::sagittarius::Flow;
 
 pub struct FlowServiceBase {
-    redis_client_arc: Arc<Mutex<Box<MultiplexedConnection>>>,
+    pub(crate) redis_client_arc: Arc<Mutex<Box<MultiplexedConnection>>>,
 }
 
 #[async_trait]
@@ -120,7 +120,8 @@ impl FlowService for FlowServiceBase {
     }
 }
 
-mod test {
+#[cfg(test)]
+mod tests {
     use std::sync::{Arc};
     use redis::AsyncCommands;
     use tokio::sync::Mutex;

@@ -34,7 +34,10 @@ impl ActionService for ActionServiceBase {
                         identifier_option = Some(info_request.identifier.clone());
 
                         let mut client = self.sagittarius_client.lock().await;
-                        client.send_action_logon_request(info_request).await
+                        let result = client.send_action_logon_request(info_request).await;
+                        if result.is_err() {
+                            return Err(result.err().unwrap().into());
+                        }
                     }
                 }
                 Err(status) => {
