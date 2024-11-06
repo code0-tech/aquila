@@ -76,7 +76,6 @@ mod tests {
         ActionLogoffRequest, ActionLogoffResponse, ActionLogonRequest, ActionLogonResponse,
     };
     use std::net::SocketAddr;
-    use prost::Message;
     use tokio::task::JoinHandle;
     use tucana_internal::shared::{RuntimeFunctionDefinition, RuntimeParameterDefinition};
 
@@ -138,7 +137,7 @@ mod tests {
     }
 
     async fn setup_broken_sagittarius_mock() -> (JoinHandle<()>, String) {
-        let addr_string = "127.0.0.1:50051";
+        let addr_string = "127.0.0.1:50052";
         let addr: SocketAddr = addr_string.parse().unwrap();
         let mock_service = BrokenMockActionService::default();
 
@@ -156,7 +155,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_sagittarius_action_client_integration() {
-        let (_sagittarius, url) = setup_sagittarius_mock().await;
+        let (sagittarius, url) = setup_sagittarius_mock().await;
         let mut client = SagittariusActionClientBase::new(url).await;
 
         let information = InformationRequest {
@@ -174,7 +173,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_broken_sagittarius_action_client_integration() {
-        let (_sagittarius, url) = setup_broken_sagittarius_mock().await;
+        let (sagittarius, url) = setup_broken_sagittarius_mock().await;
         let mut client = SagittariusActionClientBase::new(url).await;
 
         let information: InformationRequest = InformationRequest {
@@ -185,9 +184,10 @@ mod tests {
 
         let logon_result = client.send_action_logon_request(information.clone()).await;
         assert!(logon_result.is_err());
-        
+
         let logoff_result = client.send_action_logoff_request(information.identifier.clone()).await;
         assert!(logoff_result.is_err());
+        drop(sagittarius)
     }
 
     #[tokio::test]
