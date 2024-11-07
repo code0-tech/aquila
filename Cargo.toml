@@ -18,7 +18,7 @@ clokwerk = { version = "0.4", features = ["async"] }
 tucana-internal = "0.0.9"
 dotenv = "0.15.0"
 rabbitmq-stream-client = "0.6.0"
-thiserror = "1.0.63"
+thiserror = "2.0.0"
 async-trait = "0.1.81"
 mockall = "0.13.0"
 testcontainers = "0.23.1"
