@@ -7,7 +7,7 @@ use tucana_internal::aquila::{InformationRequest, InformationResponse};
 use crate::client::sagittarius::action_client::{SagittariusActionClient, SagittariusActionClientBase};
 
 pub struct ActionServiceBase {
-    sagittarius_client: Arc<Mutex<Box<SagittariusActionClientBase>>>
+    sagittarius_client: Arc<Mutex<Box<SagittariusActionClientBase>>>,
 }
 
 pub trait ActionService {
@@ -16,7 +16,6 @@ pub trait ActionService {
 }
 
 impl ActionService for ActionServiceBase {
-    
     async fn new(sagittarius_client: Arc<Mutex<Box<SagittariusActionClientBase>>>) -> ActionServiceBase {
         ActionServiceBase { sagittarius_client }
     }
@@ -34,7 +33,10 @@ impl ActionService for ActionServiceBase {
                         identifier_option = Some(info_request.identifier.clone());
 
                         let mut client = self.sagittarius_client.lock().await;
-                        client.send_action_logon_request(info_request).await
+                        let result = client.send_action_logon_request(info_request).await;
+                        if result.is_err() {
+                            return Err(result.err().unwrap().into());
+                        }
                     }
                 }
                 Err(status) => {
@@ -46,7 +48,7 @@ impl ActionService for ActionServiceBase {
 
         if let Some(identifier) = identifier_option {
             let mut client = self.sagittarius_client.lock().await;
-            client.send_action_logoff_request(identifier.clone()).await;
+            client.send_action_logoff_request(identifier.clone()).await?;
             Ok(Response::new(InformationResponse { success: true }))
         } else {
             Err(Status::not_found("No valid request received"))
