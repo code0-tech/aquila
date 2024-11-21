@@ -1657,9 +1657,9 @@ dependencies = [
 
 [[package]]
 name = "rabbitmq-stream-client"
-version = "0.6.1"
+version = "0.7.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9e6687a0415097fea799b3e984d55053d76d4ccd98b61f7f935074f95c6e6ff8"
+checksum = "45321d9731c5121e3d769f05e3d06fe03649b04b649b8054a77dcf149277da3d"
 dependencies = [
  "async-trait",
  "bytes",
@@ -1670,7 +1670,7 @@ dependencies = [
  "rabbitmq-stream-protocol",
  "rand",
  "rustls-pemfile 1.0.4",
- "thiserror 1.0.68",
+ "thiserror 2.0.3",
  "tokio",
  "tokio-rustls 0.24.1",
  "tokio-stream",
@@ -1681,9 +1681,9 @@ dependencies = [
 
 [[package]]
 name = "rabbitmq-stream-protocol"
-version = "0.6.0"
+version = "0.7.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9d246a874fc1a30cf07d2a82835c2534acae424a6f9f650db79bf766031abb24"
+checksum = "ca4acb05c1d51f5836f7358281890ac36d19092dc2095d71f4f577dbbfabcf13"
 dependencies = [
  "byteorder",
  "chrono",
