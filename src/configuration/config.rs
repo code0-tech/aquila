@@ -10,6 +10,10 @@ pub struct Config {
     pub enable_scheduled_update: bool,
     pub update_schedule_interval: u32,
     pub enable_grpc_update: bool,
+
+    /// Fallback file to load flows if gRPC & scheduling is disabled.
+    pub flow_fallback_path: String,
+
     pub session_token: String,
     pub backend_url: String,
 }
@@ -27,6 +31,7 @@ impl Config {
             redis_url: Self::get_string("REDIS_URL", "redis://redis:6379"),
             enable_scheduled_update: Self::get_bool("ENABLE_SCHEDULED_UPDATE", false),
             update_schedule_interval: Self::get_u32("UPDATE_SCHEDULE_INTERVAL", 3600),
+            flow_fallback_path: Self::get_string("FLOW_FALLBACK_PATH", "configuration/configuration.json"),
             enable_grpc_update: Self::get_bool("ENABLE_GRPC_UPDATE", false),
             session_token: Self::get_string("SESSION_TOKEN", "default_session_token"),
             backend_url: Self::get_string("BACKEND_URL", "http://localhost:8080"),
