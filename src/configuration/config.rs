@@ -12,9 +12,6 @@ pub struct Config {
     pub enable_grpc_update: bool,
     pub session_token: String,
     pub backend_url: String,
-    pub rabbitmq_url: String,
-    pub rabbitmq_user: String,
-    pub rabbitmq_password: String,
 }
 
 impl Config {
@@ -33,9 +30,6 @@ impl Config {
             enable_grpc_update: Self::get_bool("ENABLE_GRPC_UPDATE", false),
             session_token: Self::get_string("SESSION_TOKEN", "default_session_token"),
             backend_url: Self::get_string("BACKEND_URL", "http://localhost:8080"),
-            rabbitmq_url: Self::get_string("RABBITMQ_URL", "amqp://localhost:5672"),
-            rabbitmq_user: Self::get_string("RABBITMQ_USER", "guest"),
-            rabbitmq_password: Self::get_string("RABBITMQ_PASSWORD", "guest"),
         }
     }
 
