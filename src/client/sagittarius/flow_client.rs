@@ -13,12 +13,14 @@ use tucana_internal::sagittarius::{FlowCommandType, FlowGetRequest, FlowLogonReq
 const INSERT: i32 = FlowCommandType::Insert as i32;
 const DELETE: i32 = FlowCommandType::Delete as i32;
 
+/// Struct representing a service for receiving flows from `Sagittarius`.
 #[derive(Clone)]
 pub struct SagittariusFlowClientBase {
     flow_service: Arc<Mutex<FlowServiceBase>>,
     client: FlowServiceClient<Channel>,
 }
 
+/// Trait representing a service for receiving flows from `Sagittarius`.
 #[async_trait]
 pub trait SagittariusFlowClient {
     async fn new(sagittarius_url: String, flow_service: Arc<Mutex<FlowServiceBase>>) -> SagittariusFlowClientBase;
@@ -26,8 +28,14 @@ pub trait SagittariusFlowClient {
     async fn send_start_request(&mut self);
 }
 
+/// Implementation for a service for receiving flows from `Sagittarius`.
+/// gRPC Service Implementation
 #[async_trait]
 impl SagittariusFlowClient for SagittariusFlowClientBase {
+    /// Creates a connection to `Sagittarius`
+    ///
+    /// Behavior:
+    /// Will panic when a connection can`t be established
     async fn new(sagittarius_url: String, flow_service: Arc<Mutex<FlowServiceBase>>) -> SagittariusFlowClientBase {
         let client = match FlowServiceClient::connect(sagittarius_url).await {
             Ok(res) => res,
@@ -39,6 +47,8 @@ impl SagittariusFlowClient for SagittariusFlowClientBase {
         SagittariusFlowClientBase { flow_service, client }
     }
 
+    /// Will send a request `FlowGetRequest` to `Sagittarius`
+    /// Inserts/Deletes flows contained in the response into Redis
     async fn send_flow_update_request(&mut self) {
         let mut flow_service = self.flow_service.lock().await;
         let flow_ids = match flow_service.get_all_flow_ids().await {
@@ -65,6 +75,9 @@ impl SagittariusFlowClient for SagittariusFlowClientBase {
         flow_service.delete_flows(deleted_flow_ids).await
     }
 
+    /// Will send a request `FlowLogonRequest` to `Sagittarius`
+    /// Will establish a stream.
+    /// `Sagittarius` will send update/delete commands and the flow to do that with.
     async fn send_start_request(&mut self) {
         let request = Request::new(FlowLogonRequest {});
         let response = match self.client.update(request).await {

@@ -7,10 +7,12 @@ use std::sync::Arc;
 use tokio::sync::Mutex;
 use tucana_internal::sagittarius::Flow;
 
+/// Struct representing a service for managing flows in a Redis.
 pub struct FlowServiceBase {
     pub(crate) redis_client_arc: Arc<Mutex<Box<MultiplexedConnection>>>,
 }
 
+/// Trait representing a service for managing flows in a Redis.
 #[async_trait]
 pub trait FlowService {
     async fn new(redis_client_arc: Arc<Mutex<Box<MultiplexedConnection>>>) -> FlowServiceBase;
@@ -21,16 +23,28 @@ pub trait FlowService {
     async fn get_all_flow_ids(&mut self) -> Result<Vec<i64>, RedisError>;
 }
 
+/// Implementation of a service for managing flows in a Redis.
 #[async_trait]
 impl FlowService for FlowServiceBase {
     async fn new(redis_client_arc: Arc<Mutex<Box<MultiplexedConnection>>>) -> FlowServiceBase {
         FlowServiceBase { redis_client_arc }
     }
 
+    /// Insert a list of flows into Redis
     async fn insert_flow(&mut self, flow: Flow) {
         let mut connection = self.redis_client_arc.lock().await;
-        let serialized_flow = serde_json::to_string(&flow).expect("");
-        let parsed_flow = connection.set::<String, String, ()>(flow.flow_id.to_string(), serialized_flow).await;
+
+        let serialized_flow = match serde_json::to_string(&flow) {
+            Ok(serialized_flow) => serialized_flow,
+            Err(parse_error) => {
+                error!("An Error occurred {}", parse_error);
+                return;
+            }
+        };
+
+        let parsed_flow = connection
+            .set::<String, String, i64>(flow.flow_id.to_string(), serialized_flow)
+            .await;
 
         match parsed_flow {
             Ok(_) => {
@@ -42,6 +56,7 @@ impl FlowService for FlowServiceBase {
         }
     }
 
+    /// Insert a flows into Redis
     async fn insert_flows(&mut self, flows: Vec<Flow>) {
         let mut connection = self.redis_client_arc.lock().await;
 
@@ -52,6 +67,7 @@ impl FlowService for FlowServiceBase {
                 Ok(parsed_flow) => {
                     connection.set::<String, String, i64>(flow.flow_id.to_string(), parsed_flow).await
                 }
+
                 Err(parse_error) => {
                     error!("Can't parse {} Because: {}", flow.flow_id, parse_error);
                     continue;
@@ -69,6 +85,7 @@ impl FlowService for FlowServiceBase {
         }
     }
 
+    /// Deletes a flow
     async fn delete_flow(&mut self, flow_id: i64) {
         let mut connection = self.redis_client_arc.lock().await;
         let deleted_flow = connection.del::<i64, i64>(flow_id).await;
@@ -83,6 +100,7 @@ impl FlowService for FlowServiceBase {
         }
     }
 
+    /// Deletes a list of flows
     async fn delete_flows(&mut self, flow_ids: Vec<i64>) {
         let mut connection = self.redis_client_arc.lock().await;
         let deleted_flow = connection.del::<Vec<i64>, i64>(flow_ids).await;
@@ -97,7 +115,8 @@ impl FlowService for FlowServiceBase {
         }
     }
 
-
+    /// Queries for all ids in the redis
+    /// Returns `Result<Vec<i64>, RedisError>`: Result of the flow ids currently in Redis
     async fn get_all_flow_ids(&mut self) -> Result<Vec<i64>, RedisError> {
         let mut connection = self.redis_client_arc.lock().await;
 
@@ -136,7 +155,7 @@ mod tests {
         let mut service = FlowServiceBase::new(redis_client.clone()).await;
 
         drop(_container);
-        
+
         let flow_ids = service.get_all_flow_ids().await;
         assert!(flow_ids.is_err(), "Expected an error due to Redis disconnection");
     }
@@ -190,7 +209,7 @@ mod tests {
             let mut conn = redis_client.lock().await;
             conn.get("1").await.unwrap()
         };
-        
+
         assert!(result.is_some());
 
         let decoded_flow: Flow = serde_json::from_str(&result.unwrap()).unwrap();
@@ -227,12 +246,12 @@ mod tests {
             let mut conn = redis_client.lock().await;
             (conn.get("1").await.unwrap(), conn.get("2").await.unwrap())
         };
-        
+
         assert!(results.0.is_some());
         assert!(results.1.is_some());
         assert_eq!(service.get_all_flow_ids().await.unwrap().len(), 2);
     }
-    
+
     #[tokio::test]
     async fn test_insert_flows_empty() {
         let (connection, _container) = setup_redis_test_container().await;
@@ -272,7 +291,7 @@ mod tests {
             let mut conn = redis_client.lock().await;
             conn.get("1").await.unwrap()
         };
-        
+
         assert!(result.is_some());
         assert_eq!(service.get_all_flow_ids().await.unwrap().len(), 1);
     }
@@ -288,19 +307,19 @@ mod tests {
         assert!(flow_ids.is_ok());
         assert!(flow_ids.unwrap().is_empty());
     }
-    
+
     #[tokio::test]
     async fn test_delete_exising_flow() {
         let (connection, _container) = setup_redis_test_container().await;
         let redis_client = Arc::new(Mutex::new(Box::new(connection)));
         let mut service = FlowServiceBase::new(redis_client.clone()).await;
-        
+
         let flow = Flow {
             flow_id: 1,
             start_node: None,
             definition: None,
         };
-        
+
         service.insert_flow(flow.clone()).await;
         let result: Option<String> = {
             let mut conn = redis_client.lock().await;
@@ -309,18 +328,18 @@ mod tests {
 
         assert!(result.is_some());
         assert_eq!(service.get_all_flow_ids().await.unwrap().len(), 1);
-        
+
         service.delete_flow(1).await;
 
         let result_after: Option<String> = {
             let mut conn = redis_client.lock().await;
             conn.get("1").await.unwrap()
         };
-        
+
         assert!(result_after.is_none());
         assert_eq!(service.get_all_flow_ids().await.unwrap().len(), 0);
     }
-    
+
     #[tokio::test]
     async fn test_delete_non_existing_flow_does_not_crash() {
         let (connection, _container) = setup_redis_test_container().await;
@@ -333,11 +352,11 @@ mod tests {
         };
         assert!(result_after.is_none());
         assert_eq!(service.get_all_flow_ids().await.unwrap().len(), 0);
-        
+
         service.delete_flow(1).await;
         assert_eq!(service.get_all_flow_ids().await.unwrap().len(), 0);
     }
-    
+
     #[tokio::test]
     async fn test_delete_existing_flow() {
         let (connection, _container) = setup_redis_test_container().await;
@@ -368,7 +387,7 @@ mod tests {
         assert!(results.0.is_some());
         assert!(results.1.is_some());
         assert_eq!(service.get_all_flow_ids().await.unwrap().len(), 2);
-        
+
         service.delete_flows(vec![1, 2]).await;
         let results_after: (Option<String>, Option<String>) = {
             let mut conn = redis_client.lock().await;
