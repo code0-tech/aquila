@@ -7,18 +7,15 @@ use tucana_internal::aquila::{InformationRequest, InformationResponse};
 use crate::service::action_service::{ActionService, ActionServiceBase};
 
 pub struct ActionTransferServerBase {
-    action_service: Arc<Mutex<ActionServiceBase>>
+    action_service: Arc<Mutex<ActionServiceBase>>,
 }
 
+/// gRPC Service Implementation
 #[async_trait]
 impl ActionTransferService for ActionTransferServerBase {
-
+    /// Transfers `Flows` redivided from the `Action` to `Sagittarius`
     async fn transfer(&self, request: tonic::Request<Streaming<InformationRequest>>) -> Result<Response<InformationResponse>, Status> {
-       let mut service = self.action_service.lock().await;
-       service.transfer_action_flows(request).await
+        let mut service = self.action_service.lock().await;
+        service.transfer_action_flows(request).await
     }
-}
-
-mod tests {
-    //TODO: Write tests
 }

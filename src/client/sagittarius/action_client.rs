@@ -6,10 +6,14 @@ use tucana_internal::aquila::InformationRequest;
 use tucana_internal::sagittarius::action_service_client::ActionServiceClient;
 use tucana_internal::sagittarius::{ActionLogoffRequest, ActionLogoffResponse, ActionLogonRequest, ActionLogonResponse};
 
+/// Struct representing a service for sending flows received from an `Action` to `Sagittarius`.
+/// Part that informs `Sagittarius`
 pub struct SagittariusActionClientBase {
     client: ActionServiceClient<Channel>,
 }
 
+/// Trait representing a service for sending flows received from an `Action` to `Sagittarius`.
+/// Part that informs `Sagittarius`
 #[async_trait]
 pub trait SagittariusActionClient {
     async fn new(sagittarius_url: String) -> SagittariusActionClientBase;
@@ -17,8 +21,14 @@ pub trait SagittariusActionClient {
     async fn send_action_logoff_request(&mut self, identifier: String) -> Result<Response<ActionLogoffResponse>, tonic::Status>;
 }
 
+/// Implementation of the service for sending flows received from an `Action` to `Sagittarius`.
+/// Part that informs `Sagittarius`
 #[async_trait]
 impl SagittariusActionClient for SagittariusActionClientBase {
+    /// Creates a connection to `Sagittarius`
+    ///
+    /// Behavior:
+    /// Will panic when a connection can`t be established
     async fn new(sagittarius_url: String) -> SagittariusActionClientBase {
         let client = match ActionServiceClient::connect(sagittarius_url).await {
             Ok(res) => { res }
@@ -30,6 +40,7 @@ impl SagittariusActionClient for SagittariusActionClientBase {
         SagittariusActionClientBase { client }
     }
 
+    /// Sends `Sagittarius` the information that a `Action` went online.
     async fn send_action_logon_request(&mut self, information: InformationRequest) -> Result<Response<ActionLogonResponse>, tonic::Status> {
         let request = Request::new(ActionLogonRequest {
             identifier: information.identifier,
@@ -49,6 +60,7 @@ impl SagittariusActionClient for SagittariusActionClientBase {
         }
     }
 
+    /// Sends `Sagittarius` the information that a `Action` went offline.
     async fn send_action_logoff_request(&mut self, identifier: String) -> Result<Response<ActionLogoffResponse>, tonic::Status> {
         let request = Request::new(ActionLogoffRequest {
             identifier
