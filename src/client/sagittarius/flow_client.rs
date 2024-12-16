@@ -7,8 +7,8 @@ use std::sync::Arc;
 use tokio::sync::Mutex;
 use tonic::transport::Channel;
 use tonic::Request;
-use tucana_internal::sagittarius::flow_service_client::FlowServiceClient;
-use tucana_internal::sagittarius::{FlowCommandType, FlowGetRequest, FlowLogonRequest, FlowResponse};
+use tucana::sagittarius::flow_service_client::FlowServiceClient;
+use tucana::sagittarius::{FlowCommandType, FlowGetRequest, FlowLogonRequest, FlowResponse};
 
 const INSERT: i32 = FlowCommandType::Insert as i32;
 const DELETE: i32 = FlowCommandType::Delete as i32;
@@ -153,8 +153,8 @@ mod tests {
     use tonic::codegen::tokio_stream::Stream;
     use tonic::transport::Server;
     use tonic::{Request, Response, Status};
-    use tucana_internal::sagittarius::flow_service_server::{FlowService as SagittariusFlowService, FlowServiceServer};
-    use tucana_internal::sagittarius::{Flow, FlowGetRequest, FlowGetResponse, FlowLogonRequest, FlowResponse};
+    use tucana::sagittarius::flow_service_server::{FlowService as SagittariusFlowService, FlowServiceServer};
+    use tucana::sagittarius::{Flow, FlowGetRequest, FlowGetResponse, FlowLogonRequest, FlowResponse};
 
     struct MockFlowService {
         flow_get_result: FlowGetResponse,

@@ -5,7 +5,7 @@ use redis::aio::MultiplexedConnection;
 use redis::{AsyncCommands, RedisError};
 use std::sync::Arc;
 use tokio::sync::Mutex;
-use tucana_internal::sagittarius::Flow;
+use tucana::sagittarius::Flow;
 
 /// Struct representing a service for managing flows in a Redis.
 pub struct FlowServiceBase {
@@ -144,7 +144,7 @@ mod tests {
     use std::sync::{Arc};
     use redis::AsyncCommands;
     use tokio::sync::Mutex;
-    use tucana_internal::sagittarius::Flow;
+    use tucana::sagittarius::Flow;
     use crate::data::redis::setup_redis_test_container;
     use crate::service::flow_service::{FlowService, FlowServiceBase};
 

@@ -3,7 +3,7 @@ use futures::StreamExt;
 use log::error;
 use tokio::sync::Mutex;
 use tonic::{Request, Response, Status, Streaming};
-use tucana_internal::aquila::{InformationRequest, InformationResponse};
+use tucana::aquila::{InformationRequest, InformationResponse};
 use crate::client::sagittarius::action_client::{SagittariusActionClient, SagittariusActionClientBase};
 
 /// Struct representing a service for sending flows received from an `Action` to `Sagittarius`.

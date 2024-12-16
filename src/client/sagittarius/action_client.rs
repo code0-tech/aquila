@@ -2,9 +2,9 @@ use async_trait::async_trait;
 use log::{error, info};
 use tonic::transport::Channel;
 use tonic::{Request, Response};
-use tucana_internal::aquila::InformationRequest;
-use tucana_internal::sagittarius::action_service_client::ActionServiceClient;
-use tucana_internal::sagittarius::{ActionLogoffRequest, ActionLogoffResponse, ActionLogonRequest, ActionLogonResponse};
+use tucana::aquila::InformationRequest;
+use tucana::sagittarius::action_service_client::ActionServiceClient;
+use tucana::sagittarius::{ActionLogoffRequest, ActionLogoffResponse, ActionLogonRequest, ActionLogonResponse};
 
 /// Struct representing a service for sending flows received from an `Action` to `Sagittarius`.
 /// Part that informs `Sagittarius`
@@ -83,13 +83,13 @@ impl SagittariusActionClient for SagittariusActionClientBase {
 mod tests {
     use super::*;
     use tonic::{transport::Server, Request, Response, Status};
-    use tucana_internal::sagittarius::{
+    use tucana::sagittarius::{
         action_service_server::{ActionService, ActionServiceServer},
         ActionLogoffRequest, ActionLogoffResponse, ActionLogonRequest, ActionLogonResponse,
     };
     use std::net::SocketAddr;
     use tokio::task::JoinHandle;
-    use tucana_internal::shared::{RuntimeFunctionDefinition, RuntimeParameterDefinition};
+    use tucana::shared::{RuntimeFunctionDefinition, RuntimeParameterDefinition};
 
     #[derive(Debug, Default)]
     struct MockActionService;
