@@ -75,7 +75,7 @@ dependencies = [
  "thiserror 2.0.7",
  "tokio",
  "tonic",
- "tucana-internal",
+ "tucana",
 ]
 
 [[package]]
@@ -2562,10 +2562,10 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e421abadd41a4225275504ea4d6566923418b7f05506fbc9c0fe86ba7396114b"
 
 [[package]]
-name = "tucana-internal"
-version = "0.0.9"
+name = "tucana"
+version = "0.0.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e12e321e7a63cd527b84e37de48acf26ad7cda52120d4b4f9e6efbe6581739f6"
+checksum = "cd5a53533087b1ca2229f9a16ecc4165d3dd866378a5ca31980dc20a6f3b3da8"
 dependencies = [
  "prost",
  "prost-serde-derive",
