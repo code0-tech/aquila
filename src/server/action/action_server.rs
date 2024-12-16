@@ -1,16 +1,16 @@
+use std::pin::Pin;
 use std::sync::Arc;
 use async_trait::async_trait;
+use futures::Stream;
 use tokio::sync::Mutex;
 use tonic::{Request, Response, Status, Streaming};
 use tucana::aquila::action_transfer_service_server::ActionTransferService;
-use tucana::aquila::{ActionExecuteRequest, InformationRequest, InformationResponse};
+use tucana::aquila::{ActionExecuteRequest, ActionExecuteResponse, InformationRequest, InformationResponse};
 use crate::service::action_service::{ActionService, ActionServiceBase};
 
 pub struct ActionTransferServerBase {
     action_service: Arc<Mutex<ActionServiceBase>>,
 }
-
-pub type ExecuteStream = ();
 
 /// gRPC Service Implementation
 #[async_trait]
@@ -21,7 +21,7 @@ impl ActionTransferService for ActionTransferServerBase {
         service.transfer_action_flows(request).await
     }
 
-    type ExecuteStream = ();
+    type ExecuteStream = Pin<Box<dyn Stream<Item=Result<ActionExecuteResponse, Status>> + Send>>;
 
     async fn execute(&self, _: Request<Streaming<ActionExecuteRequest>>) -> Result<Response<Self::ExecuteStream>, Status> {
         todo!()
