@@ -1,8 +1,7 @@
 use std::env;
-use std::f32::consts::E;
 use std::fmt::{Debug, Display};
 use std::str::FromStr;
-use log::{error, info, log};
+use log::{error, info};
 use crate::configuration::environment::Environment;
 
 /// Struct for all relevant `Aquila` startup configurations
