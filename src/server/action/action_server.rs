@@ -23,7 +23,7 @@ impl ActionTransferService for ActionTransferServerBase {
 
     type ExecuteStream = ();
 
-    async fn execute(&self, request: Request<Streaming<ActionExecuteRequest>>) -> Result<Response<Self::ExecuteStream>, Status> {
+    async fn execute(&self, _: Request<Streaming<ActionExecuteRequest>>) -> Result<Response<Self::ExecuteStream>, Status> {
         todo!()
     }
 }

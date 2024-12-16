@@ -1,5 +1,4 @@
 use async_trait::async_trait;
-use futures::future::err;
 use log::{debug, error};
 use redis::aio::MultiplexedConnection;
 use redis::{AsyncCommands, RedisError};

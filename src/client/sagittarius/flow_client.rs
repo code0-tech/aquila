@@ -2,7 +2,6 @@ use crate::service::flow_service::{FlowService, FlowServiceBase};
 use async_trait::async_trait;
 use futures::StreamExt;
 use log::{error, info};
-use redis::AsyncCommands;
 use std::sync::Arc;
 use tokio::sync::Mutex;
 use tonic::transport::Channel;

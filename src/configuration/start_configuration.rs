@@ -1,16 +1,13 @@
 use std::fs::File;
 use std::io::Read;
 use std::sync::Arc;
-use std::time::Duration;
 use async_trait::async_trait;
-use clokwerk::{AsyncScheduler, TimeUnits};
+use clokwerk::{AsyncScheduler};
 use clokwerk::Interval::Seconds;
 use log::{debug, error, info};
 use redis::aio::MultiplexedConnection;
 use tokio::sync::Mutex;
-use tokio::time::Interval;
 use tucana::sagittarius::Flow;
-use tucana::sagittarius::flow_service_client::FlowServiceClient;
 use crate::client::sagittarius::flow_client::{SagittariusFlowClient, SagittariusFlowClientBase};
 use crate::configuration::config::Config;
 use crate::service::flow_service::{FlowService, FlowServiceBase};

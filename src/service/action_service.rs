@@ -38,7 +38,7 @@ impl ActionService for ActionServiceBase {
             match result {
                 Ok(info_request) => {
 
-                    /// Information for `Sagittarius` that a new `Action` is online.
+                    // Information for `Sagittarius` that a new `Action` is online.
                     if !first_request {
                         first_request = true;
                         identifier_option = Some(info_request.identifier.clone());
@@ -58,7 +58,7 @@ impl ActionService for ActionServiceBase {
             }
         }
 
-        /// The stream ended at this point. Now `Sagittarius` will be informed, that the `Action` is offline.
+        // The stream ended at this point. Now `Sagittarius` will be informed, that the `Action` is offline.
         if let Some(identifier) = identifier_option {
             let mut client = self.sagittarius_client.lock().await;
             client.send_action_logoff_request(identifier.clone()).await?;
