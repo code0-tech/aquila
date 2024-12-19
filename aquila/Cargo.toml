@@ -1,0 +1,23 @@
+[package]
+name = "aquila"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+aquila_cache = { workspace = true }
+aquila_store = { workspace = true }
+async-stream = { workspace = true }
+async-trait = { workspace = true }
+clokwerk = { workspace = true }
+dotenv = { workspace = true }
+futures = { workspace = true }
+log = { workspace = true }
+json_env_logger2 = { workspace = true }
+redis = { workspace = true }
+serde_json = { workspace = true }
+tucana = { workspace = true }
+tonic = { workspace = true }
+tokio = { workspace = true }
+
+[dev-dependencies]
+aquila_container = { workspace = true }
