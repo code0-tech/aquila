@@ -1,14 +1,8 @@
 use redis::aio::MultiplexedConnection;
 use redis::Client;
-use testcontainers::{ContainerAsync, GenericImage};
 use testcontainers::core::{IntoContainerPort, WaitFor};
 use testcontainers::runners::AsyncRunner;
-
-pub fn build_connection(redis_url: String) -> Client {
-    Client::open(redis_url).unwrap_or_else(|err| {
-        panic!("Cannot connect to redis instance {err}")
-    })
-}
+use testcontainers::{ContainerAsync, GenericImage};
 
 pub async fn setup_redis_test_container() -> (MultiplexedConnection, ContainerAsync<GenericImage>) {
     let container = GenericImage::new("redis", "7.2.4")

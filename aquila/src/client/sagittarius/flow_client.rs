@@ -1,4 +1,4 @@
-use crate::service::flow_service::{FlowService, FlowServiceBase};
+use aquila_store::{FlowService, FlowServiceBase};
 use async_trait::async_trait;
 use futures::StreamExt;
 use log::{error, info};
@@ -22,7 +22,10 @@ pub struct SagittariusFlowClientBase {
 /// Trait representing a service for receiving flows from `Sagittarius`.
 #[async_trait]
 pub trait SagittariusFlowClient {
-    async fn new(sagittarius_url: String, flow_service: Arc<Mutex<FlowServiceBase>>) -> SagittariusFlowClientBase;
+    async fn new(
+        sagittarius_url: String,
+        flow_service: Arc<Mutex<FlowServiceBase>>,
+    ) -> SagittariusFlowClientBase;
     async fn send_flow_update_request(&mut self);
     async fn send_start_request(&mut self);
 }
@@ -35,7 +38,10 @@ impl SagittariusFlowClient for SagittariusFlowClientBase {
     ///
     /// Behavior:
     /// Will panic when a connection can`t be established
-    async fn new(sagittarius_url: String, flow_service: Arc<Mutex<FlowServiceBase>>) -> SagittariusFlowClientBase {
+    async fn new(
+        sagittarius_url: String,
+        flow_service: Arc<Mutex<FlowServiceBase>>,
+    ) -> SagittariusFlowClientBase {
         let client = match FlowServiceClient::connect(sagittarius_url).await {
             Ok(res) => res,
             Err(start_error) => {
@@ -43,7 +49,10 @@ impl SagittariusFlowClient for SagittariusFlowClientBase {
             }
         };
 
-        SagittariusFlowClientBase { flow_service, client }
+        SagittariusFlowClientBase {
+            flow_service,
+            client,
+        }
     }
 
     /// Will send a request `FlowGetRequest` to `Sagittarius`
@@ -89,7 +98,10 @@ impl SagittariusFlowClient for SagittariusFlowClientBase {
 
         let mut stream = response.into_inner();
 
-        async fn handle_response(response: FlowResponse, flow_service: Arc<Mutex<FlowServiceBase>>) {
+        async fn handle_response(
+            response: FlowResponse,
+            flow_service: Arc<Mutex<FlowServiceBase>>,
+        ) {
             match response.r#type {
                 INSERT => {
                     let flow = response.updated_flow;
@@ -137,11 +149,14 @@ impl SagittariusFlowClient for SagittariusFlowClientBase {
 
 #[cfg(test)]
 mod tests {
-    use crate::client::sagittarius::action_client::{SagittariusActionClient, SagittariusActionClientBase};
-    use crate::client::sagittarius::flow_client::{SagittariusFlowClient, SagittariusFlowClientBase};
-    use crate::data::redis::setup_redis_test_container;
-    use crate::service::flow_service::FlowService;
-    use crate::service::flow_service::FlowServiceBase;
+    use crate::client::sagittarius::action_client::{
+        SagittariusActionClient, SagittariusActionClientBase,
+    };
+    use crate::client::sagittarius::flow_client::{
+        SagittariusFlowClient, SagittariusFlowClientBase,
+    };
+    use aquila_container::setup_redis_test_container;
+    use aquila_store::{FlowService, FlowServiceBase};
     use async_trait::async_trait;
     use std::pin::Pin;
     use std::sync::Arc;
@@ -152,8 +167,12 @@ mod tests {
     use tonic::codegen::tokio_stream::Stream;
     use tonic::transport::Server;
     use tonic::{Request, Response, Status};
-    use tucana::sagittarius::flow_service_server::{FlowService as SagittariusFlowService, FlowServiceServer};
-    use tucana::sagittarius::{Flow, FlowGetRequest, FlowGetResponse, FlowLogonRequest, FlowResponse};
+    use tucana::sagittarius::flow_service_server::{
+        FlowService as SagittariusFlowService, FlowServiceServer,
+    };
+    use tucana::sagittarius::{
+        Flow, FlowGetRequest, FlowGetResponse, FlowLogonRequest, FlowResponse,
+    };
 
     struct MockFlowService {
         flow_get_result: FlowGetResponse,
@@ -170,13 +189,19 @@ mod tests {
 
     #[async_trait]
     impl SagittariusFlowService for MockFlowService {
-        async fn get(&self, _request: Request<FlowGetRequest>) -> Result<Response<FlowGetResponse>, Status> {
+        async fn get(
+            &self,
+            _request: Request<FlowGetRequest>,
+        ) -> Result<Response<FlowGetResponse>, Status> {
             Ok(Response::new(self.flow_get_result.clone()))
         }
 
-        type UpdateStream = Pin<Box<dyn Stream<Item=Result<FlowResponse, Status>> + Send>>;
+        type UpdateStream = Pin<Box<dyn Stream<Item = Result<FlowResponse, Status>> + Send>>;
 
-        async fn update(&self, _request: Request<FlowLogonRequest>) -> Result<Response<Self::UpdateStream>, Status> {
+        async fn update(
+            &self,
+            _request: Request<FlowLogonRequest>,
+        ) -> Result<Response<Self::UpdateStream>, Status> {
             let flow = Flow {
                 flow_id: 1,
                 start_node: None,
@@ -191,24 +216,34 @@ mod tests {
                 };
             };
 
-            Ok(Response::new(Box::pin(response_stream) as Self::UpdateStream))
+            Ok(Response::new(
+                Box::pin(response_stream) as Self::UpdateStream
+            ))
         }
     }
 
     #[async_trait]
     impl SagittariusFlowService for BrokenMockFlowService {
-        async fn get(&self, _request: Request<FlowGetRequest>) -> Result<Response<FlowGetResponse>, Status> {
+        async fn get(
+            &self,
+            _request: Request<FlowGetRequest>,
+        ) -> Result<Response<FlowGetResponse>, Status> {
             Err(Status::internal("An unhandled error occurred!"))
         }
 
-        type UpdateStream = Pin<Box<dyn Stream<Item=Result<FlowResponse, Status>> + Send>>;
+        type UpdateStream = Pin<Box<dyn Stream<Item = Result<FlowResponse, Status>> + Send>>;
 
-        async fn update(&self, _request: Request<FlowLogonRequest>) -> Result<Response<Self::UpdateStream>, Status> {
+        async fn update(
+            &self,
+            _request: Request<FlowLogonRequest>,
+        ) -> Result<Response<Self::UpdateStream>, Status> {
             Err(Status::internal("An unhandled error occurred!"))
         }
     }
 
-    async fn setup_sagittarius_mock(flow_get_response: FlowGetResponse) -> (JoinHandle<()>, oneshot::Sender<()>, String) {
+    async fn setup_sagittarius_mock(
+        flow_get_response: FlowGetResponse,
+    ) -> (JoinHandle<()>, oneshot::Sender<()>, String) {
         let (shutdown_tx, shutdown_rx) = oneshot::channel();
 
         let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
@@ -300,9 +335,21 @@ mod tests {
     async fn test_get_flows_update_only() {
         let response = FlowGetResponse {
             updated_flows: vec![
-                Flow { flow_id: 1, start_node: None, definition: None },
-                Flow { flow_id: 2, start_node: None, definition: None },
-                Flow { flow_id: 3, start_node: None, definition: None },
+                Flow {
+                    flow_id: 1,
+                    start_node: None,
+                    definition: None,
+                },
+                Flow {
+                    flow_id: 2,
+                    start_node: None,
+                    definition: None,
+                },
+                Flow {
+                    flow_id: 3,
+                    start_node: None,
+                    definition: None,
+                },
             ],
             deleted_flow_ids: vec![],
         };
@@ -337,9 +384,21 @@ mod tests {
         {
             let response = FlowGetResponse {
                 updated_flows: vec![
-                    Flow { flow_id: 1, start_node: None, definition: None },
-                    Flow { flow_id: 2, start_node: None, definition: None },
-                    Flow { flow_id: 3, start_node: None, definition: None },
+                    Flow {
+                        flow_id: 1,
+                        start_node: None,
+                        definition: None,
+                    },
+                    Flow {
+                        flow_id: 2,
+                        start_node: None,
+                        definition: None,
+                    },
+                    Flow {
+                        flow_id: 3,
+                        start_node: None,
+                        definition: None,
+                    },
                 ],
                 deleted_flow_ids: vec![],
             };

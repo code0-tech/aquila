@@ -1,6 +1,7 @@
 use std::env;
 use std::fmt::{Debug, Display};
 use std::str::FromStr;
+use dotenv::from_filename;
 use log::{error, info};
 use crate::configuration::environment::Environment;
 
@@ -48,7 +49,7 @@ pub struct Config {
 /// Searches for the env. file at root level. Filename: `.env`
 impl Config {
     pub fn new() -> Self {
-        let result = dotenv::from_filename(".env");
+        let result = from_filename("../../../.env");
         match result {
             Ok(_) => info!(".env file loaded successfully"),
             Err(e) => error!("Error loading .env file: {}", e),

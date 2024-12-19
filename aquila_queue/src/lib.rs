@@ -2,7 +2,7 @@ use std::sync::Arc;
 use rabbitmq_stream_client::Environment;
 use tokio::sync::Mutex;
 
-struct RedisConfiguration {
+pub struct RedisConfiguration {
     host: String,
     port: u16,
     username: String,
@@ -10,11 +10,11 @@ struct RedisConfiguration {
 }
 
 impl RedisConfiguration {
-    
+
     pub fn new(host: String, port: u16, username: String, password: String) -> RedisConfiguration {
         Self {host, port, username, password}
     }
-    
+
 }
 
 pub async fn init_rabbitmq(redis_configuration: RedisConfiguration) -> Arc<Mutex<Box<Environment>>> {

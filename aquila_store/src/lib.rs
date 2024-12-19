@@ -144,8 +144,8 @@ mod tests {
     use redis::AsyncCommands;
     use tokio::sync::Mutex;
     use tucana::sagittarius::Flow;
-    use crate::data::redis::setup_redis_test_container;
-    use crate::service::flow_service::{FlowService, FlowServiceBase};
+    use aquila_container::setup_redis_test_container;
+    use crate::{FlowService, FlowServiceBase};
 
     #[tokio::test]
     async fn test_get_all_flow_ids_redis_error() {

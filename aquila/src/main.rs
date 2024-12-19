@@ -1,19 +1,19 @@
+use crate::configuration::config::Config;
 use crate::configuration::start_configuration::{StartConfiguration, StartConfigurationBase};
+use aquila_cache::build_connection;
+use std::env::set_var;
 use std::sync::Arc;
 use tokio::sync::Mutex;
-use crate::configuration::config::Config;
-use crate::data::redis::build_connection;
 
 mod client;
 mod configuration;
-mod data;
-mod service;
 mod server;
+mod service;
 
 #[tokio::main]
 async fn main() {
     // Configure logging
-    std::env::set_var("RUST_LOG", "info");
+    set_var("RUST_LOG", "info");
     json_env_logger2::init();
     json_env_logger2::panic_hook();
 
