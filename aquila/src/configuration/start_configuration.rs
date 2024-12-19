@@ -1,16 +1,17 @@
-use std::fs::File;
-use std::io::Read;
-use std::sync::Arc;
+use crate::client::sagittarius::flow_client::{SagittariusFlowClient, SagittariusFlowClientBase};
+use crate::configuration::config::Config;
+use aquila_store::{FlowService, FlowServiceBase};
 use async_trait::async_trait;
-use clokwerk::{AsyncScheduler};
+use clokwerk::AsyncScheduler;
 use clokwerk::Interval::Seconds;
 use log::{debug, error, info};
 use redis::aio::MultiplexedConnection;
+use serde_json::from_str;
+use std::fs::File;
+use std::io::Read;
+use std::sync::Arc;
 use tokio::sync::Mutex;
 use tucana::sagittarius::Flow;
-use crate::client::sagittarius::flow_client::{SagittariusFlowClient, SagittariusFlowClientBase};
-use crate::configuration::config::Config;
-use crate::service::flow_service::{FlowService, FlowServiceBase};
 
 pub struct StartConfigurationBase {
     connection_arc: Arc<Mutex<Box<MultiplexedConnection>>>,
@@ -19,7 +20,10 @@ pub struct StartConfigurationBase {
 
 #[async_trait]
 pub trait StartConfiguration {
-    async fn new(connection_arc: Arc<Mutex<Box<MultiplexedConnection>>>, config: Config) -> StartConfigurationBase;
+    async fn new(
+        connection_arc: Arc<Mutex<Box<MultiplexedConnection>>>,
+        config: Config,
+    ) -> StartConfigurationBase;
     async fn init_flows_from_sagittarius(&mut self);
     async fn init_flows_from_json(mut self);
 }
@@ -27,8 +31,14 @@ pub trait StartConfiguration {
 /// `Aquila's` startup configuration logic.
 #[async_trait]
 impl StartConfiguration for StartConfigurationBase {
-    async fn new(connection_arc: Arc<Mutex<Box<MultiplexedConnection>>>, config: Config) -> StartConfigurationBase {
-        StartConfigurationBase { connection_arc, config }
+    async fn new(
+        connection_arc: Arc<Mutex<Box<MultiplexedConnection>>>,
+        config: Config,
+    ) -> StartConfigurationBase {
+        StartConfigurationBase {
+            connection_arc,
+            config,
+        }
     }
 
     /// Function to initialize the connection to `Sagittarius` to receive latest flows.
@@ -43,7 +53,8 @@ impl StartConfiguration for StartConfigurationBase {
     async fn init_flows_from_sagittarius(&mut self) {
         let flow_service = FlowServiceBase::new(self.connection_arc.clone()).await;
         let flow_service_arc = Arc::new(Mutex::new(flow_service));
-        let mut sagittarius_client = SagittariusFlowClientBase::new(self.config.backend_url.clone(), flow_service_arc).await;
+        let mut sagittarius_client =
+            SagittariusFlowClientBase::new(self.config.backend_url.clone(), flow_service_arc).await;
 
         if !self.config.enable_scheduled_update {
             info!("Receiving flows from sagittarius once");
@@ -55,16 +66,14 @@ impl StartConfiguration for StartConfigurationBase {
         let schedule_interval = self.config.update_schedule_interval;
         let mut scheduler = AsyncScheduler::new();
 
-        scheduler
-            .every(Seconds(schedule_interval))
-            .run(move || {
-                let local_flow_client = Arc::new(Mutex::new(sagittarius_client.clone()));
+        scheduler.every(Seconds(schedule_interval)).run(move || {
+            let local_flow_client = Arc::new(Mutex::new(sagittarius_client.clone()));
 
-                async move {
-                    let mut current_flow_client = local_flow_client.lock().await;
-                    current_flow_client.send_start_request().await
-                }
-            });
+            async move {
+                let mut current_flow_client = local_flow_client.lock().await;
+                current_flow_client.send_start_request().await
+            }
+        });
     }
 
     /// Function to start `Aquila` from a JSON containing the flows.
@@ -105,11 +114,14 @@ impl StartConfiguration for StartConfigurationBase {
             }
         }
 
-        let flows: Vec<Flow> = match serde_json::from_str(&data) {
+        let flows: Vec<Flow> = match from_str(&data) {
             Ok(flows) => flows,
             Err(error) => {
                 error!("Error deserializing json file {}", error);
-                panic!("There was a problem deserializing the json file: {:?}", error);
+                panic!(
+                    "There was a problem deserializing the json file: {:?}",
+                    error
+                );
             }
         };
 
