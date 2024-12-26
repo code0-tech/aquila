@@ -1,5 +1,6 @@
 use crate::client::sagittarius::flow_client::{SagittariusFlowClient, SagittariusFlowClientBase};
 use crate::configuration::config::Config;
+use crate::configuration::mode::Mode;
 use aquila_store::{FlowService, FlowServiceBase};
 use async_trait::async_trait;
 use clokwerk::AsyncScheduler;
@@ -56,7 +57,11 @@ impl StartConfiguration for StartConfigurationBase {
         let mut sagittarius_client =
             SagittariusFlowClientBase::new(self.config.backend_url.clone(), flow_service_arc).await;
 
-        if !self.config.enable_scheduled_update {
+        if &self.config.mode == Mode::STATIC {
+            return;
+        }
+
+        if &self.config.mode == Mode::DYNAMIC {
             info!("Receiving flows from sagittarius once");
             sagittarius_client.send_start_request().await;
             return;
@@ -88,7 +93,7 @@ impl StartConfiguration for StartConfigurationBase {
     /// - File is not readable
     /// - File is not parsable
     async fn init_flows_from_json(mut self) {
-        if self.config.enable_grpc_update || self.config.enable_scheduled_update {
+        if &self.config.mode != Mode::STATIC {
             return;
         }
 
