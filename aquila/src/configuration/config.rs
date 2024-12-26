@@ -1,10 +1,10 @@
+use crate::configuration::environment::Environment;
+use crate::configuration::mode::Mode;
+use dotenv::from_filename;
+use log::{error, info};
 use std::env;
 use std::fmt::{Debug, Display};
 use std::str::FromStr;
-use dotenv::from_filename;
-use log::{error, info};
-use crate::configuration::environment::Environment;
-use crate::configuration::mode::Mode;
 
 /// Struct for all relevant `Aquila` startup configurations
 pub struct Config {
@@ -15,7 +15,13 @@ pub struct Config {
     /// `staging`
     /// `production`
     pub environment: Environment,
-    
+
+    /// Aquila mode
+    ///
+    /// Options:
+    /// `static` (default)
+    /// `hybrid`
+    /// `dynamic`
     pub mode: Mode,
 
     /// URL to the Redis Server.
@@ -54,7 +60,10 @@ impl Config {
             mode: Self::get_mode("MODE", Mode::STATIC),
             redis_url: Self::get_string("REDIS_URL", "redis://redis:6379"),
             update_schedule_interval: Self::get_u32("UPDATE_SCHEDULE_INTERVAL", 3600),
-            flow_fallback_path: Self::get_string("FLOW_FALLBACK_PATH", "configuration/configuration.json"),
+            flow_fallback_path: Self::get_string(
+                "FLOW_FALLBACK_PATH",
+                "configuration/configuration.json",
+            ),
             session_token: Self::get_string("SESSION_TOKEN", "default_session_token"),
             backend_url: Self::get_string("BACKEND_URL", "http://localhost:8080"),
         }
@@ -74,7 +83,7 @@ impl Config {
 
         Environment::from_str(&value)
     }
-    
+
     fn get_mode(key: &str, default: Mode) -> Mode {
         let value = match env::var(key) {
             Ok(result) => {
@@ -86,7 +95,7 @@ impl Config {
                 return default;
             }
         };
-        
+
         Mode::from_str(&value)
     }
 
@@ -94,9 +103,6 @@ impl Config {
         Self::get_env_with_default(key, String::from(default))
     }
 
-    fn get_bool(key: &str, default: bool) -> bool {
-        Self::get_env_with_default(key, default)
-    }
     fn get_u32(key: &str, default: u32) -> u32 {
         Self::get_env_with_default(key, default)
     }

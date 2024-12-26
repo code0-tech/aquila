@@ -1,3 +1,13 @@
+/// Aquila Startup-Mode
+/// 
+/// STATIC: 
+/// Aquila will start from configuration file
+/// 
+/// DYNAMIC: 
+/// Aquila will be updated by releases (via request scheduler)
+/// 
+/// HYBRID
+/// Aquila will be updated by updates (via stream)
 pub enum Mode {
     STATIC,
     DYNAMIC,
