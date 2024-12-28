@@ -3,8 +3,6 @@ use crate::configuration::config::Config;
 use crate::configuration::mode::Mode;
 use aquila_store::{FlowService, FlowServiceBase};
 use async_trait::async_trait;
-use clokwerk::AsyncScheduler;
-use clokwerk::Interval::Seconds;
 use log::{debug, error, info};
 use redis::aio::MultiplexedConnection;
 use serde_json::from_str;
@@ -42,7 +40,7 @@ impl StartConfiguration for StartConfigurationBase {
         }
     }
 
-    /// Function to initialize the connection to `Sagittarius` to receive latest flows.
+    /// Function to initialize the connection to `Sagittarius` to receive flows.
     ///
     /// Behavior:
     /// If scheduling is disabled a request will be sent once.
@@ -52,33 +50,16 @@ impl StartConfiguration for StartConfigurationBase {
     /// - `Sagittarius` connection buildup fails
     /// - Redis connection buildup fails
     async fn init_flows_from_sagittarius(&mut self) {
+        if &self.config.mode != Mode::DYNAMIC {
+            return;
+        }
+
         let flow_service = FlowServiceBase::new(self.connection_arc.clone()).await;
         let flow_service_arc = Arc::new(Mutex::new(flow_service));
         let mut sagittarius_client =
             SagittariusFlowClientBase::new(self.config.backend_url.clone(), flow_service_arc).await;
 
-        if &self.config.mode == Mode::STATIC {
-            return;
-        }
-
-        if &self.config.mode == Mode::DYNAMIC {
-            info!("Receiving flows from sagittarius once");
-            sagittarius_client.send_start_request().await;
-            return;
-        }
-
-        info!("Receiving flows from sagittarius on a scheduled basis.");
-        let schedule_interval = self.config.update_schedule_interval;
-        let mut scheduler = AsyncScheduler::new();
-
-        scheduler.every(Seconds(schedule_interval)).run(move || {
-            let local_flow_client = Arc::new(Mutex::new(sagittarius_client.clone()));
-
-            async move {
-                let mut current_flow_client = local_flow_client.lock().await;
-                current_flow_client.send_start_request().await
-            }
-        });
+        sagittarius_client.init_flow_stream().await
     }
 
     /// Function to start `Aquila` from a JSON containing the flows.
