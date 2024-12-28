@@ -22,7 +22,14 @@ async fn main() {
 
     // Redis connection
     let client = build_connection(config.redis_url.clone());
-    let con = client.get_multiplexed_async_connection().await.unwrap();
+
+    let con = match client.get_multiplexed_async_connection().await {
+        Ok(con) => con,
+        Err(err) => {
+            panic!("Failed to connect to server: {}", err);
+        }
+    };
+
     let connection = Arc::new(Mutex::new(Box::new(con)));
 
     // Startup
