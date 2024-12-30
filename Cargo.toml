@@ -15,7 +15,7 @@ futures = "0.3"
 serde_json = { version = "1.0" }
 json_env_logger2 = "0.2"
 log = "0.4.22"
-tucana = { version = "0.0.13", features = ["sagittarius", "aquila"] }
+tucana = { version = "0.0.14", features = ["sagittarius", "aquila"] }
 dotenv = "0.15.0"
 rabbitmq-stream-client = "0.7.0"
 async-trait = "0.1.81"
