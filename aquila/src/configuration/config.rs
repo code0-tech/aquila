@@ -3,7 +3,6 @@ use crate::configuration::mode::Mode;
 use dotenv::from_filename;
 use log::{error, info};
 use std::env;
-use std::fmt::{Debug, Display};
 use std::str::FromStr;
 
 /// Struct for all relevant `Aquila` startup configurations
@@ -21,7 +20,6 @@ pub struct Config {
     /// Options:
     /// `static` (default)
     /// `hybrid`
-    /// `dynamic`
     pub mode: Mode,
 
     /// URL to the Redis Server.
@@ -70,33 +68,11 @@ impl Config {
     }
 
     fn get_environment(key: &str, default: Environment) -> Environment {
-        let value = match env::var(key) {
-            Ok(result) => {
-                info!("Env. {} was found", key);
-                result
-            }
-            Err(_) => {
-                error!("Env. {} was not found", key);
-                return default;
-            }
-        };
-
-        Environment::from_str(&value)
+        Self::get_env_with_default(key, default)
     }
 
     fn get_mode(key: &str, default: Mode) -> Mode {
-        let value = match env::var(key) {
-            Ok(result) => {
-                info!("Env. {} was found", key);
-                result
-            }
-            Err(_) => {
-                error!("Env. {} was not found", key);
-                return default;
-            }
-        };
-
-        Mode::from_str(&value)
+        Self::get_env_with_default(key, default)
     }
 
     fn get_string(key: &str, default: &str) -> String {
@@ -110,8 +86,6 @@ impl Config {
     pub fn get_env_with_default<T>(name: &str, default: T) -> T
     where
         T: FromStr,
-        T: Display,
-        T: Debug,
     {
         let env_variable = match env::var(name) {
             Ok(result) => {
@@ -135,7 +109,7 @@ impl Config {
             }
         };
 
-        info!("Env. variable {} was set to the value: {:?}", name, result);
+        info!("Env. variable {} was set to the value", name);
         result
     }
 }
