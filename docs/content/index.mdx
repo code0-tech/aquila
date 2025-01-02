@@ -4,10 +4,13 @@ description: Find out how Aquila works
 template: splash
 ---
 
-import { Card, CardGrid } from '@astrojs/starlight/components';
+import {Card, CardGrid} from '@astrojs/starlight/components';
 
 <CardGrid stagger>
-  <Card title='<a href="setup/setup.md">Setup</a>' icon="document">
-    View the setup guide for aquila.
-  </Card>
+    <Card title='<a href="setup/setup.md">Setup</a>' icon="document">
+        View the setup guide for aquila.
+    </Card>
+    <Card title='<a href="dev/dev.md">Develop</a>' icon="rust">
+        Development for aquila.
+    </Card>
 </CardGrid>
