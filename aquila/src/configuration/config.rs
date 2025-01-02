@@ -26,11 +26,6 @@ pub struct Config {
     /// Default none
     pub redis_url: String,
 
-    /// Interval for `Aquila` to ask `Sagittarius` about updated flows.
-    /// Unit: `Seconds`
-    /// Default: 3600 seconds => 1 hour
-    pub update_schedule_interval: u32,
-
     /// Fallback file to load flows if gRPC & scheduling is disabled.
     pub flow_fallback_path: String,
 
@@ -57,7 +52,6 @@ impl Config {
             environment: Self::get_environment("ENVIRONMENT", Environment::Development),
             mode: Self::get_mode("MODE", Mode::STATIC),
             redis_url: Self::get_string("REDIS_URL", "redis://redis:6379"),
-            update_schedule_interval: Self::get_u32("UPDATE_SCHEDULE_INTERVAL", 3600),
             flow_fallback_path: Self::get_string(
                 "FLOW_FALLBACK_PATH",
                 "configuration/configuration.json",
@@ -77,10 +71,6 @@ impl Config {
 
     fn get_string(key: &str, default: &str) -> String {
         Self::get_env_with_default(key, String::from(default))
-    }
-
-    fn get_u32(key: &str, default: u32) -> u32 {
-        Self::get_env_with_default(key, default)
     }
 
     pub fn get_env_with_default<T>(name: &str, default: T) -> T
