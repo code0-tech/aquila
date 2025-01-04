@@ -30,7 +30,7 @@ pub struct Config {
     pub flow_fallback_path: String,
 
     /// Verification Token required for internal communication
-    pub session_token: String,
+    pub runtime_token: String,
 
     /// URL to the `Sagittarius` Server.
     pub backend_url: String,
@@ -56,7 +56,7 @@ impl Config {
                 "FLOW_FALLBACK_PATH",
                 "configuration/configuration.json",
             ),
-            session_token: Self::get_string("SESSION_TOKEN", "default_session_token"),
+            runtime_token: Self::get_string("RUNTIME_TOKEN", "default_session_token"),
             backend_url: Self::get_string("BACKEND_URL", "http://localhost:8080"),
         }
     }
