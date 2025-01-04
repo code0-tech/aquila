@@ -17,6 +17,7 @@ serde_json = { workspace = true }
 tucana = { workspace = true }
 tonic = { workspace = true }
 tokio = { workspace = true }
+aquila_grpc = {workspace = true}
 
 [dev-dependencies]
 aquila_container = { workspace = true }
