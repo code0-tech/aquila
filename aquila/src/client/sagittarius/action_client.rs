@@ -1,24 +1,34 @@
+use aquila_grpc::get_authorization_metadata;
 use async_trait::async_trait;
 use log::{error, info};
 use tonic::transport::Channel;
-use tonic::{Request, Response};
+use tonic::{Extensions, Request, Response};
 use tucana::aquila::InformationRequest;
 use tucana::sagittarius::action_service_client::ActionServiceClient;
-use tucana::sagittarius::{ActionLogoffRequest, ActionLogoffResponse, ActionLogonRequest, ActionLogonResponse};
+use tucana::sagittarius::{
+    ActionLogoffRequest, ActionLogoffResponse, ActionLogonRequest, ActionLogonResponse,
+};
 
 /// Struct representing a service for sending flows received from an `Action` to `Sagittarius`.
 /// Part that informs `Sagittarius`
 pub struct SagittariusActionClientBase {
     client: ActionServiceClient<Channel>,
+    token: String,
 }
 
 /// Trait representing a service for sending flows received from an `Action` to `Sagittarius`.
 /// Part that informs `Sagittarius`
 #[async_trait]
 pub trait SagittariusActionClient {
-    async fn new(sagittarius_url: String) -> SagittariusActionClientBase;
-    async fn send_action_logon_request(&mut self, information: InformationRequest) -> Result<Response<ActionLogonResponse>, tonic::Status>;
-    async fn send_action_logoff_request(&mut self, identifier: String) -> Result<Response<ActionLogoffResponse>, tonic::Status>;
+    async fn new(sagittarius_url: String, token: String) -> SagittariusActionClientBase;
+    async fn send_action_logon_request(
+        &mut self,
+        information: InformationRequest,
+    ) -> Result<Response<ActionLogonResponse>, tonic::Status>;
+    async fn send_action_logoff_request(
+        &mut self,
+        identifier: String,
+    ) -> Result<Response<ActionLogoffResponse>, tonic::Status>;
 }
 
 /// Implementation of the service for sending flows received from an `Action` to `Sagittarius`.
@@ -29,24 +39,31 @@ impl SagittariusActionClient for SagittariusActionClientBase {
     ///
     /// Behavior:
     /// Will panic when a connection can`t be established
-    async fn new(sagittarius_url: String) -> SagittariusActionClientBase {
+    async fn new(sagittarius_url: String, token: String) -> SagittariusActionClientBase {
         let client = match ActionServiceClient::connect(sagittarius_url).await {
-            Ok(res) => { res }
+            Ok(res) => res,
             Err(start_error) => {
                 panic!("Can't start client {:?}", start_error);
             }
         };
 
-        SagittariusActionClientBase { client }
+        SagittariusActionClientBase { client, token }
     }
 
     /// Sends `Sagittarius` the information that a `Action` went online.
-    async fn send_action_logon_request(&mut self, information: InformationRequest) -> Result<Response<ActionLogonResponse>, tonic::Status> {
-        let request = Request::new(ActionLogonRequest {
-            identifier: information.identifier,
-            function_definition: information.function_definition,
-            parameter_definition: information.parameter_definition,
-        });
+    async fn send_action_logon_request(
+        &mut self,
+        information: InformationRequest,
+    ) -> Result<Response<ActionLogonResponse>, tonic::Status> {
+        let request = Request::from_parts(
+            get_authorization_metadata(&self.token),
+            Extensions::new(),
+            ActionLogonRequest {
+                identifier: information.identifier,
+                function_definition: information.function_definition,
+                parameter_definition: information.parameter_definition,
+            },
+        );
 
         match self.client.logon(request).await {
             Err(status) => {
@@ -61,10 +78,15 @@ impl SagittariusActionClient for SagittariusActionClientBase {
     }
 
     /// Sends `Sagittarius` the information that a `Action` went offline.
-    async fn send_action_logoff_request(&mut self, identifier: String) -> Result<Response<ActionLogoffResponse>, tonic::Status> {
-        let request = Request::new(ActionLogoffRequest {
-            identifier
-        });
+    async fn send_action_logoff_request(
+        &mut self,
+        identifier: String,
+    ) -> Result<Response<ActionLogoffResponse>, tonic::Status> {
+        let request = Request::from_parts(
+            get_authorization_metadata(&self.token),
+            Extensions::new(),
+            ActionLogoffRequest { identifier },
+        );
 
         match self.client.logoff(request).await {
             Err(status) => {
@@ -82,13 +104,13 @@ impl SagittariusActionClient for SagittariusActionClientBase {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::net::SocketAddr;
+    use tokio::task::JoinHandle;
     use tonic::{transport::Server, Request, Response, Status};
     use tucana::sagittarius::{
         action_service_server::{ActionService, ActionServiceServer},
         ActionLogoffRequest, ActionLogoffResponse, ActionLogonRequest, ActionLogonResponse,
     };
-    use std::net::SocketAddr;
-    use tokio::task::JoinHandle;
     use tucana::shared::{RuntimeFunctionDefinition, RuntimeParameterDefinition};
 
     #[derive(Debug, Default)]
@@ -168,36 +190,44 @@ mod tests {
     #[tokio::test]
     async fn test_sagittarius_action_client_integration() {
         let (sagittarius, url) = setup_sagittarius_mock().await;
-        let mut client = SagittariusActionClientBase::new(url).await;
+        let mut client = SagittariusActionClientBase::new(url, String::from("")).await;
 
         let information = InformationRequest {
             identifier: "test_identifier".to_string(),
             function_definition: vec![RuntimeFunctionDefinition { id: "".to_string() }],
-            parameter_definition: vec![RuntimeParameterDefinition { name: "".to_string() }],
+            parameter_definition: vec![RuntimeParameterDefinition {
+                name: "".to_string(),
+            }],
         };
 
         let logon_result = client.send_action_logon_request(information.clone()).await;
         assert!(logon_result.is_ok());
 
-        let logoff_result = client.send_action_logoff_request(information.identifier.clone()).await;
+        let logoff_result = client
+            .send_action_logoff_request(information.identifier.clone())
+            .await;
         assert!(logoff_result.is_ok());
     }
 
     #[tokio::test]
     async fn test_broken_sagittarius_action_client_integration() {
         let (sagittarius, url) = setup_broken_sagittarius_mock().await;
-        let mut client = SagittariusActionClientBase::new(url).await;
+        let mut client = SagittariusActionClientBase::new(url, String::from("")).await;
 
         let information: InformationRequest = InformationRequest {
             identifier: "test_identifier".to_string(),
             function_definition: vec![RuntimeFunctionDefinition { id: "".to_string() }],
-            parameter_definition: vec![RuntimeParameterDefinition { name: "".to_string() }],
+            parameter_definition: vec![RuntimeParameterDefinition {
+                name: "".to_string(),
+            }],
         };
 
         let logon_result = client.send_action_logon_request(information.clone()).await;
         assert!(logon_result.is_err());
 
-        let logoff_result = client.send_action_logoff_request(information.identifier.clone()).await;
+        let logoff_result = client
+            .send_action_logoff_request(information.identifier.clone())
+            .await;
         assert!(logoff_result.is_err());
         drop(sagittarius)
     }
@@ -206,6 +236,6 @@ mod tests {
     #[should_panic(expected = "Can't start client")]
     async fn test_sagittarius_action_client_new_should_panic() {
         let sagittarius_url = "http://127.0.0.1:12345".to_string();
-        let _client = SagittariusActionClientBase::new(sagittarius_url).await;
+        let _client = SagittariusActionClientBase::new(sagittarius_url, String::from("")).await;
     }
 }

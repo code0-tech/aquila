@@ -56,8 +56,12 @@ impl StartConfiguration for StartConfigurationBase {
 
         let flow_service = FlowServiceBase::new(self.connection_arc.clone()).await;
         let flow_service_arc = Arc::new(Mutex::new(flow_service));
-        let mut sagittarius_client =
-            SagittariusFlowClientBase::new(self.config.backend_url.clone(), flow_service_arc).await;
+        let mut sagittarius_client = SagittariusFlowClientBase::new(
+            self.config.backend_url.clone(),
+            flow_service_arc,
+            self.config.runtime_token.clone(),
+        )
+        .await;
 
         sagittarius_client.init_flow_stream().await
     }
