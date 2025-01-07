@@ -2,11 +2,7 @@
 title: Aquila Setup Guide
 ---
 
-# Aquila Setup Guide
-
 Follow this guide to set up Aquila.
-
----
 
 ## Setup Options
 

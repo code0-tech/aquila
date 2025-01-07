@@ -1,8 +1,8 @@
 ---
-title: Develop Aquila
+title: Aquila Development Guide
 ---
 
-# Develop Aquila
+Follow this guide to develop Aquila.
 
 ## Requirements
 
