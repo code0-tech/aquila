@@ -41,7 +41,7 @@ Below is a list of required environment variables for configuring Aquila:
 | `REDIS_URL`          | The URL of the Redis instance Aquila connects to.                                                                                  |         |
 | `BACKEND_URL`        | The URL of the Sagittarius instance Aquila communicates with.                                                                      |         |
 | `FLOW_FALLBACK_PATH` | Path to the flow file used for static configuration in `Static` mode.                                                              |         |
-| `SESSION_TOKEN`      | A session token for authenticated communication between Aquila and Sagittarius.                                                    |         |
+| `RUNTIME_TOKEN`      | A runtime token for authenticated communication between Aquila and Sagittarius.                                                    |         |
 
 ---
 
