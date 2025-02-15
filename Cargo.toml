@@ -18,7 +18,7 @@ json_env_logger2 = "0.2"
 log = "0.4.22"
 tucana = { version = "0.0.15", features = ["sagittarius", "aquila"] }
 dotenv = "0.15.0"
-rabbitmq-stream-client = "0.7.0"
+rabbitmq-stream-client = "0.8.0"
 async-trait = "0.1.81"
 testcontainers = "0.23.1"
 async-stream = "0.3.6"
