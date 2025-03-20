@@ -4,3 +4,10 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
+dotenv = "0.15.0"
+futures = "0.3.31"
+log = "0.4.26"
+prost = "0.13.5"
+tokio = "1.44.1"
+tonic = "0.12.3"
+tucana = { version = "0.0.17", features = ["all"] }
