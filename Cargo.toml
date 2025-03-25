@@ -10,7 +10,7 @@ members = [
 
 [workspace.dependencies]
 redis = { version = "0.28.0", features = ["async-std", "tokio", "aio", "tokio-comp", "async-std-comp"] }
-tonic = "0.12.1"
+tonic = "0.13.0"
 tokio = { version = "1.39", features = ["rt-multi-thread", "rt", "macros"] }
 futures = "0.3"
 serde_json = { version = "1.0" }
