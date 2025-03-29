@@ -3,7 +3,7 @@ use futures::StreamExt;
 use log::error;
 use std::sync::Arc;
 use tokio::sync::Mutex;
-use tonic::{async_trait, transport::Channel, Extensions, Request};
+use tonic::{transport::Channel, Extensions, Request};
 use tucana::sagittarius::{
     flow_response::Data, flow_service_client::FlowServiceClient, FlowLogonRequest, FlowResponse,
 };
@@ -17,21 +17,8 @@ pub struct SagittariusFlowClient {
     token: String,
 }
 
-/// Trait representing a service for receiving flows from `Sagittarius`.
-#[async_trait]
-pub trait SagittariusServiceClient {
-    async fn new(
-        sagittarius_url: String,
-        flow_service: Arc<Mutex<FlowStoreService>>,
-        token: String,
-    ) -> SagittariusFlowClient;
-    async fn handle_response(&mut self, response: FlowResponse);
-    async fn init_flow_stream(&mut self);
-}
-
-#[async_trait]
-impl SagittariusServiceClient for SagittariusFlowClient {
-    async fn new(
+impl SagittariusFlowClient {
+    pub async fn new(
         sagittarius_url: String,
         flow_service: Arc<Mutex<FlowStoreService>>,
         token: String,
@@ -89,7 +76,7 @@ impl SagittariusServiceClient for SagittariusFlowClient {
         }
     }
 
-    async fn init_flow_stream(&mut self) {
+    pub async fn init_flow_stream(&mut self) {
         let request = Request::from_parts(
             get_authorization_metadata(&self.token),
             Extensions::new(),
