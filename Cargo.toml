@@ -9,7 +9,7 @@ dotenv = "0.15.0"
 futures = "0.3.31"
 log = "0.4.26"
 prost = "0.13.5"
-tonic = "0.12.3"
+tonic = "0.13.0"
 tucana = { version = "0.0.17", features = ["all"] }
 code0-flow = { version = "0.0.3", features = ["all"] }
 serde_json = "1.0.140"
