@@ -44,17 +44,17 @@ impl Config {
     pub fn new() -> Self {
         let result = from_filename("../../../.env");
         match result {
-            Ok(_) => info!(".env file loaded successfully"),
-            Err(e) => error!("Error loading .env file: {}", e),
+            Ok(_) => print!(".env file loaded successfully"),
+            Err(e) => print!("Error loading .env file: {}", e),
         }
 
         Config {
             environment: Self::get_environment("ENVIRONMENT", Environment::Development),
             mode: Self::get_mode("MODE", Mode::STATIC),
-            redis_url: Self::get_string("REDIS_URL", "redis://redis:6379"),
+            redis_url: Self::get_string("REDIS_URL", "redis://localhost:6379"),
             flow_fallback_path: Self::get_string(
                 "FLOW_FALLBACK_PATH",
-                "configuration/configuration.json",
+                "../flow/test_flow_one.json",
             ),
             runtime_token: Self::get_string("RUNTIME_TOKEN", "default_session_token"),
             backend_url: Self::get_string("BACKEND_URL", "http://localhost:8080"),
@@ -101,5 +101,28 @@ impl Config {
 
         info!("Env. variable {} was set to the value", name);
         result
+    }
+
+    pub fn is_static(&self) -> bool {
+        self.mode == Mode::STATIC
+    }
+
+    /// Prints the current configuration to the console
+    pub fn print_config(&self) {
+        println!("=== Aquila Configuration ===");
+        println!("Environment: {:?}", self.environment);
+        println!("Mode: {:?}", self.mode);
+        println!("Redis URL: {}", self.redis_url);
+        println!("Flow Fallback Path: {}", self.flow_fallback_path);
+        println!(
+            "Runtime Token: {}",
+            if self.runtime_token.is_empty() {
+                "Not set"
+            } else {
+                "[REDACTED]"
+            }
+        );
+        println!("Backend URL: {}", self.backend_url);
+        println!("===========================");
     }
 }

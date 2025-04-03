@@ -1,5 +1,6 @@
 use std::str::FromStr;
 
+#[derive(Debug)]
 pub enum Environment {
     Development,
     Staging,
@@ -14,7 +15,7 @@ impl FromStr for Environment {
             "staging" => Ok(Environment::Staging),
             "production" => Ok(Environment::Production),
             "development" => Ok(Environment::Development),
-            _ => Err(())
+            _ => Err(()),
         }
     }
 }

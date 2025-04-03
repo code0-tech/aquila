@@ -1,12 +1,13 @@
 use std::str::FromStr;
 
 /// Aquila Startup-Mode
-/// 
-/// STATIC: 
+///
+/// STATIC:
 /// Aquila will start from configuration file
-/// 
-/// DYNAMIC: 
+///
+/// DYNAMIC:
 /// Aquila will be updated by releases (via request scheduler)
+#[derive(PartialEq, Debug)]
 pub enum Mode {
     STATIC,
     DYNAMIC,
@@ -20,16 +21,6 @@ impl FromStr for Mode {
             "static" => Ok(Mode::STATIC),
             "dynamic" => Ok(Mode::DYNAMIC),
             _ => Err(()),
-        }
-    }
-}
-
-impl PartialEq<Mode> for &Mode {
-    fn eq(&self, other: &Mode) -> bool {
-        match (*self, other) {
-            (Mode::STATIC, Mode::STATIC) => true,
-            (Mode::DYNAMIC, Mode::DYNAMIC) => true,
-            _ => false
         }
     }
 }
