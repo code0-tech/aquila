@@ -1,0 +1,58 @@
+{
+  "flows": [
+    {
+      "flow_id": 1,
+      "type": "example_type",
+      "settings": [
+        {
+          "definition": "setting_1",
+          "object": { "fields": {} }
+        }
+      ],
+      "starting_node": {
+        "definition": {
+          "function_id": "func_123",
+          "runtime_function_id": "rt_func_123"
+        },
+        "parameters": [
+          {
+            "definition": {
+              "parameter_id": "param_456",
+              "runtime_parameter_id": "rt_param_456"
+            },
+            "object": { "fields": {} },
+            "sub_node": null
+          }
+        ],
+        "next_node": null
+      }
+    },
+    {
+      "flow_id": 2,
+      "type": "another_type",
+      "settings": [
+        {
+          "definition": "setting_2",
+          "object": { "fields": {} }
+        }
+      ],
+      "starting_node": {
+        "definition": {
+          "function_id": "func_789",
+          "runtime_function_id": "rt_func_789"
+        },
+        "parameters": [
+          {
+            "definition": {
+              "parameter_id": "param_999",
+              "runtime_parameter_id": "rt_param_999"
+            },
+            "object": { "fields": {} },
+            "sub_node": null
+          }
+        ],
+        "next_node": null
+      }
+    }
+  ]
+}
