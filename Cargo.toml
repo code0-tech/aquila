@@ -12,3 +12,4 @@ prost = "0.13.5"
 tonic = "0.12.3"
 tucana = { version = "0.0.17", features = ["all"] }
 code0-flow = { version = "0.0.3", features = ["all"] }
+serde_json = "1.0.140"
