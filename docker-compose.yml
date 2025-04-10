@@ -3,9 +3,18 @@ services:
     image: redis/redis-stack:latest
     ports:
       - "6379:6379"
+      - "8001:8001"
     volumes:
       - redis_data:/data
 
+  rabbitmq:
+    image: rabbitmq:4.0.8-management
+    ports:
+      - "8080:15672"
+      - "5672:5672"
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+
 volumes:
   redis_data:
-  redisinsight_data:
+  rabbitmq_data:
