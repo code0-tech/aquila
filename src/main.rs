@@ -7,7 +7,7 @@ use sagittarius::flow_service_client_impl::SagittariusFlowClient;
 use serde_json::from_str;
 use std::{fs::File, io::Read, sync::Arc};
 use tokio::sync::Mutex;
-use tucana::sagittarius::Flows;
+use tucana::shared::Flows;
 
 pub mod authorization;
 pub mod configuration;
