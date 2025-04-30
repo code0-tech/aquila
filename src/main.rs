@@ -5,6 +5,7 @@ use code0_flow::flow_store::{
 use configuration::config::Config;
 use sagittarius::flow_service_client_impl::SagittariusFlowClient;
 use serde_json::from_str;
+use server::AquilaGRPCServer;
 use std::{fs::File, io::Read, sync::Arc};
 use tokio::sync::Mutex;
 use tucana::shared::Flows;
@@ -12,6 +13,7 @@ use tucana::shared::Flows;
 pub mod authorization;
 pub mod configuration;
 pub mod sagittarius;
+pub mod server;
 pub mod stream;
 
 #[tokio::main]
@@ -24,6 +26,22 @@ async fn main() {
 
     //Create connection to Sagittarius if the type is hybrid
     if !config.is_static() {
+        let server = AquilaGRPCServer::new(
+            config.runtime_token.clone(),
+            config.backend_url.clone(),
+            8080,
+        );
+
+        match server.start().await {
+            Ok(_) => {
+                log::info!("Server started successfully");
+            }
+            Err(err) => {
+                log::error!("Failed to start server: {}", err);
+                panic!("Failed to start server");
+            }
+        };
+
         let mut sagittarius_client =
             SagittariusFlowClient::new(config.backend_url, flow_store_client, config.runtime_token)
                 .await;
