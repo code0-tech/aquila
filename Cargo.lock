@@ -528,9 +528,7 @@ dependencies = [
 
 [[package]]
 name = "code0-flow"
-version = "0.0.8"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ea8fc36baafbfa933332d1f151346614abdc30876609c10cf711b12938b680d2"
+version = "0.0.9"
 dependencies = [
  "async-trait",
  "futures-lite 2.6.0",
@@ -540,6 +538,7 @@ dependencies = [
  "serde",
  "serde_json",
  "tokio",
+ "tonic",
  "tucana",
 ]
 
@@ -1920,13 +1919,14 @@ dependencies = [
 
 [[package]]
 name = "redis"
-version = "0.29.5"
+version = "0.30.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1bc42f3a12fd4408ce64d8efef67048a924e543bd35c6591c0447fda9054695f"
+checksum = "438a4e5f8e9aa246d6f3666d6978441bf1b37d5f417b50c4dd220be09f5fcc17"
 dependencies = [
  "arc-swap",
  "async-std",
  "bytes",
+ "cfg-if",
  "combine",
  "futures-util",
  "itoa",
@@ -2607,9 +2607,9 @@ checksum = "e421abadd41a4225275504ea4d6566923418b7f05506fbc9c0fe86ba7396114b"
 
 [[package]]
 name = "tucana"
-version = "0.0.20"
+version = "0.0.21"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "39e88fda8f4b12a650904dbce5d3462ba161215a2cd5c0799c728be6747ac7fc"
+checksum = "d0dd03fcd2576f2649ef51551c2d9673f553b2fd05b37a3b7955d241c9977599"
 dependencies = [
  "prost",
  "prost-types",
