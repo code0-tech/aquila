@@ -1,9 +1,10 @@
 # Aquila
 The runtime gateway for execution management
 
-- Maintains flows in their most up-to-date state
-- Efficiently transfers information and execution results between services
-- Serves as the entry point for new addons (actions) to be integrated into the execution
+- Maintains Flows in their most up-to-date state
+- Efficiently transfers execution results between services
+- Updates all Runtime Definitions (DataTypes, FlowTypes and RuntimeFunctionDefinitions)
+- Serves as the entry point for new addons (Actions) to be integrated into the runtime block
 
 ## Used Technologies
 
