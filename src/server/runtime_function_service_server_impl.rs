@@ -25,6 +25,12 @@ impl RuntimeFunctionDefinitionService for AquilaRuntimeFunctionServiceServer {
         tonic::Status,
     > {
         let runtime_function_definition_update_request = request.into_inner();
+
+        log::info!(
+            "Recieved RuntimeFunctions: {:?}",
+            runtime_function_definition_update_request.runtime_functions
+        );
+
         let mut client = self.client.lock().await;
         let response = client
             .update_runtime_function_definitions(runtime_function_definition_update_request)

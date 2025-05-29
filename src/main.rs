@@ -18,6 +18,12 @@ pub mod stream;
 
 #[tokio::main]
 async fn main() {
+    env_logger::Builder::from_default_env()
+        .filter_level(log::LevelFilter::Debug)
+        .init();
+
+    log::info!("Starting Aquila...");
+
     let config = Config::new();
     config.print_config();
 
@@ -37,7 +43,7 @@ async fn main() {
                 log::info!("Server started successfully");
             }
             Err(err) => {
-                log::error!("Failed to start server: {}", err);
+                log::error!("Failed to start server: {:?}", err);
                 panic!("Failed to start server");
             }
         };

@@ -5,6 +5,7 @@ use crate::sagittarius::{
 };
 use data_type_service_server_impl::AquilaDataTypeServiceServer;
 use flow_type_service_server_impl::AquilaFlowTypeServiceServer;
+use log::info;
 use runtime_function_service_server_impl::AquilaRuntimeFunctionServiceServer;
 use std::net::SocketAddr;
 use tonic::transport::Server;
@@ -26,9 +27,12 @@ pub struct AquilaGRPCServer {
 
 impl AquilaGRPCServer {
     pub fn new(token: String, sagittarius_url: String, port: u16) -> Self {
-        let address = match format!("[::1]:{}", port).parse() {
-            Ok(addr) => addr,
-            Err(e) => panic!("Failed to parse address: {}", e),
+        let address = match format!("127.0.0.1:{}", port).parse() {
+            Ok(addr) => {
+                info!("Listening on {:?}", &addr);
+                addr
+            }
+            Err(e) => panic!("Failed to parse address: {:?}", e),
         };
 
         AquilaGRPCServer {
@@ -45,11 +49,15 @@ impl AquilaGRPCServer {
         )
         .await;
 
+        log::info!("DataTypeService started");
+
         let flow_type_service = SagittariusFlowTypeServiceClient::new_arc(
             self.sagittarius_url.clone(),
             self.token.clone(),
         )
         .await;
+
+        log::info!("FlowTypeService started");
 
         let runtime_function_service = SagittariusRuntimeFunctionServiceClient::new_arc(
             self.sagittarius_url.clone(),
@@ -57,10 +65,14 @@ impl AquilaGRPCServer {
         )
         .await;
 
+        log::info!("RuntimeFunctionService started");
+
         let data_type_server = AquilaDataTypeServiceServer::new(data_type_service.clone());
         let flow_type_server = AquilaFlowTypeServiceServer::new(flow_type_service.clone());
         let runtime_function_server =
             AquilaRuntimeFunctionServiceServer::new(runtime_function_service.clone());
+
+        log::info!("Starting gRPC Server...");
 
         Server::builder()
             .add_service(DataTypeServiceServer::new(data_type_server))
