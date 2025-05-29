@@ -10,4 +10,4 @@ The runtime gateway for execution management
 [Rust](https://www.rust-lang.org/) x [Tonic](https://docs.rs/tonic/latest/tonic/)
 
 ## Contribute / Setup
-Read the [Setup Guide](https://docs.code0.tech/aquila/guides/setup/) if you want to deploy an Aquila instance or see the [Development Guide](https://docs.code0.tech/aquila/guides/dev/) if you want to contribute
+Read the [Setup Guide](https://docs.code0.tech/aquila/Guides/setup/) if you want to deploy an Aquila instance or see the [Development Guide](https://docs.code0.tech/aquila/Guides/dev/) if you want to contribute
