@@ -1,6 +1,5 @@
 use code0_flow::flow_store::service::{FlowStoreService, FlowStoreServiceBase};
 use futures::StreamExt;
-use log::error;
 use std::sync::Arc;
 use tokio::sync::Mutex;
 use tonic::{transport::Channel, Extensions, Request};
@@ -24,10 +23,14 @@ impl SagittariusFlowClient {
         token: String,
     ) -> SagittariusFlowClient {
         let client = match FlowServiceClient::connect(sagittarius_url).await {
-            Ok(res) => res,
-            Err(start_error) => {
-                panic!("Can't start client {}", start_error);
+            Ok(res) => {
+                log::info!("Successfully connected to Sagittarius Flow Endpoint!");
+                res
             }
+            Err(err) => panic!(
+                "Failed to connect to Sagittarius (Flow Endpoint): {:?}",
+                err
+            ),
         };
 
         SagittariusFlowClient {
@@ -39,9 +42,12 @@ impl SagittariusFlowClient {
 
     async fn handle_response(&mut self, response: FlowResponse) {
         let data = match response.data {
-            Some(data) => data,
+            Some(data) => {
+                log::info!("Recieved a FlowResponse");
+                data
+            }
             None => {
-                print!("Received a FlowLogonResponse but no FlowLogonResponse");
+                log::error!("Received a empty FlowResponse");
                 return;
             }
         };
@@ -49,29 +55,52 @@ impl SagittariusFlowClient {
         match data {
             // Will delete the flow id it receives
             Data::DeletedFlowId(id) => {
+                log::info!("Deleting the Flow with the id: {}", id);
                 let mut flow_service_lock = self.flow_service.lock().await;
-                let _ = flow_service_lock.delete_flow(id).await;
+                match flow_service_lock.delete_flow(id).await {
+                    Ok(_) => log::info!("Flow deleted successfully"),
+                    Err(err) => log::error!("Failed to delete flow. Reason: {:?}", err),
+                };
             }
             //Will update the flow it receives
             Data::UpdatedFlow(flow) => {
+                log::info!("Updating the Flow with the id: {}", &flow.flow_id);
                 let mut flow_service_lock = self.flow_service.lock().await;
-                let _ = flow_service_lock.insert_flow(flow).await;
+                match flow_service_lock.insert_flow(flow).await {
+                    Ok(_) => log::info!("Flow updated successfully"),
+                    Err(err) => log::error!("Failed to update flow. Reason: {:?}", err),
+                };
             }
             //WIll drop all flows that it holds and insert all new ones
             Data::Flows(flows) => {
+                log::info!("Dropping all Flows & inserting the new ones!");
                 let mut flow_service_lock = self.flow_service.lock().await;
                 let result_ids = flow_service_lock.get_all_flow_ids().await;
 
                 let ids = match result_ids {
                     Ok(ids) => ids,
                     Err(err) => {
-                        error!("Service wasn't able to get ids {}", err);
+                        log::error!("Service wasn't able to get ids. Reason: {:?}", err);
                         return;
                     }
                 };
 
-                let _ = flow_service_lock.delete_flows(ids).await;
-                let _ = flow_service_lock.insert_flows(flows).await;
+                match flow_service_lock.delete_flows(ids).await {
+                    Ok(amount) => {
+                        log::info!("Deleted {} flows", amount);
+                    }
+                    Err(err) => {
+                        log::error!("Service wasn't able to delete flows. Reason: {:?}", err);
+                    }
+                };
+                match flow_service_lock.insert_flows(flows).await {
+                    Ok(amount) => {
+                        log::info!("Inserted {} flows", amount);
+                    }
+                    Err(err) => {
+                        log::error!("Service wasn't able to insert flows. Reason: {:?}", err);
+                    }
+                };
             }
         }
     }
@@ -84,9 +113,16 @@ impl SagittariusFlowClient {
         );
 
         let response = match self.client.update(request).await {
-            Ok(res) => res,
+            Ok(res) => {
+                log::info!("Succesfully established a Stream (for Flows)");
+                res
+            }
             Err(status) => {
-                panic!("Received a {status}, can't retrieve flows from Sagittarius");
+                log::error!(
+                    "Received a {:?}, can't retrieve flows from Sagittarius",
+                    status
+                );
+                return;
             }
         };
 
@@ -98,7 +134,10 @@ impl SagittariusFlowClient {
                     self.handle_response(res).await;
                 }
                 Err(status) => {
-                    panic!("Received a {status}, can't retrieve flows from Sagittarius");
+                    log::error!(
+                        "Received a {:?}, can't retrieve flows from Sagittarius",
+                        status
+                    );
                 }
             };
         }

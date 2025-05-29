@@ -5,6 +5,7 @@ use crate::sagittarius::{
 };
 use data_type_service_server_impl::AquilaDataTypeServiceServer;
 use flow_type_service_server_impl::AquilaFlowTypeServiceServer;
+use log::info;
 use runtime_function_service_server_impl::AquilaRuntimeFunctionServiceServer;
 use std::net::SocketAddr;
 use tonic::transport::Server;
@@ -27,7 +28,10 @@ pub struct AquilaGRPCServer {
 impl AquilaGRPCServer {
     pub fn new(token: String, sagittarius_url: String, port: u16) -> Self {
         let address = match format!("[::1]:{}", port).parse() {
-            Ok(addr) => addr,
+            Ok(addr) => {
+                info!("Listening on {:?}", &addr);
+                addr
+            }
             Err(e) => panic!("Failed to parse address: {}", e),
         };
 

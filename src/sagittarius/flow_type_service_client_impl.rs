@@ -21,8 +21,14 @@ impl SagittariusFlowTypeServiceClient {
 
     pub async fn new(sagittarius_url: String, token: String) -> Self {
         let client = match FlowTypeServiceClient::connect(sagittarius_url).await {
-            Ok(client) => client,
-            Err(err) => panic!("Failed to connect to Sagittarius: {}", err),
+            Ok(client) => {
+                log::info!("Successfully connected to Sagittarius FlowType Endpoint!");
+                client
+            }
+            Err(err) => panic!(
+                "Failed to connect to Sagittarius (FlowType Endpoint): {:?}",
+                err
+            ),
         };
 
         Self { client, token }
@@ -41,8 +47,17 @@ impl SagittariusFlowTypeServiceClient {
         );
 
         let response = match self.client.update(request).await {
-            Ok(response) => response.into_inner(),
-            Err(_) => return AquilaFlowTypeUpdateResponse { success: false },
+            Ok(response) => {
+                log::info!(
+                    "Successfully transferred FlowTypes. Did Sagittarius updated them? {:?}",
+                    &response
+                );
+                response.into_inner()
+            }
+            Err(err) => {
+                log::error!("Failed to update FlowTypes: {:?}", err);
+                return AquilaFlowTypeUpdateResponse { success: false };
+            }
         };
 
         AquilaFlowTypeUpdateResponse {
