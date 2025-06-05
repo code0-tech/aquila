@@ -1,14 +1,18 @@
-use code0_flow::flow_store::{
-    connection::create_flow_store_connection,
-    service::{FlowStoreService, FlowStoreServiceBase},
+use code0_flow::{
+    flow_config::load_env_file,
+    flow_store::{
+        connection::create_flow_store_connection,
+        service::{FlowStoreService, FlowStoreServiceBase},
+    },
 };
-use configuration::config::Config;
 use sagittarius::flow_service_client_impl::SagittariusFlowClient;
 use serde_json::from_str;
 use server::AquilaGRPCServer;
 use std::{fs::File, io::Read, sync::Arc};
 use tokio::sync::Mutex;
 use tucana::shared::Flows;
+
+use crate::configuration::Config;
 
 pub mod authorization;
 pub mod configuration;
@@ -18,14 +22,16 @@ pub mod stream;
 
 #[tokio::main]
 async fn main() {
+    log::info!("Starting Aquila...");
+
+    // Configure Logging
     env_logger::Builder::from_default_env()
         .filter_level(log::LevelFilter::Debug)
         .init();
 
-    log::info!("Starting Aquila...");
-
+    // Load environment variables from .env file
+    load_env_file();
     let config = Config::new();
-    config.print_config();
 
     let flow_store = create_flow_store_connection(config.redis_url.clone()).await;
     let flow_store_client = Arc::new(Mutex::new(FlowStoreService::new(flow_store).await));
