@@ -22,8 +22,14 @@ impl SagittariusDataTypeServiceClient {
 
     pub async fn new(sagittarius_url: String, token: String) -> Self {
         let client = match DataTypeServiceClient::connect(sagittarius_url).await {
-            Ok(client) => client,
-            Err(err) => panic!("Failed to connect to Sagittarius: {}", err),
+            Ok(client) => {
+                log::info!("Successfully connected to Sagittarius DataType Endpoint!");
+                client
+            }
+            Err(err) => panic!(
+                "Failed to connect to Sagittarius (DataType Endpoint): {:?}",
+                err
+            ),
         };
 
         Self { client, token }
@@ -33,11 +39,6 @@ impl SagittariusDataTypeServiceClient {
         &mut self,
         data_type_update_request: AquilaDataTypeUpdateRequest,
     ) -> AquilaDataTypeUpdateResponse {
-        println!(
-            "Recieved DataTypes: {:?}",
-            &data_type_update_request.data_types
-        );
-
         let request = Request::from_parts(
             get_authorization_metadata(&self.token),
             Extensions::new(),
@@ -47,12 +48,21 @@ impl SagittariusDataTypeServiceClient {
         );
 
         let response = match self.client.update(request).await {
-            Ok(response) => response,
-            Err(_) => return AquilaDataTypeUpdateResponse { success: false },
+            Ok(response) => {
+                log::info!(
+                    "Successfully transferred data types. Did Sagittarius updated them? {:?}",
+                    &response
+                );
+                response.into_inner()
+            }
+            Err(err) => {
+                log::error!("Failed to update DataTypes: {:?}", err);
+                return AquilaDataTypeUpdateResponse { success: false };
+            }
         };
 
         AquilaDataTypeUpdateResponse {
-            success: response.into_inner().success,
+            success: response.success,
         }
     }
 }

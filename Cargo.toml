@@ -1,13 +1,14 @@
 [package]
 name = "aquila"
 version = "0.1.0"
-edition = "2021"
+edition = "2024"
 
 [dependencies]
 tokio = { version = "1.44.1", features = ["rt-multi-thread"] }
 dotenv = "0.15.0"
 futures = "0.3.31"
 log = "0.4.26"
+env_logger = "0.11.8"
 prost = "0.13.5"
 tonic = "0.13.0"
 tucana = { version = "0.0.28", features = ["all"] }

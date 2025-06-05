@@ -25,10 +25,14 @@ impl SagittariusActionClient {
     /// Will panic when a connection can`t be established
     pub async fn new(sagittarius_url: String, token: String) -> SagittariusActionClient {
         let client = match ActionServiceClient::connect(sagittarius_url).await {
-            Ok(res) => res,
-            Err(start_error) => {
-                panic!("Can't start client {:?}", start_error);
+            Ok(res) => {
+                log::info!("Successfully connected to Sagittarius Action Endpoint!");
+                res
             }
+            Err(err) => panic!(
+                "Failed to connect to Sagittarius (Action Endpoint): {:?}",
+                err
+            ),
         };
 
         SagittariusActionClient { client, token }
@@ -51,11 +55,11 @@ impl SagittariusActionClient {
 
         match self.client.logon(request).await {
             Err(status) => {
-                print!("Received a {status}, can't retrieve flows from Sagittarius");
+                log::error!("Received a {:?}, can't logon the Action!", status);
                 Err(status)
             }
             Ok(response) => {
-                print!("Successfully reported action logon to sagittarius");
+                print!("Successfully reported an Action logon to Sagittarius");
                 Ok(response)
             }
         }
@@ -74,11 +78,11 @@ impl SagittariusActionClient {
 
         match self.client.logoff(request).await {
             Err(status) => {
-                print!("Received a {status}, can't retrieve flows from Sagittarius");
+                log::error!("Received a {status}, can't logoff the Action!");
                 Err(status)
             }
             Ok(response) => {
-                print!("Successfully reported action logoff to sagittarius");
+                log::info!("Successfully reported Action logoff to Sagittarius");
                 Ok(response)
             }
         }

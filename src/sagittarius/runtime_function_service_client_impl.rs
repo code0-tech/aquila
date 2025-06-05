@@ -17,8 +17,14 @@ pub struct SagittariusRuntimeFunctionServiceClient {
 impl SagittariusRuntimeFunctionServiceClient {
     pub async fn new(sagittarius_url: String, token: String) -> Self {
         let client = match RuntimeFunctionDefinitionServiceClient::connect(sagittarius_url).await {
-            Ok(client) => client,
-            Err(e) => panic!("Failed to connect to Sagittarius: {}", e),
+            Ok(client) => {
+                log::info!("Successfully connected to Sagittarius RuntimeFunction Endpoint!");
+                client
+            }
+            Err(err) => panic!(
+                "Failed to connect to Sagittarius (RuntimeFunction Endpoint): {:?}",
+                err
+            ),
         };
 
         Self { client, token }
@@ -41,12 +47,21 @@ impl SagittariusRuntimeFunctionServiceClient {
         );
 
         let response = match self.client.update(request).await {
-            Ok(response) => response,
-            Err(_) => return AquilaRuntimeFunctionUpdateResponse { success: false },
+            Ok(response) => {
+                log::info!(
+                    "Successfully transferred RuntimeFunctions. Did Sagittarius updated them? {:?}",
+                    &response
+                );
+                response.into_inner()
+            }
+            Err(err) => {
+                log::error!("Failed to update RuntimeFunctions: {:?}", err);
+                return AquilaRuntimeFunctionUpdateResponse { success: false };
+            }
         };
 
         AquilaRuntimeFunctionUpdateResponse {
-            success: response.into_inner().success,
+            success: response.success,
         }
     }
 }

@@ -42,10 +42,10 @@ pub struct Config {
 /// Searches for the env. file at root level. Filename: `.env`
 impl Config {
     pub fn new() -> Self {
-        let result = from_filename("../../../.env");
+        let result = from_filename(".env");
         match result {
-            Ok(_) => print!(".env file loaded successfully"),
-            Err(e) => print!("Error loading .env file: {}", e),
+            Ok(_) => log::info!(".env file loaded successfully"),
+            Err(e) => log::error!("Error loading .env file: {}", e),
         }
 
         Config {
@@ -109,12 +109,12 @@ impl Config {
 
     /// Prints the current configuration to the console
     pub fn print_config(&self) {
-        println!("=== Aquila Configuration ===");
-        println!("Environment: {:?}", self.environment);
-        println!("Mode: {:?}", self.mode);
-        println!("Redis URL: {}", self.redis_url);
-        println!("Flow Fallback Path: {}", self.flow_fallback_path);
-        println!(
+        info!("=== Aquila Configuration ===");
+        info!("Environment: {:?}", self.environment);
+        info!("Mode: {:?}", self.mode);
+        info!("Redis URL: {}", self.redis_url);
+        info!("Flow Fallback Path: {}", self.flow_fallback_path);
+        info!(
             "Runtime Token: {}",
             if self.runtime_token.is_empty() {
                 "Not set"
@@ -122,7 +122,7 @@ impl Config {
                 "[REDACTED]"
             }
         );
-        println!("Backend URL: {}", self.backend_url);
-        println!("===========================");
+        info!("Backend URL: {}", self.backend_url);
+        info!("===========================");
     }
 }
