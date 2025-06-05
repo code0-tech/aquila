@@ -12,5 +12,5 @@ env_logger = "0.11.8"
 prost = "0.13.5"
 tonic = "0.13.0"
 tucana = { version = "0.0.28", features = ["all"] }
-code0-flow = { version = "0.0.12", features = ["flow_store"] }
+code0-flow = { version = "0.0.13", features = ["flow_store", "flow_config"] }
 serde_json = "1.0.140"
