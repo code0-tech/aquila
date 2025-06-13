@@ -1,8 +1,7 @@
 {
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
   "extends": [
-    "config:recommended",
-    ":label(dependencies)",
-    ":assignee(raphael-goetz)"
+    "github>code0-tech/monoceros//renovate/global.json5",
+    ":label(dependencies)"
   ]
 }
