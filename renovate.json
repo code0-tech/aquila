@@ -2,6 +2,6 @@
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
   "extends": [
     "github>code0-tech/monoceros//renovate/global.json5",
-    ":label(dependencies)"
+    ":assignee(raphael-goetz)"
   ]
 }
