@@ -8,7 +8,7 @@ services:
       - redis_data:/data
 
   rabbitmq:
-    image: rabbitmq:4.1.1-management
+    image: rabbitmq:4.1.2-management
     ports:
       - "8080:15672"
       - "5672:5672"
