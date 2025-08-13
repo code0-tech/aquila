@@ -35,7 +35,7 @@ pub fn get_flow_identifier(flow: &ValidationFlow) -> String {
             };
 
             format!(
-                "{}::{}::REST::{}::{}",
+                "{}.{}.REST.{}.{}",
                 flow.flow_id, flow.project_id, host, method
             )
         }
