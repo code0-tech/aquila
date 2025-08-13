@@ -1,64 +1,77 @@
 {
   "flows": [
     {
-      "flow_id": 6,
+      "flow_id": 1,
+      "project_id": 1,
       "type": "REST",
+      "data_types": [],
+      "input_type_identifier": "HTTP_REQUEST",
+      "return_type_identifier": "HTTP_RESPONSE",
       "settings": [
         {
-          "definition": "HTTP_METHOD",
+          "database_id": 1,
+          "flow_setting_id": "HTTP_METHOD",
           "object": {
-            "fields": { "method": { "kind": { "StringValue": "GET" } } }
-          }
-        },
-        {
-          "definition": "URL",
-          "object": {
-            "fields": { "url": { "kind": { "StringValue": "/some-url" } } }
-          }
-        }
-      ],
-      "starting_node": {
-        "function": {
-          "function_id": "some_database_id",
-          "runtime_function_id": "standard::database::add"
-        },
-        "parameters": [
-          {
-            "definition": {
-              "parameter_id": "some_database_id",
-              "runtime_parameter_id": "object"
-            },
-            "value": {
-              "firstName": "$req.body.firstName$",
-              "secondName": "$req.body.secondName$",
-              "mail": "$req.body.mail$"
+            "fields": {
+              "method": {
+                "kind": {
+                  "StringValue": "GET"
+                }
+              }
             }
           }
-        ]
-      }
-    },
-    {
-      "flow_id": 2,
-      "type": "another_type",
-      "settings": [
+        },
         {
-          "definition": "setting_2",
-          "object": { "fields": {} }
+          "database_id": 1,
+          "flow_setting_id": "HTTP_URL",
+          "object": {
+            "fields": {
+              "url": {
+                "kind": {
+                  "StringValue": "/hello-world"
+                }
+              }
+            }
+          }
+        },
+        {
+          "database_id": 1,
+          "flow_setting_id": "HTTP_HOST",
+          "object": {
+            "fields": {
+              "host": {
+                "kind": {
+                  "StringValue": "localhost"
+                }
+              }
+            }
+          }
         }
       ],
       "starting_node": {
-        "definition": {
-          "function_id": "func_789",
-          "runtime_function_id": "rt_func_789"
-        },
+        "database_id": 1,
+        "runtime_function_id": "std::control::break",
         "parameters": [
           {
-            "definition": {
-              "parameter_id": "param_999",
-              "runtime_parameter_id": "rt_param_999"
-            },
-            "object": { "fields": {} },
-            "sub_node": null
+            "database_id": 1,
+            "runtime_parameter_id": "value",
+            "value": {
+              "value": {
+                "LiteralValue": {
+                  "kind": {
+                    "StructValue": {
+                      "fields": {
+                        "host": {
+                          "kind": {
+                            "StringValue": "localhost"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
           }
         ],
         "next_node": null
