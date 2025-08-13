@@ -1,21 +1,16 @@
-use code0_flow::{
-    flow_config::load_env_file,
-    flow_store::{
-        connection::create_flow_store_connection,
-        service::{FlowStoreService, FlowStoreServiceBase},
-    },
-};
+use crate::{configuration::Config as AquilaConfig, flow::get_flow_identifier};
+use async_nats::jetstream::kv::Config;
+use code0_flow::flow_config::load_env_file;
+use prost::Message;
 use sagittarius::flow_service_client_impl::SagittariusFlowClient;
 use serde_json::from_str;
 use server::AquilaGRPCServer;
 use std::{fs::File, io::Read, sync::Arc};
-use tokio::sync::Mutex;
 use tucana::shared::Flows;
-
-use crate::configuration::Config;
 
 pub mod authorization;
 pub mod configuration;
+pub mod flow;
 pub mod sagittarius;
 pub mod server;
 pub mod stream;
@@ -31,10 +26,27 @@ async fn main() {
 
     // Load environment variables from .env file
     load_env_file();
-    let config = Config::new();
+    let config = AquilaConfig::new();
 
-    let flow_store = create_flow_store_connection(config.redis_url.clone()).await;
-    let flow_store_client = Arc::new(Mutex::new(FlowStoreService::new(flow_store).await));
+    //Create connection to JetStream
+    let client = match async_nats::connect(config.nats_url.clone()).await {
+        Ok(client) => client,
+        Err(err) => panic!("Failed to connect to NATS server: {}", err),
+    };
+
+    let jetstream = async_nats::jetstream::new(client.clone());
+
+    let _ = jetstream
+        .create_key_value(Config {
+            bucket: config.nats_bucket.clone(),
+            ..Default::default()
+        })
+        .await;
+
+    let kv_store = match jetstream.get_key_value(config.nats_bucket.clone()).await {
+        Ok(kv) => Arc::new(kv),
+        Err(err) => panic!("Failed to get key-value store: {}", err),
+    };
 
     //Create connection to Sagittarius if the type is hybrid
     if !config.is_static() {
@@ -55,16 +67,18 @@ async fn main() {
         };
 
         let mut sagittarius_client =
-            SagittariusFlowClient::new(config.backend_url, flow_store_client, config.runtime_token)
-                .await;
+            SagittariusFlowClient::new(config.backend_url, kv_store, config.runtime_token).await;
 
         sagittarius_client.init_flow_stream().await;
     } else {
-        init_flows_from_json(config.flow_fallback_path, flow_store_client).await
+        init_flows_from_json(config.flow_fallback_path, kv_store).await
     }
 }
 
-async fn init_flows_from_json(path: String, flow_store_client: Arc<Mutex<FlowStoreService>>) {
+async fn init_flows_from_json(
+    path: String,
+    flow_store_client: Arc<async_nats::jetstream::kv::Store>,
+) {
     let mut data = String::new();
 
     let mut file = match File::open(path) {
@@ -93,6 +107,12 @@ async fn init_flows_from_json(path: String, flow_store_client: Arc<Mutex<FlowSto
         }
     };
 
-    let mut store = flow_store_client.lock().await;
-    let _ = store.insert_flows(flows).await;
+    for flow in flows.flows {
+        let key = get_flow_identifier(&flow);
+        let bytes = flow.encode_to_vec();
+        match flow_store_client.put(key, bytes.into()).await {
+            Ok(_) => log::info!("Flow updated successfully"),
+            Err(err) => log::error!("Failed to update flow. Reason: {:?}", err),
+        };
+    }
 }

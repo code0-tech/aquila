@@ -1,5 +1,4 @@
 use code0_flow::flow_config::{env_with_default, environment::Environment, mode::Mode};
-use log::info;
 
 /// Struct for all relevant `Aquila` startup configurations
 pub struct Config {
@@ -18,9 +17,11 @@ pub struct Config {
     /// `hybrid`
     pub mode: Mode,
 
-    /// URL to the Redis Server.
-    /// Default none
-    pub redis_url: String,
+    /// URL to the NATS Server.
+    pub nats_url: String,
+
+    /// Name of the NATS Bucket.
+    pub nats_bucket: String,
 
     /// Fallback file to load flows if gRPC & scheduling is disabled.
     pub flow_fallback_path: String,
@@ -41,7 +42,8 @@ impl Config {
         Config {
             environment: env_with_default("ENVIRONMENT", Environment::Development),
             mode: env_with_default("MODE", Mode::STATIC),
-            redis_url: env_with_default("REDIS_URL", String::from("redis://localhost:6379")),
+            nats_url: env_with_default("NATS_URL", String::from("nats://localhost:4222")),
+            nats_bucket: env_with_default("NATS_BUCKET", String::from("flow_store")),
             flow_fallback_path: env_with_default(
                 "FLOW_FALLBACK_PATH",
                 String::from("../flow/test_flow_one.json"),
