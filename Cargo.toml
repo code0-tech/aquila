@@ -15,3 +15,4 @@ tucana = { version = "0.0.33", features = ["all"] }
 code0-flow = { version = "0.0.14" }
 serde_json = "1.0.140"
 async-nats = "0.42.0"
+tonic-health = "0.14.1"
