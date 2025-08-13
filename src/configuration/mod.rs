@@ -31,6 +31,8 @@ pub struct Config {
 
     /// URL to the `Sagittarius` Server.
     pub backend_url: String,
+
+    pub grpc_port: u16,
 }
 
 /// Implementation for all relevant `Aquila` startup configurations
@@ -48,6 +50,7 @@ impl Config {
                 "FLOW_FALLBACK_PATH",
                 String::from("../flow/test_flow_one.json"),
             ),
+            grpc_port: env_with_default("GRPC_PORT", 8081),
             runtime_token: env_with_default("RUNTIME_TOKEN", String::from("default_session_token")),
             backend_url: env_with_default("BACKEND_URL", String::from("http://localhost:8080")),
         }

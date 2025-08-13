@@ -50,11 +50,7 @@ async fn main() {
 
     //Create connection to Sagittarius if the type is hybrid
     if !config.is_static() {
-        let server = AquilaGRPCServer::new(
-            config.runtime_token.clone(),
-            config.backend_url.clone(),
-            8080,
-        );
+        let server = AquilaGRPCServer::new(&config);
 
         match server.start().await {
             Ok(_) => {
