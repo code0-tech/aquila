@@ -1,3 +1,4 @@
+use crate::sagittarius::test_execution_client_impl::SagittariusTestExecutionServiceClient;
 use crate::{configuration::Config as AquilaConfig, flow::get_flow_identifier};
 use async_nats::jetstream::kv::Config;
 use code0_flow::flow_config::load_env_file;
@@ -7,7 +8,6 @@ use serde_json::from_str;
 use server::AquilaGRPCServer;
 use std::{fs::File, io::Read, sync::Arc};
 use tucana::shared::Flows;
-use crate::sagittarius::test_execution_client_impl::SagittariusTestExecutionServiceClient;
 
 pub mod authorization;
 pub mod configuration;
@@ -67,20 +67,22 @@ async fn main() {
         SagittariusFlowClient::new(
             config.backend_url.clone(),
             kv_store.clone(),
-            config.runtime_token.clone())
-            .await
-            .init_flow_stream()
-            .await;
+            config.runtime_token.clone(),
+        )
+        .await
+        .init_flow_stream()
+        .await;
 
         // Connect to Sagittarius Execution Endpoint
         SagittariusTestExecutionServiceClient::new(
             client,
             kv_store,
             config.backend_url,
-            config.runtime_token)
-            .await
-            .logon()
-            .await;
+            config.runtime_token,
+        )
+        .await
+        .logon()
+        .await;
     } else {
         init_flows_from_json(config.flow_fallback_path, kv_store).await
     }

@@ -91,7 +91,7 @@ impl AquilaGRPCServer {
             .add_service(RuntimeFunctionDefinitionServiceServer::new(
                 runtime_function_server,
             ))
-            .serve(self.address.clone())
+            .serve(self.address)
             .await
     }
 }

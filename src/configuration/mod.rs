@@ -39,6 +39,12 @@ pub struct Config {
 ///
 /// Behavior:
 /// Searches for the env. file at root level. Filename: `.env`
+impl Default for Config {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl Config {
     pub fn new() -> Self {
         Config {
