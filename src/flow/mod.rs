@@ -112,7 +112,7 @@ mod test {
         };
 
         let id = get_flow_identifier(&rest);
-        assert_eq!(id, String::from("1::1::REST::abc.code0.tech::GET"))
+        assert_eq!(id, String::from("1.1.REST.abc.code0.tech.GET"))
     }
 
     #[test]
