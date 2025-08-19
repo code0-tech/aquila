@@ -5,11 +5,9 @@ use prost::Message;
 use sagittarius::flow_service_client_impl::SagittariusFlowClient;
 use serde_json::from_str;
 use server::AquilaGRPCServer;
-use std::{collections::HashMap, fs::File, io::Read, sync::Arc};
-use tucana::shared::{
-    FlowSetting, Flows, NodeFunction, NodeParameter, NodeValue, Struct, ValidationFlow, Value,
-    node_value, value::Kind,
-};
+use std::{fs::File, io::Read, sync::Arc};
+use tucana::shared::Flows;
+use crate::sagittarius::test_execution_client_impl::SagittariusTestExecutionServiceClient;
 
 pub mod authorization;
 pub mod configuration;
@@ -20,77 +18,6 @@ pub mod stream;
 
 #[tokio::main]
 async fn main() {
-    let flow = ValidationFlow {
-        flow_id: 1,
-        project_id: 1,
-        r#type: String::from("REST"),
-        data_types: vec![],
-        input_type_identifier: Some(String::from("HTTP_REQUEST")),
-        return_type_identifier: Some(String::from("HTTP_RESPONSE")),
-        settings: vec![
-            FlowSetting {
-                database_id: 1,
-                flow_setting_id: String::from("HTTP_METHOD"),
-                object: Some(Struct {
-                    fields: HashMap::from([(
-                        String::from("method"),
-                        Value {
-                            kind: Some(Kind::StringValue(String::from("GET"))),
-                        },
-                    )]),
-                }),
-            },
-            FlowSetting {
-                database_id: 1,
-                flow_setting_id: String::from("HTTP_URL"),
-                object: Some(Struct {
-                    fields: HashMap::from([(
-                        String::from("url"),
-                        Value {
-                            kind: Some(Kind::StringValue(String::from("/hello-world"))),
-                        },
-                    )]),
-                }),
-            },
-            FlowSetting {
-                database_id: 1,
-                flow_setting_id: String::from("HTTP_HOST"),
-                object: Some(Struct {
-                    fields: HashMap::from([(
-                        String::from("host"),
-                        Value {
-                            kind: Some(Kind::StringValue(String::from("localhost"))),
-                        },
-                    )]),
-                }),
-            },
-        ],
-        starting_node: Some(NodeFunction {
-            database_id: 1,
-            runtime_function_id: String::from("std::control::break"),
-            next_node: None,
-            parameters: vec![NodeParameter {
-                database_id: 1,
-                runtime_parameter_id: String::from("value"),
-                value: Some(NodeValue {
-                    value: Some(node_value::Value::LiteralValue(Value {
-                        kind: Some(Kind::StructValue(Struct {
-                            fields: HashMap::from([(
-                                String::from("hallo"),
-                                Value {
-                                    kind: Some(Kind::StringValue(String::from("welt"))),
-                                },
-                            )]),
-                        })),
-                    })),
-                }),
-            }],
-        }),
-    };
-
-    let s = serde_json::to_string_pretty(&flow).unwrap();
-    println!("{}", s);
-
     log::info!("Starting Aquila...");
 
     // Configure Logging
@@ -108,16 +35,16 @@ async fn main() {
         Err(err) => panic!("Failed to connect to NATS server: {}", err),
     };
 
-    let jetstream = async_nats::jetstream::new(client.clone());
+    let jet_stream = async_nats::jetstream::new(client.clone());
 
-    let _ = jetstream
+    let _ = jet_stream
         .create_key_value(Config {
             bucket: config.nats_bucket.clone(),
             ..Default::default()
         })
         .await;
 
-    let kv_store = match jetstream.get_key_value(config.nats_bucket.clone()).await {
+    let kv_store = match jet_stream.get_key_value(config.nats_bucket.clone()).await {
         Ok(kv) => Arc::new(kv),
         Err(err) => panic!("Failed to get key-value store: {}", err),
     };
@@ -136,10 +63,24 @@ async fn main() {
             }
         };
 
-        let mut sagittarius_client =
-            SagittariusFlowClient::new(config.backend_url, kv_store, config.runtime_token).await;
+        // Connect to Sagittarius Flow Endpoint
+        SagittariusFlowClient::new(
+            config.backend_url.clone(),
+            kv_store.clone(),
+            config.runtime_token.clone())
+            .await
+            .init_flow_stream()
+            .await;
 
-        sagittarius_client.init_flow_stream().await;
+        // Connect to Sagittarius Execution Endpoint
+        SagittariusTestExecutionServiceClient::new(
+            client,
+            kv_store,
+            config.backend_url,
+            config.runtime_token)
+            .await
+            .logon()
+            .await;
     } else {
         init_flows_from_json(config.flow_fallback_path, kv_store).await
     }

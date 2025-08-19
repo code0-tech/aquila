@@ -1,10 +1,10 @@
 use crate::authorization::authorization::get_authorization_metadata;
 use std::sync::Arc;
 use tokio::sync::Mutex;
-use tonic::{transport::Channel, Extensions, Request};
+use tonic::{Extensions, Request, transport::Channel};
 use tucana::sagittarius::{
-    data_type_service_client::DataTypeServiceClient,
     DataTypeUpdateRequest as SagittariusDataTypeUpdateRequest,
+    data_type_service_client::DataTypeServiceClient,
 };
 use tucana::{
     aquila::DataTypeUpdateRequest as AquilaDataTypeUpdateRequest,

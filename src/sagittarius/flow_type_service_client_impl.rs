@@ -1,13 +1,13 @@
 use crate::authorization::authorization::get_authorization_metadata;
 use std::sync::Arc;
 use tokio::sync::Mutex;
-use tonic::transport::Channel;
 use tonic::Extensions;
 use tonic::Request;
+use tonic::transport::Channel;
 use tucana::aquila::FlowTypeUpdateRequest as AquilaFlowTypeUpdateRequest;
 use tucana::aquila::FlowTypeUpdateResponse as AquilaFlowTypeUpdateResponse;
-use tucana::sagittarius::flow_type_service_client::FlowTypeServiceClient;
 use tucana::sagittarius::FlowTypeUpdateRequest as SagittariusFlowTypeUpdateRequest;
+use tucana::sagittarius::flow_type_service_client::FlowTypeServiceClient;
 
 pub struct SagittariusFlowTypeServiceClient {
     client: FlowTypeServiceClient<Channel>,

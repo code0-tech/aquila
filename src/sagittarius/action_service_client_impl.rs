@@ -1,8 +1,8 @@
-use tonic::{transport::Channel, Extensions, Request, Response};
+use tonic::{Extensions, Request, Response, transport::Channel};
 use tucana::{
     sagittarius::{
-        action_service_client::ActionServiceClient, ActionLogoffRequest, ActionLogoffResponse,
-        ActionLogonRequest, ActionLogonResponse,
+        ActionLogoffRequest, ActionLogoffResponse, ActionLogonRequest, ActionLogonResponse,
+        action_service_client::ActionServiceClient,
     },
     shared::RuntimeFunctionDefinition,
 };
