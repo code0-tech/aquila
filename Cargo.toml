@@ -15,3 +15,5 @@ code0-flow = { version = "0.0.14" }
 serde_json = "1.0.140"
 async-nats = "0.42.0"
 tonic-health = "0.14.1"
+tokio-stream = "0.1.17"
+uuid = { version = "1.18.0", features = ["v4"] }

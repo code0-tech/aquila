@@ -1,13 +1,13 @@
 use crate::authorization::authorization::get_authorization_metadata;
 use std::sync::Arc;
 use tokio::sync::Mutex;
-use tonic::transport::Channel;
 use tonic::Extensions;
 use tonic::Request;
+use tonic::transport::Channel;
 use tucana::aquila::RuntimeFunctionDefinitionUpdateRequest as AquilaRuntimeFunctionUpdateRequest;
 use tucana::aquila::RuntimeFunctionDefinitionUpdateResponse as AquilaRuntimeFunctionUpdateResponse;
-use tucana::sagittarius::runtime_function_definition_service_client::RuntimeFunctionDefinitionServiceClient;
 use tucana::sagittarius::RuntimeFunctionDefinitionUpdateRequest as SagittariusRuntimeFunctionUpdateRequest;
+use tucana::sagittarius::runtime_function_definition_service_client::RuntimeFunctionDefinitionServiceClient;
 
 pub struct SagittariusRuntimeFunctionServiceClient {
     client: RuntimeFunctionDefinitionServiceClient<Channel>,

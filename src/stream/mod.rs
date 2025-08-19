@@ -1,6 +1,6 @@
 pub mod stream {
-    use futures::channel::mpsc::Sender;
     use futures::SinkExt;
+    use futures::channel::mpsc::Sender;
     use std::collections::HashMap;
     use std::sync::Arc;
     use tokio::sync::Mutex;
