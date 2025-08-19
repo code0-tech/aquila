@@ -1,17 +1,16 @@
-use code0_flow::flow_store::service::{FlowStoreService, FlowStoreServiceBase};
-use futures::StreamExt;
+use futures::{StreamExt, TryStreamExt};
+use prost::Message;
 use std::sync::Arc;
-use tokio::sync::Mutex;
-use tonic::{transport::Channel, Extensions, Request};
+use tonic::{Extensions, Request, transport::Channel};
 use tucana::sagittarius::{
-    flow_response::Data, flow_service_client::FlowServiceClient, FlowLogonRequest, FlowResponse,
+    FlowLogonRequest, FlowResponse, flow_response::Data, flow_service_client::FlowServiceClient,
 };
 
-use crate::authorization::authorization::get_authorization_metadata;
+use crate::{authorization::authorization::get_authorization_metadata, flow::get_flow_identifier};
 
 #[derive(Clone)]
 pub struct SagittariusFlowClient {
-    flow_service: Arc<Mutex<FlowStoreService>>,
+    store: Arc<async_nats::jetstream::kv::Store>,
     client: FlowServiceClient<Channel>,
     token: String,
 }
@@ -19,7 +18,7 @@ pub struct SagittariusFlowClient {
 impl SagittariusFlowClient {
     pub async fn new(
         sagittarius_url: String,
-        flow_service: Arc<Mutex<FlowStoreService>>,
+        store: Arc<async_nats::jetstream::kv::Store>,
         token: String,
     ) -> SagittariusFlowClient {
         let client = match FlowServiceClient::connect(sagittarius_url).await {
@@ -34,7 +33,7 @@ impl SagittariusFlowClient {
         };
 
         SagittariusFlowClient {
-            flow_service,
+            store,
             client,
             token,
         }
@@ -56,8 +55,8 @@ impl SagittariusFlowClient {
             // Will delete the flow id it receives
             Data::DeletedFlowId(id) => {
                 log::info!("Deleting the Flow with the id: {}", id);
-                let mut flow_service_lock = self.flow_service.lock().await;
-                match flow_service_lock.delete_flow(id).await {
+                let identifier = format!("{}::*", id);
+                match self.store.delete(identifier).await {
                     Ok(_) => log::info!("Flow deleted successfully"),
                     Err(err) => log::error!("Failed to delete flow. Reason: {:?}", err),
                 };
@@ -65,8 +64,9 @@ impl SagittariusFlowClient {
             //Will update the flow it receives
             Data::UpdatedFlow(flow) => {
                 log::info!("Updating the Flow with the id: {}", &flow.flow_id);
-                let mut flow_service_lock = self.flow_service.lock().await;
-                match flow_service_lock.insert_flow(flow).await {
+                let key = get_flow_identifier(&flow);
+                let bytes = flow.encode_to_vec();
+                match self.store.put(key, bytes.into()).await {
                     Ok(_) => log::info!("Flow updated successfully"),
                     Err(err) => log::error!("Failed to update flow. Reason: {:?}", err),
                 };
@@ -74,33 +74,34 @@ impl SagittariusFlowClient {
             //WIll drop all flows that it holds and insert all new ones
             Data::Flows(flows) => {
                 log::info!("Dropping all Flows & inserting the new ones!");
-                let mut flow_service_lock = self.flow_service.lock().await;
-                let result_ids = flow_service_lock.get_all_flow_ids().await;
-
-                let ids = match result_ids {
-                    Ok(ids) => ids,
+                let mut keys = match self.store.keys().await {
+                    Ok(keys) => keys.boxed(),
                     Err(err) => {
-                        log::error!("Service wasn't able to get ids. Reason: {:?}", err);
+                        log::error!("Service wasn't able to get keys. Reason: {:?}", err);
                         return;
                     }
                 };
 
-                match flow_service_lock.delete_flows(ids).await {
-                    Ok(amount) => {
-                        log::info!("Deleted {} flows", amount);
+                let mut purged_count = 0;
+                while let Ok(Some(key)) = keys.try_next().await {
+                    match self.store.purge(&key).await {
+                        Ok(_) => {
+                            purged_count += 1;
+                        }
+                        Err(e) => log::error!("Failed to purge key {}: {}", key, e),
                     }
-                    Err(err) => {
-                        log::error!("Service wasn't able to delete flows. Reason: {:?}", err);
-                    }
-                };
-                match flow_service_lock.insert_flows(flows).await {
-                    Ok(amount) => {
-                        log::info!("Inserted {} flows", amount);
-                    }
-                    Err(err) => {
-                        log::error!("Service wasn't able to insert flows. Reason: {:?}", err);
-                    }
-                };
+                }
+
+                log::info!("Purged {} existing keys", purged_count);
+
+                for flow in flows.flows {
+                    let key = get_flow_identifier(&flow);
+                    let bytes = flow.encode_to_vec();
+                    match self.store.put(key, bytes.into()).await {
+                        Ok(_) => log::info!("Flow updated successfully"),
+                        Err(err) => log::error!("Failed to update flow. Reason: {:?}", err),
+                    };
+                }
             }
         }
     }

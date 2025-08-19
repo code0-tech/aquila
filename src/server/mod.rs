@@ -1,7 +1,10 @@
-use crate::sagittarius::{
-    data_type_service_client_impl::SagittariusDataTypeServiceClient,
-    flow_type_service_client_impl::SagittariusFlowTypeServiceClient,
-    runtime_function_service_client_impl::SagittariusRuntimeFunctionServiceClient,
+use crate::{
+    configuration::Config,
+    sagittarius::{
+        data_type_service_client_impl::SagittariusDataTypeServiceClient,
+        flow_type_service_client_impl::SagittariusFlowTypeServiceClient,
+        runtime_function_service_client_impl::SagittariusRuntimeFunctionServiceClient,
+    },
 };
 use data_type_service_server_impl::AquilaDataTypeServiceServer;
 use flow_type_service_server_impl::AquilaFlowTypeServiceServer;
@@ -22,12 +25,13 @@ mod runtime_function_service_server_impl;
 pub struct AquilaGRPCServer {
     token: String,
     sagittarius_url: String,
+    nats_url: String,
     address: SocketAddr,
 }
 
 impl AquilaGRPCServer {
-    pub fn new(token: String, sagittarius_url: String, port: u16) -> Self {
-        let address = match format!("127.0.0.1:{}", port).parse() {
+    pub fn new(config: &Config) -> Self {
+        let address = match format!("127.0.0.1:{}", config.grpc_port).parse() {
             Ok(addr) => {
                 info!("Listening on {:?}", &addr);
                 addr
@@ -36,8 +40,9 @@ impl AquilaGRPCServer {
         };
 
         AquilaGRPCServer {
-            token,
-            sagittarius_url,
+            token: config.runtime_token.clone(),
+            sagittarius_url: config.backend_url.clone(),
+            nats_url: config.nats_url.clone(),
             address,
         }
     }
@@ -67,6 +72,9 @@ impl AquilaGRPCServer {
 
         log::info!("RuntimeFunctionService started");
 
+        let health_service = code0_flow::flow_health::HealthService::new(self.nats_url.clone());
+        log::info!("HealthService started");
+
         let data_type_server = AquilaDataTypeServiceServer::new(data_type_service.clone());
         let flow_type_server = AquilaFlowTypeServiceServer::new(flow_type_service.clone());
         let runtime_function_server =
@@ -75,6 +83,9 @@ impl AquilaGRPCServer {
         log::info!("Starting gRPC Server...");
 
         Server::builder()
+            .add_service(tonic_health::pb::health_server::HealthServer::new(
+                health_service,
+            ))
             .add_service(DataTypeServiceServer::new(data_type_server))
             .add_service(FlowTypeServiceServer::new(flow_type_server))
             .add_service(RuntimeFunctionDefinitionServiceServer::new(
