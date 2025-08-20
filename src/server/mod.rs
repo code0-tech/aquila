@@ -27,11 +27,12 @@ pub struct AquilaGRPCServer {
     sagittarius_url: String,
     nats_url: String,
     address: SocketAddr,
+    with_health_service: bool,
 }
 
 impl AquilaGRPCServer {
     pub fn new(config: &Config) -> Self {
-        let address = match format!("127.0.0.1:{}", config.grpc_port).parse() {
+        let address = match format!("{}:{}", config.grpc_host, config.grpc_port).parse() {
             Ok(addr) => {
                 info!("Listening on {:?}", &addr);
                 addr
@@ -43,18 +44,19 @@ impl AquilaGRPCServer {
             token: config.runtime_token.clone(),
             sagittarius_url: config.backend_url.clone(),
             nats_url: config.nats_url.clone(),
+            with_health_service: config.with_health_service,
             address,
         }
     }
 
-    pub async fn start(&self) -> std::result::Result<(), tonic::transport::Error> {
+    pub async fn start(&self) -> Result<(), tonic::transport::Error> {
         let data_type_service = SagittariusDataTypeServiceClient::new_arc(
             self.sagittarius_url.clone(),
             self.token.clone(),
         )
         .await;
 
-        log::info!("DataTypeService started");
+        info!("DataTypeService started");
 
         let flow_type_service = SagittariusFlowTypeServiceClient::new_arc(
             self.sagittarius_url.clone(),
@@ -62,7 +64,7 @@ impl AquilaGRPCServer {
         )
         .await;
 
-        log::info!("FlowTypeService started");
+        info!("FlowTypeService started");
 
         let runtime_function_service = SagittariusRuntimeFunctionServiceClient::new_arc(
             self.sagittarius_url.clone(),
@@ -70,28 +72,33 @@ impl AquilaGRPCServer {
         )
         .await;
 
-        log::info!("RuntimeFunctionService started");
-
-        let health_service = code0_flow::flow_health::HealthService::new(self.nats_url.clone());
-        log::info!("HealthService started");
+        info!("RuntimeFunctionService started");
 
         let data_type_server = AquilaDataTypeServiceServer::new(data_type_service.clone());
         let flow_type_server = AquilaFlowTypeServiceServer::new(flow_type_service.clone());
         let runtime_function_server =
             AquilaRuntimeFunctionServiceServer::new(runtime_function_service.clone());
 
-        log::info!("Starting gRPC Server...");
+        info!("Starting gRPC Server...");
 
-        Server::builder()
-            .add_service(tonic_health::pb::health_server::HealthServer::new(
-                health_service,
-            ))
-            .add_service(DataTypeServiceServer::new(data_type_server))
-            .add_service(FlowTypeServiceServer::new(flow_type_server))
-            .add_service(RuntimeFunctionDefinitionServiceServer::new(
-                runtime_function_server,
-            ))
-            .serve(self.address)
-            .await
+        if self.with_health_service {
+            info!("Starting with HealthService");
+            let health_service = code0_flow::flow_health::HealthService::new(self.nats_url.clone());
+
+            Server::builder()
+                .add_service(tonic_health::pb::health_server::HealthServer::new(health_service))
+                .add_service(DataTypeServiceServer::new(data_type_server))
+                .add_service(FlowTypeServiceServer::new(flow_type_server))
+                .add_service(RuntimeFunctionDefinitionServiceServer::new(runtime_function_server))
+                .serve(self.address)
+                .await
+        } else {
+
+            Server::builder()
+                .add_service(DataTypeServiceServer::new(data_type_server))
+                .add_service(FlowTypeServiceServer::new(flow_type_server))
+                .add_service(RuntimeFunctionDefinitionServiceServer::new(runtime_function_server)).serve(self.address)
+                .await
+        }
     }
 }
