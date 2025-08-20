@@ -66,7 +66,7 @@ impl Config {
             grpc_host: env_with_default("GRPC_HOST", String::from("127.0.0.1")),
             with_health_service: env_with_default("WITH_HEALTH_SERVICE", false),
             runtime_token: env_with_default("RUNTIME_TOKEN", String::from("default_session_token")),
-            backend_url: env_with_default("BACKEND_URL", String::from("http://localhost:8080")),
+            backend_url: env_with_default("SAGITTARIUS_URL", String::from("http://localhost:50051")),
         }
     }
 
