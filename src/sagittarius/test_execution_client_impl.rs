@@ -4,11 +4,11 @@
    In some conditions Sagittarius can't connect to Aquila
    Thus Aquila sends a `Logon` request to connect to Sagittarius establishing the connection
 */
+use code0_flow::flow_validator::verify_flow;
 use futures::StreamExt;
 use prost::Message;
 use std::sync::Arc;
 use std::time::SystemTime;
-use code0_flow::flow_validator::verify_flow;
 use tokio_stream::wrappers::ReceiverStream;
 use tonic::Request;
 use tonic::transport::Channel;
@@ -99,35 +99,40 @@ impl SagittariusTestExecutionServiceClient {
                 let uuid = uuid::Uuid::new_v4().to_string();
 
                 if let Some(body) = &request.body {
-                   if let Err(rule_violations) = verify_flow(validation_flow.clone(), body.clone()) {
+                    if let Err(rule_violations) = verify_flow(validation_flow.clone(), body.clone())
+                    {
+                        let now = SystemTime::now()
+                            .duration_since(SystemTime::UNIX_EPOCH)
+                            .unwrap()
+                            .as_millis()
+                            .to_string();
+                        let log = Log {
+                            level: "error".to_string(),
+                            timestamp: now,
+                            message: rule_violations.to_string(),
+                        };
 
-                       let now = SystemTime::now().duration_since(SystemTime::UNIX_EPOCH).unwrap().as_millis().to_string();
-                       let log = Log {
-                         level: "error".to_string(),
-                          timestamp: now,
-                          message: rule_violations.to_string(),
-                      };
+                        let execution_result = ExecutionLogonRequest {
+                            data: Some(Data::Response(TestExecutionResponse {
+                                flow_id: request.flow_id,
+                                execution_uuid: uuid,
+                                result: None,
+                                logs: vec![log],
+                            })),
+                        };
 
-                       let execution_result = ExecutionLogonRequest {
-                           data: Some(Data::Response(TestExecutionResponse {
-                               flow_id: request.flow_id,
-                               execution_uuid: uuid,
-                               result: None,
-                               logs: vec![log],
-                           })),
-                       };
-
-                       if let Err(err) = tx.send(execution_result).await {
-                           log::error!("Failed to send ExecutionLogonResponse: {:?}", err);
-                       }
-                       continue
+                        if let Err(err) = tx.send(execution_result).await {
+                            log::error!("Failed to send ExecutionLogonResponse: {:?}", err);
+                        }
+                        continue;
                     }
                 }
 
                 let execution_flow = ExecutionFlow {
                     flow_id: request.flow_id,
-                    starting_node: validation_flow.starting_node,
                     input_value: request.body,
+                    starting_node_id: validation_flow.starting_node_id,
+                    node_functions: validation_flow.node_functions,
                 };
 
                 let bytes = execution_flow.encode_to_vec();
