@@ -62,7 +62,6 @@ mod test {
     #[test]
     fn test_incorrect_flow_type_id() {
         let unkown = Flow {
-            starting_node: None,
             flow_id: 1,
             project_id: 1,
             r#type: "UNKOWN_FLOW_TYPE_IDENTIFIER".to_string(),
@@ -70,6 +69,8 @@ mod test {
             input_type_identifier: None,
             return_type_identifier: None,
             settings: vec![],
+            starting_node_id: 0,
+            node_functions: vec![],
         };
 
         assert_eq!(get_flow_identifier(&unkown), String::from("1"))
@@ -78,7 +79,6 @@ mod test {
     #[test]
     fn test_rest_flow_type_id_is_correct() {
         let rest = Flow {
-            starting_node: None,
             flow_id: 1,
             project_id: 1,
             r#type: "REST".to_string(),
@@ -109,6 +109,8 @@ mod test {
                     }),
                 },
             ],
+            starting_node_id: 0,
+            node_functions: vec![],
         };
 
         let id = get_flow_identifier(&rest);
@@ -118,7 +120,6 @@ mod test {
     #[test]
     fn test_rest_flow_type_id_with_missing_settings_fails() {
         let rest = Flow {
-            starting_node: None,
             flow_id: 1,
             project_id: 1,
             r#type: "REST".to_string(),
@@ -126,6 +127,8 @@ mod test {
             input_type_identifier: None,
             return_type_identifier: None,
             settings: vec![],
+            starting_node_id: 0,
+            node_functions: vec![],
         };
 
         assert_eq!(get_flow_identifier(&rest), String::from("1"))

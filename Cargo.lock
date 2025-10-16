@@ -88,13 +88,13 @@ dependencies = [
 
 [[package]]
 name = "async-nats"
-version = "0.42.0"
+version = "0.44.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "08f6da6d49a956424ca4e28fe93656f790d748b469eaccbc7488fec545315180"
+checksum = "f834a80c3ab6109b9c8f5ca6661a578cf31e088e831b6ce07c6b23cca04f6742"
 dependencies = [
  "base64",
  "bytes",
- "futures",
+ "futures-util",
  "memchr",
  "nkeys",
  "nuid",
@@ -115,6 +115,7 @@ dependencies = [
  "time",
  "tokio",
  "tokio-rustls",
+ "tokio-stream",
  "tokio-util",
  "tokio-websockets",
  "tracing",
@@ -249,9 +250,9 @@ checksum = "baf1de4339761588bc0619e3cbc0120ee582ebb74b53b4efbf79117bd2da40fd"
 
 [[package]]
 name = "code0-definition-reader"
-version = "0.0.10"
+version = "0.0.12"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ac33bc751c706a7e306931082019aa954c17ae18c31d685fd545bf73716d5c8e"
+checksum = "5c7b9d030a57501b5c6bcbd667c5241a69335421008b155b55145b4e66e9a325"
 dependencies = [
  "serde",
  "serde_json",
@@ -260,9 +261,9 @@ dependencies = [
 
 [[package]]
 name = "code0-flow"
-version = "0.0.16"
+version = "0.0.17"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1ad60b7f304a4fc9793f2e70dc6ae9ccf8efb4df957dc97eb586722eeb3e6471"
+checksum = "568d497f7aa8cd0cb4e633e8f6e97330b3bbb8b49fcb7c2bdca703a4a9c870e8"
 dependencies = [
  "async-nats",
  "async-trait",
@@ -468,7 +469,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "cea14ef9355e3beab063703aa9dab15afd25f0667c341310c1e5274bb1d0da18"
 dependencies = [
  "libc",
- "windows-sys 0.52.0",
+ "windows-sys 0.59.0",
 ]
 
 [[package]]
@@ -1343,7 +1344,7 @@ dependencies = [
  "errno",
  "libc",
  "linux-raw-sys",
- "windows-sys 0.52.0",
+ "windows-sys 0.59.0",
 ]
 
 [[package]]
@@ -1659,7 +1660,7 @@ dependencies = [
  "getrandom 0.3.3",
  "once_cell",
  "rustix",
- "windows-sys 0.52.0",
+ "windows-sys 0.59.0",
 ]
 
 [[package]]
@@ -1966,9 +1967,9 @@ dependencies = [
 
 [[package]]
 name = "tucana"
-version = "0.0.33"
+version = "0.0.36"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "811247bdfb777b65329d9f8e8ff9e2d405261ef626e149997f4fca57bfe106d4"
+checksum = "0addd0c58b8b458ba668404246c428d4c71382f5a83d29ac69649f5c575bdfc4"
 dependencies = [
  "prost",
  "prost-types",
