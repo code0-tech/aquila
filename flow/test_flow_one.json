@@ -48,22 +48,40 @@
           }
         }
       ],
-      "starting_node": {
-        "database_id": 1,
-        "runtime_function_id": "std::control::break",
-        "parameters": [
-          {
-            "database_id": 1,
-            "runtime_parameter_id": "value",
-            "value": {
+      "starting_node_id": 1,
+      "node_functions": [
+        {
+          "database_id": 1,
+          "runtime_function_id": "http::control::respond",
+          "parameters": [
+            {
+              "database_id": 1,
+              "runtime_parameter_id": "http_response",
               "value": {
-                "LiteralValue": {
-                  "kind": {
-                    "StructValue": {
-                      "fields": {
-                        "host": {
-                          "kind": {
-                            "StringValue": "localhost"
+                "value": {
+                  "NodeFunctionId": 2
+                }
+              }
+            }
+          ]
+        },
+        {
+          "database_id": 2,
+          "runtime_function_id": "http::response::create",
+          "parameters": [
+            {
+              "database_id": 2,
+              "runtime_parameter_id": "http_status_code",
+              "value": {
+                "value": {
+                  "LiteralValue": {
+                    "kind": {
+                      "StructValue": {
+                        "fields": {
+                          "host": {
+                            "kind": {
+                              "NumberValue": 200
+                            }
                           }
                         }
                       }
@@ -71,11 +89,48 @@
                   }
                 }
               }
+            },
+            {
+              "database_id": 3,
+              "runtime_parameter_id": "headers",
+              "value": {
+                "value": {
+                  "LiteralValue": {
+                    "kind": {
+                      "StructValue": {
+                        "fields": {
+                          "host": {
+                            "kind": {
+                              "StructValue": {
+                                "fields": {
+
+                                }
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            {
+              "database_id": 4,
+              "runtime_parameter_id": "payload",
+              "value": {
+                "value": {
+                  "LiteralValue": {
+                    "kind": {
+                      "StringValue": "Hello, World!"
+                    }
+                  }
+                }
+              }
             }
-          }
-        ],
-        "next_node": null
-      }
+          ]
+        }
+      ]
     }
   ]
 }
