@@ -98,34 +98,33 @@ impl SagittariusTestExecutionServiceClient {
 
                 let uuid = uuid::Uuid::new_v4().to_string();
 
-                if let Some(body) = &request.body {
-                    if let Err(rule_violations) = verify_flow(validation_flow.clone(), body.clone())
-                    {
-                        let now = SystemTime::now()
-                            .duration_since(SystemTime::UNIX_EPOCH)
-                            .unwrap()
-                            .as_millis()
-                            .to_string();
-                        let log = Log {
-                            level: "error".to_string(),
-                            timestamp: now,
-                            message: rule_violations.to_string(),
-                        };
+                if let Some(body) = &request.body
+                    && let Err(rule_violations) = verify_flow(validation_flow.clone(), body.clone())
+                {
+                    let now = SystemTime::now()
+                        .duration_since(SystemTime::UNIX_EPOCH)
+                        .unwrap()
+                        .as_millis()
+                        .to_string();
+                    let log = Log {
+                        level: "error".to_string(),
+                        timestamp: now,
+                        message: rule_violations.to_string(),
+                    };
 
-                        let execution_result = ExecutionLogonRequest {
-                            data: Some(Data::Response(TestExecutionResponse {
-                                flow_id: request.flow_id,
-                                execution_uuid: uuid,
-                                result: None,
-                                logs: vec![log],
-                            })),
-                        };
+                    let execution_result = ExecutionLogonRequest {
+                        data: Some(Data::Response(TestExecutionResponse {
+                            flow_id: request.flow_id,
+                            execution_uuid: uuid,
+                            result: None,
+                            logs: vec![log],
+                        })),
+                    };
 
-                        if let Err(err) = tx.send(execution_result).await {
-                            log::error!("Failed to send ExecutionLogonResponse: {:?}", err);
-                        }
-                        continue;
+                    if let Err(err) = tx.send(execution_result).await {
+                        log::error!("Failed to send ExecutionLogonResponse: {:?}", err);
                     }
+                    continue;
                 }
 
                 let execution_flow = ExecutionFlow {
