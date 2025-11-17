@@ -86,18 +86,24 @@ impl AquilaGRPCServer {
             let health_service = code0_flow::flow_health::HealthService::new(self.nats_url.clone());
 
             Server::builder()
-                .add_service(tonic_health::pb::health_server::HealthServer::new(health_service))
+                .add_service(tonic_health::pb::health_server::HealthServer::new(
+                    health_service,
+                ))
                 .add_service(DataTypeServiceServer::new(data_type_server))
                 .add_service(FlowTypeServiceServer::new(flow_type_server))
-                .add_service(RuntimeFunctionDefinitionServiceServer::new(runtime_function_server))
+                .add_service(RuntimeFunctionDefinitionServiceServer::new(
+                    runtime_function_server,
+                ))
                 .serve(self.address)
                 .await
         } else {
-
             Server::builder()
                 .add_service(DataTypeServiceServer::new(data_type_server))
                 .add_service(FlowTypeServiceServer::new(flow_type_server))
-                .add_service(RuntimeFunctionDefinitionServiceServer::new(runtime_function_server)).serve(self.address)
+                .add_service(RuntimeFunctionDefinitionServiceServer::new(
+                    runtime_function_server,
+                ))
+                .serve(self.address)
                 .await
         }
     }
