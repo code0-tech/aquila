@@ -81,9 +81,8 @@ async fn main() {
     });
 
     let mut flow_task = tokio::spawn(async move {
-        let flow_client =
+        let mut flow_client =
             SagittariusFlowClient::new(backend_url_flow, kv_for_flow, runtime_token_flow).await;
-        let mut flow_client = flow_client;
 
         flow_client.init_flow_stream().await;
         log::warn!("Flow stream task exited");
