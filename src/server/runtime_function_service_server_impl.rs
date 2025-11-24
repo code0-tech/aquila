@@ -20,14 +20,14 @@ impl RuntimeFunctionDefinitionService for AquilaRuntimeFunctionServiceServer {
     async fn update(
         &self,
         request: tonic::Request<tucana::aquila::RuntimeFunctionDefinitionUpdateRequest>,
-    ) -> std::result::Result<
+    ) -> Result<
         tonic::Response<tucana::aquila::RuntimeFunctionDefinitionUpdateResponse>,
         tonic::Status,
     > {
         let runtime_function_definition_update_request = request.into_inner();
 
         log::info!(
-            "Recieved RuntimeFunctions: {:?}",
+            "Received RuntimeFunctions: {:?}",
             runtime_function_definition_update_request.runtime_functions
         );
 

@@ -19,12 +19,12 @@ impl FlowTypeService for AquilaFlowTypeServiceServer {
     async fn update(
         &self,
         request: tonic::Request<tucana::aquila::FlowTypeUpdateRequest>,
-    ) -> std::result::Result<tonic::Response<tucana::aquila::FlowTypeUpdateResponse>, tonic::Status>
+    ) -> Result<tonic::Response<tucana::aquila::FlowTypeUpdateResponse>, tonic::Status>
     {
         let flow_type_update_request = request.into_inner();
 
         log::info!(
-            "Recieved FlowTypes: {:?}",
+            "Received FlowTypes: {:?}",
             flow_type_update_request.flow_types
         );
 

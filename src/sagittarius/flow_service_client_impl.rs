@@ -42,7 +42,7 @@ impl SagittariusFlowClient {
     async fn handle_response(&mut self, response: FlowResponse) {
         let data = match response.data {
             Some(data) => {
-                log::info!("Recieved a FlowResponse");
+                log::info!("Received a FlowResponse");
                 data
             }
             None => {
@@ -115,7 +115,7 @@ impl SagittariusFlowClient {
 
         let response = match self.client.update(request).await {
             Ok(res) => {
-                log::info!("Succesfully established a Stream (for Flows)");
+                log::info!("Successfully established a Stream (for Flows)");
                 res
             }
             Err(status) => {
