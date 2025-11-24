@@ -18,8 +18,7 @@ impl DataTypeService for AquilaDataTypeServiceServer {
     async fn update(
         &self,
         request: tonic::Request<tucana::aquila::DataTypeUpdateRequest>,
-    ) -> Result<tonic::Response<tucana::aquila::DataTypeUpdateResponse>, tonic::Status>
-    {
+    ) -> Result<tonic::Response<tucana::aquila::DataTypeUpdateResponse>, tonic::Status> {
         let data_type_update_request = request.into_inner();
 
         log::info!(

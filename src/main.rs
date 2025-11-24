@@ -1,4 +1,3 @@
-use crate::sagittarius::test_execution_client_impl::SagittariusTestExecutionServiceClient;
 use crate::{configuration::Config as AquilaConfig, flow::get_flow_identifier};
 use async_nats::jetstream::kv::Config;
 use code0_flow::flow_config::load_env_file;
@@ -38,7 +37,7 @@ async fn main() {
         Err(err) => {
             log::error!("Failed to connect to NATS: {:?}", err);
             panic!("Failed to connect to NATS server: {:?}", err)
-        },
+        }
     };
 
     let jet_stream = async_nats::jetstream::new(client.clone());
@@ -58,7 +57,7 @@ async fn main() {
         Err(err) => {
             log::error!("Failed to get key-value store: {:?}", err);
             panic!("Failed to get key-value store: {:?}", err)
-        },
+        }
     };
 
     if config.is_static() {
