@@ -90,12 +90,16 @@ async fn main() {
     tokio::select! {
         _ = &mut server_task => {
             log::warn!("gRPC server task finished, shutting down");
+            flow_task.abort();
         }
         _ = &mut flow_task => {
             log::warn!("Flow stream task finished, shutting down");
+            server_task.abort();
         }
         _ = tokio::signal::ctrl_c() => {
             log::info!("Ctrl+C/Exit signal received, shutting down");
+            server_task.abort();
+            flow_task.abort();
         }
     }
 
