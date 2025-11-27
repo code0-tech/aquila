@@ -1,4 +1,3 @@
-use crate::sagittarius::test_execution_client_impl::SagittariusTestExecutionServiceClient;
 use crate::{configuration::Config as AquilaConfig, flow::get_flow_identifier};
 use async_nats::jetstream::kv::Config;
 use code0_flow::flow_config::load_env_file;
@@ -31,8 +30,14 @@ async fn main() {
 
     //Create connection to JetStream
     let client = match async_nats::connect(config.nats_url.clone()).await {
-        Ok(client) => client,
-        Err(err) => panic!("Failed to connect to NATS server: {}", err),
+        Ok(client) => {
+            log::info!("Connected to NATS");
+            client
+        }
+        Err(err) => {
+            log::error!("Failed to connect to NATS: {:?}", err);
+            panic!("Failed to connect to NATS server: {:?}", err)
+        }
     };
 
     let jet_stream = async_nats::jetstream::new(client.clone());
@@ -45,47 +50,60 @@ async fn main() {
         .await;
 
     let kv_store = match jet_stream.get_key_value(config.nats_bucket.clone()).await {
-        Ok(kv) => Arc::new(kv),
-        Err(err) => panic!("Failed to get key-value store: {}", err),
+        Ok(kv) => {
+            log::info!("Connected to JetStream");
+            Arc::new(kv)
+        }
+        Err(err) => {
+            log::error!("Failed to get key-value store: {:?}", err);
+            panic!("Failed to get key-value store: {:?}", err)
+        }
     };
 
-    //Create connection to Sagittarius if the type is hybrid
-    if !config.is_static() {
-        let server = AquilaGRPCServer::new(&config);
-
-        match server.start().await {
-            Ok(_) => {
-                log::info!("Server started successfully");
-            }
-            Err(err) => {
-                log::error!("Failed to start server: {:?}", err);
-                panic!("Failed to start server");
-            }
-        };
-
-        // Connect to Sagittarius Flow Endpoint
-        SagittariusFlowClient::new(
-            config.backend_url.clone(),
-            kv_store.clone(),
-            config.runtime_token.clone(),
-        )
-        .await
-        .init_flow_stream()
-        .await;
-
-        // Connect to Sagittarius Execution Endpoint
-        SagittariusTestExecutionServiceClient::new(
-            client,
-            kv_store,
-            config.backend_url,
-            config.runtime_token,
-        )
-        .await
-        .logon()
-        .await;
-    } else {
-        init_flows_from_json(config.flow_fallback_path, kv_store).await
+    if config.is_static() {
+        log::info!("Starting with static configuration");
+        init_flows_from_json(config.flow_fallback_path, kv_store).await;
+        return;
     }
+
+    let server = AquilaGRPCServer::new(&config);
+    let backend_url_flow = config.backend_url.clone();
+    let runtime_token_flow = config.runtime_token.clone();
+    let kv_for_flow = kv_store.clone();
+
+    let mut server_task = tokio::spawn(async move {
+        if let Err(err) = server.start().await {
+            log::error!("gRPC server error: {:?}", err);
+        } else {
+            log::info!("gRPC server stopped gracefully");
+        }
+    });
+
+    let mut flow_task = tokio::spawn(async move {
+        let mut flow_client =
+            SagittariusFlowClient::new(backend_url_flow, kv_for_flow, runtime_token_flow).await;
+
+        flow_client.init_flow_stream().await;
+        log::warn!("Flow stream task exited");
+    });
+
+    tokio::select! {
+        _ = &mut server_task => {
+            log::warn!("gRPC server task finished, shutting down");
+            flow_task.abort();
+        }
+        _ = &mut flow_task => {
+            log::warn!("Flow stream task finished, shutting down");
+            server_task.abort();
+        }
+        _ = tokio::signal::ctrl_c() => {
+            log::info!("Ctrl+C/Exit signal received, shutting down");
+            server_task.abort();
+            flow_task.abort();
+        }
+    }
+
+    log::info!("Aquila shutdown complete");
 }
 
 async fn init_flows_from_json(
