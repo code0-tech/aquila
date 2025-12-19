@@ -82,7 +82,7 @@ dependencies = [
  "tokio-stream",
  "tonic",
  "tonic-health",
- "tucana 0.0.43",
+ "tucana",
  "uuid",
 ]
 
@@ -273,7 +273,7 @@ dependencies = [
  "serde_json",
  "tonic",
  "tonic-health",
- "tucana 0.0.49",
+ "tucana",
  "walkdir",
 ]
 
@@ -1048,16 +1048,6 @@ checksum = "d05e27ee213611ffe7d6348b942e8f942b37114c00cc03cec254295a4a17852e"
 
 [[package]]
 name = "pbjson"
-version = "0.8.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "898bac3fa00d0ba57a4e8289837e965baa2dee8c3749f3b11d45a64b4223d9c3"
-dependencies = [
- "base64",
- "serde",
-]
-
-[[package]]
-name = "pbjson"
 version = "0.9.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e8edd1efdd8ab23ba9cb9ace3d9987a72663d5d7c9f74fa00b51d6213645cf6c"
@@ -1092,28 +1082,13 @@ dependencies = [
 
 [[package]]
 name = "pbjson-types"
-version = "0.8.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8e748e28374f10a330ee3bb9f29b828c0ac79831a32bab65015ad9b661ead526"
-dependencies = [
- "bytes",
- "chrono",
- "pbjson 0.8.0",
- "pbjson-build 0.8.0",
- "prost",
- "prost-build",
- "serde",
-]
-
-[[package]]
-name = "pbjson-types"
 version = "0.9.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a14e2757d877c0f607a82ce1b8560e224370f159d66c5d52eb55ea187ef0350e"
 dependencies = [
  "bytes",
  "chrono",
- "pbjson 0.9.0",
+ "pbjson",
  "pbjson-build 0.9.0",
  "prost",
  "prost-build",
@@ -2068,33 +2043,13 @@ dependencies = [
 
 [[package]]
 name = "tucana"
-version = "0.0.43"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a97d0f9945f8993b62cef0504a8a874651f1ab56cb63307c20db9402e83ed0ad"
-dependencies = [
- "pbjson 0.8.0",
- "pbjson-build 0.8.0",
- "pbjson-types 0.8.0",
- "prost",
- "prost-build",
- "prost-types",
- "serde",
- "serde_json",
- "tonic",
- "tonic-build",
- "tonic-prost",
- "tonic-prost-build",
-]
-
-[[package]]
-name = "tucana"
 version = "0.0.49"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "58e7638b0a71c5d21fce37e1c1a58994c53c0e7bc3332c322ef4ea5540f0d2c5"
 dependencies = [
- "pbjson 0.9.0",
+ "pbjson",
  "pbjson-build 0.8.0",
- "pbjson-types 0.9.0",
+ "pbjson-types",
  "prost",
  "prost-build",
  "prost-types",
