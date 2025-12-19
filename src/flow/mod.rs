@@ -61,7 +61,7 @@ mod test {
 
     #[test]
     fn test_incorrect_flow_type_id() {
-        let unkown = Flow {
+        let unknown = Flow {
             flow_id: 1,
             project_id: 1,
             r#type: "UNKOWN_FLOW_TYPE_IDENTIFIER".to_string(),
@@ -71,9 +71,11 @@ mod test {
             settings: vec![],
             starting_node_id: 0,
             node_functions: vec![],
+            project_slug: "slug".to_string(),
+            disable_reason: None,
         };
 
-        assert_eq!(get_flow_identifier(&unkown), String::from("1"))
+        assert_eq!(get_flow_identifier(&unknown), String::from("1"))
     }
 
     #[test]
@@ -111,6 +113,8 @@ mod test {
             ],
             starting_node_id: 0,
             node_functions: vec![],
+            project_slug: "slug".to_string(),
+            disable_reason: None,
         };
 
         let id = get_flow_identifier(&rest);
@@ -129,6 +133,8 @@ mod test {
             settings: vec![],
             starting_node_id: 0,
             node_functions: vec![],
+            project_slug: "slug".to_string(),
+            disable_reason: None,
         };
 
         assert_eq!(get_flow_identifier(&rest), String::from("1"))
