@@ -87,6 +87,17 @@ async fn main() {
         log::warn!("Flow stream task exited");
     });
 
+    #[cfg(unix)]
+    let sigterm = async {
+        use tokio::signal::unix::{SignalKind, signal};
+
+        let mut term = signal(SignalKind::terminate()).expect("failed to install SIGTERM handler");
+        term.recv().await;
+    };
+
+    #[cfg(not(unix))]
+    let sigterm = std::future::pending::<()>();
+
     tokio::select! {
         _ = &mut server_task => {
             log::warn!("gRPC server task finished, shutting down");
@@ -98,6 +109,11 @@ async fn main() {
         }
         _ = tokio::signal::ctrl_c() => {
             log::info!("Ctrl+C/Exit signal received, shutting down");
+            server_task.abort();
+            flow_task.abort();
+        }
+        _ = sigterm => {
+            log::info!("SIGTERM received, shutting down");
             server_task.abort();
             flow_task.abort();
         }
@@ -147,4 +163,6 @@ async fn init_flows_from_json(
             Err(err) => log::error!("Failed to update flow. Reason: {:?}", err),
         };
     }
+
+    log::info!("Shutting down after successfully inserting all flows");
 }
