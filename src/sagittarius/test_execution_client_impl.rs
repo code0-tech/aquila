@@ -14,7 +14,9 @@ use tonic::Request;
 use tonic::transport::Channel;
 use tucana::sagittarius::execution_logon_request::Data;
 use tucana::sagittarius::execution_service_client::ExecutionServiceClient;
-use tucana::sagittarius::{ExecutionLogonRequest, Log, Logon, TestExecutionResponse};
+use tucana::sagittarius::{
+    ApplicationLog, ExecutionLogonRequest, Log, Logon, TestExecutionResponse,
+};
 use tucana::shared::{ExecutionFlow, ValidationFlow, Value};
 
 pub struct SagittariusTestExecutionServiceClient {
@@ -107,9 +109,13 @@ impl SagittariusTestExecutionServiceClient {
                         .as_millis()
                         .to_string();
                     let log = Log {
-                        level: "error".to_string(),
-                        timestamp: now,
-                        message: rule_violations.to_string(),
+                        kind: Some(tucana::sagittarius::log::Kind::ApplicationLog(
+                            ApplicationLog {
+                                message: rule_violations.to_string(),
+                                level: String::from("error"),
+                                timestamp: now,
+                            },
+                        )),
                     };
 
                     let execution_result = ExecutionLogonRequest {
