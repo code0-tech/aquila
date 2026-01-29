@@ -1,10 +1,11 @@
 use futures::{StreamExt, TryStreamExt};
 use prost::Message;
-use std::sync::Arc;
+use tokio::fs;
+use std::{path::Path, sync::Arc};
 use tonic::{Extensions, Request, transport::Channel};
-use tucana::sagittarius::{
+use tucana::{sagittarius::{
     FlowLogonRequest, FlowResponse, flow_response::Data, flow_service_client::FlowServiceClient,
-};
+}, shared::ValidationFlow};
 
 use crate::{authorization::authorization::get_authorization_metadata, flow::get_flow_identifier};
 
@@ -12,6 +13,7 @@ use crate::{authorization::authorization::get_authorization_metadata, flow::get_
 pub struct SagittariusFlowClient {
     store: Arc<async_nats::jetstream::kv::Store>,
     client: FlowServiceClient<Channel>,
+    env: String,
     token: String,
 }
 
@@ -19,6 +21,7 @@ impl SagittariusFlowClient {
     pub async fn new(
         sagittarius_url: String,
         store: Arc<async_nats::jetstream::kv::Store>,
+        env: String,
         token: String,
     ) -> SagittariusFlowClient {
         let client = match FlowServiceClient::connect(sagittarius_url).await {
@@ -35,8 +38,48 @@ impl SagittariusFlowClient {
         SagittariusFlowClient {
             store,
             client,
+            env,
             token,
         }
+    }
+
+    fn is_development(&self) -> bool {
+        self.env == String::from("DEVELOPMENT")
+    }
+
+    async fn export_flows_json_overwrite(&self, flows: &[ValidationFlow]) {
+        if !self.is_development() {
+            return;
+        }
+
+        log::info!("Will export flows into file because env is set to `DEVELOPMENT`");
+
+        let json = match serde_json::to_vec_pretty(flows) {
+            Ok(b) => b,
+            Err(e) => {
+                log::error!("Failed to serialize flows to JSON: {:?}", e);
+                return;
+            }
+        };
+
+        let final_path = Path::new("flowExport.json");
+        let tmp_path = Path::new("flowExport.json.tmp");
+
+        if let Err(e) = fs::write(tmp_path, &json).await {
+            log::error!("Failed to write {}: {}", tmp_path.display(), e);
+            return;
+        }
+
+        if let Err(e) = fs::rename(tmp_path, final_path).await {
+            log::warn!("rename failed (will try remove+rename): {}", e);
+            let _ = fs::remove_file(final_path).await;
+            if let Err(e2) = fs::rename(tmp_path, final_path).await {
+                log::error!("Failed to move export into place: {}", e2);
+                let _ = fs::remove_file(tmp_path).await;
+            }
+        }
+
+        log::info!("Exported {} flows to {}", flows.len(), final_path.display());
     }
 
     async fn handle_response(&mut self, response: FlowResponse) {
@@ -74,6 +117,10 @@ impl SagittariusFlowClient {
             //WIll drop all flows that it holds and insert all new ones
             Data::Flows(flows) => {
                 log::info!("Dropping all Flows & inserting the new ones!");
+                
+                // Writing all flows into an output if its in `DEVELOPMENT`
+                self.export_flows_json_overwrite(flows.flows.as_slice()).await;
+
                 let mut keys = match self.store.keys().await {
                     Ok(keys) => keys.boxed(),
                     Err(err) => {
