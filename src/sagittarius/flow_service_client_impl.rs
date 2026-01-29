@@ -5,7 +5,7 @@ use std::{path::Path, sync::Arc};
 use tonic::{Extensions, Request, transport::Channel};
 use tucana::{sagittarius::{
     FlowLogonRequest, FlowResponse, flow_response::Data, flow_service_client::FlowServiceClient,
-}, shared::ValidationFlow};
+}, shared::{Flows, ValidationFlow}};
 
 use crate::{authorization::authorization::get_authorization_metadata, flow::get_flow_identifier};
 
@@ -47,14 +47,14 @@ impl SagittariusFlowClient {
         self.env == String::from("DEVELOPMENT")
     }
 
-    async fn export_flows_json_overwrite(&self, flows: &[ValidationFlow]) {
+    async fn export_flows_json_overwrite(&self, flows: Flows) {
         if !self.is_development() {
             return;
         }
 
         log::info!("Will export flows into file because env is set to `DEVELOPMENT`");
 
-        let json = match serde_json::to_vec_pretty(flows) {
+        let json = match serde_json::to_vec_pretty(&flows) {
             Ok(b) => b,
             Err(e) => {
                 log::error!("Failed to serialize flows to JSON: {:?}", e);
@@ -79,7 +79,7 @@ impl SagittariusFlowClient {
             }
         }
 
-        log::info!("Exported {} flows to {}", flows.len(), final_path.display());
+        log::info!("Exported {} flows to {}", flows.flows.len(), final_path.display());
     }
 
     async fn handle_response(&mut self, response: FlowResponse) {
@@ -119,7 +119,7 @@ impl SagittariusFlowClient {
                 log::info!("Dropping all Flows & inserting the new ones!");
                 
                 // Writing all flows into an output if its in `DEVELOPMENT`
-                self.export_flows_json_overwrite(flows.flows.as_slice()).await;
+                self.export_flows_json_overwrite(flows.clone()).await;
 
                 let mut keys = match self.store.keys().await {
                     Ok(keys) => keys.boxed(),
