@@ -259,9 +259,9 @@ dependencies = [
 
 [[package]]
 name = "code0-flow"
-version = "0.0.23"
+version = "0.0.24"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3f5a81df6372bf90457b89c9d45a8a5d9b042ea4478243266d5e54bc3e491369"
+checksum = "f4ebec2afaa7c154191715c695390a7552693d0664efff399633150972f1accb"
 dependencies = [
  "async-nats",
  "async-trait",
@@ -2025,9 +2025,9 @@ dependencies = [
 
 [[package]]
 name = "tucana"
-version = "0.0.51"
+version = "0.0.52"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b159f2c4bec2370240c3537f755a69bb3fca6589b6eebfc3240b3b4ace64e8fa"
+checksum = "63e1cec14d8140417b330fffd1fb07f52cbd69063a4bd5688e63511b5bf8c8aa"
 dependencies = [
  "pbjson",
  "pbjson-build",
