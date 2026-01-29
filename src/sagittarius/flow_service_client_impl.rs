@@ -96,6 +96,7 @@ impl SagittariusFlowClient {
 
                 for flow in flows.flows {
                     let key = get_flow_identifier(&flow);
+                    log::debug!("trying to insert: {}", key);
                     let bytes = flow.encode_to_vec();
                     match self.store.put(key, bytes.into()).await {
                         Ok(_) => log::info!("Flow updated successfully"),
