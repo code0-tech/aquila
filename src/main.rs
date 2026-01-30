@@ -79,9 +79,15 @@ async fn main() {
         }
     });
 
+    let env = match config.environment {
+        code0_flow::flow_config::environment::Environment::Development => String::from("DEVELOPMENT"),
+        code0_flow::flow_config::environment::Environment::Staging => String::from("STAGING"),
+        code0_flow::flow_config::environment::Environment::Production => String::from("PRODUCTION"),
+    };
+
     let mut flow_task = tokio::spawn(async move {
         let mut flow_client =
-            SagittariusFlowClient::new(backend_url_flow, kv_for_flow, runtime_token_flow).await;
+            SagittariusFlowClient::new(backend_url_flow, kv_for_flow, env, runtime_token_flow).await;
 
         flow_client.init_flow_stream().await;
         log::warn!("Flow stream task exited");
