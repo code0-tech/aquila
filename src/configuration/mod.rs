@@ -1,5 +1,7 @@
 use code0_flow::flow_config::{env_with_default, environment::Environment, mode::Mode};
 
+pub mod state;
+
 /// Struct for all relevant `Aquila` startup configurations
 pub struct Config {
     /// Aquila environment

@@ -1,13 +1,17 @@
+use crate::{authorization::authorization::get_authorization_metadata, flow::get_flow_identifier};
 use futures::{StreamExt, TryStreamExt};
 use prost::Message;
-use tokio::fs;
 use std::{path::Path, sync::Arc};
+use tokio::fs;
 use tonic::{Extensions, Request, transport::Channel};
-use tucana::{sagittarius::{
-    FlowLogonRequest, FlowResponse, flow_response::Data, flow_service_client::FlowServiceClient,
-}, shared::{Flows, ValidationFlow}};
+use tucana::{
+    sagittarius::{
+        FlowLogonRequest, FlowResponse, flow_response::Data, flow_service_client::FlowServiceClient,
+    },
+    shared::Flows,
+};
 
-use crate::{authorization::authorization::get_authorization_metadata, flow::get_flow_identifier};
+use std::sync::atomic::{AtomicBool, Ordering};
 
 #[derive(Clone)]
 pub struct SagittariusFlowClient {
@@ -15,36 +19,30 @@ pub struct SagittariusFlowClient {
     client: FlowServiceClient<Channel>,
     env: String,
     token: String,
+    sagittarius_ready: Arc<AtomicBool>,
 }
 
 impl SagittariusFlowClient {
-    pub async fn new(
-        sagittarius_url: String,
+    pub fn new(
         store: Arc<async_nats::jetstream::kv::Store>,
         env: String,
         token: String,
+        channel: Channel,
+        sagittarius_ready: Arc<AtomicBool>,
     ) -> SagittariusFlowClient {
-        let client = match FlowServiceClient::connect(sagittarius_url).await {
-            Ok(res) => {
-                log::info!("Successfully connected to Sagittarius Flow Endpoint!");
-                res
-            }
-            Err(err) => panic!(
-                "Failed to connect to Sagittarius (Flow Endpoint): {:?}",
-                err
-            ),
-        };
+        let client = FlowServiceClient::new(channel);
 
         SagittariusFlowClient {
             store,
             client,
             env,
             token,
+            sagittarius_ready,
         }
     }
 
     fn is_development(&self) -> bool {
-        self.env == String::from("DEVELOPMENT")
+        self.env == "DEVELOPMENT"
     }
 
     async fn export_flows_json_overwrite(&self, flows: Flows) {
@@ -79,7 +77,11 @@ impl SagittariusFlowClient {
             }
         }
 
-        log::info!("Exported {} flows to {}", flows.flows.len(), final_path.display());
+        log::info!(
+            "Exported {} flows to {}",
+            flows.flows.len(),
+            final_path.display()
+        );
     }
 
     async fn handle_response(&mut self, response: FlowResponse) {
@@ -95,7 +97,6 @@ impl SagittariusFlowClient {
         };
 
         match data {
-            // Will delete the flow id it receives
             Data::DeletedFlowId(id) => {
                 log::info!("Deleting the Flow with the id: {}", id);
                 let identifier = format!("{}::*", id);
@@ -104,7 +105,6 @@ impl SagittariusFlowClient {
                     Err(err) => log::error!("Failed to delete flow. Reason: {:?}", err),
                 };
             }
-            //Will update the flow it receives
             Data::UpdatedFlow(flow) => {
                 log::info!("Updating the Flow with the id: {}", &flow.flow_id);
                 let key = get_flow_identifier(&flow);
@@ -114,11 +114,9 @@ impl SagittariusFlowClient {
                     Err(err) => log::error!("Failed to update flow. Reason: {:?}", err),
                 };
             }
-            //WIll drop all flows that it holds and insert all new ones
             Data::Flows(flows) => {
                 log::info!("Dropping all Flows & inserting the new ones!");
-                
-                // Writing all flows into an output if its in `DEVELOPMENT`
+
                 self.export_flows_json_overwrite(flows.clone()).await;
 
                 let mut keys = match self.store.keys().await {
@@ -132,9 +130,7 @@ impl SagittariusFlowClient {
                 let mut purged_count = 0;
                 while let Ok(Some(key)) = keys.try_next().await {
                     match self.store.purge(&key).await {
-                        Ok(_) => {
-                            purged_count += 1;
-                        }
+                        Ok(_) => purged_count += 1,
                         Err(e) => log::error!("Failed to purge key {}: {}", key, e),
                     }
                 }
@@ -154,7 +150,9 @@ impl SagittariusFlowClient {
         }
     }
 
-    pub async fn init_flow_stream(&mut self) {
+    pub async fn init_flow_stream(&mut self) -> Result<(), tonic::Status> {
+        self.sagittarius_ready.store(false, Ordering::SeqCst);
+
         let request = Request::from_parts(
             get_authorization_metadata(&self.token),
             Extensions::new(),
@@ -164,14 +162,13 @@ impl SagittariusFlowClient {
         let response = match self.client.update(request).await {
             Ok(res) => {
                 log::info!("Successfully established a Stream (for Flows)");
+                self.sagittarius_ready.store(true, Ordering::SeqCst);
                 res
             }
             Err(status) => {
-                log::error!(
-                    "Received a {:?}, can't retrieve flows from Sagittarius",
-                    status
-                );
-                return;
+                self.sagittarius_ready.store(false, Ordering::SeqCst);
+                log::warn!("Failed to establish Flow stream: {:?}", status);
+                return Err(status);
             }
         };
 
@@ -183,12 +180,16 @@ impl SagittariusFlowClient {
                     self.handle_response(res).await;
                 }
                 Err(status) => {
-                    log::error!(
-                        "Received a {:?}, can't retrieve flows from Sagittarius",
-                        status
-                    );
+                    self.sagittarius_ready.store(false, Ordering::SeqCst);
+                    log::warn!("Flow stream error (will reconnect): {:?}", status);
+                    return Err(status);
                 }
             };
         }
+
+        // Stream ended without an explicit error
+        self.sagittarius_ready.store(false, Ordering::SeqCst);
+        log::warn!("Flow stream ended (server closed). Will reconnect.");
+        Err(tonic::Status::unavailable("flow stream ended"))
     }
 }

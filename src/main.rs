@@ -1,11 +1,15 @@
-use crate::{configuration::Config as AquilaConfig, flow::get_flow_identifier};
+use crate::{
+    configuration::{Config as AquilaConfig, state::AppReadiness},
+    flow::get_flow_identifier,
+    sagittarius::retry::create_channel_with_retry,
+};
 use async_nats::jetstream::kv::Config;
 use code0_flow::flow_config::load_env_file;
 use prost::Message;
 use sagittarius::flow_service_client_impl::SagittariusFlowClient;
 use serde_json::from_str;
 use server::AquilaGRPCServer;
-use std::{fs::File, io::Read, sync::Arc};
+use std::{fs::File, io::Read, sync::Arc, time::Duration};
 use tucana::shared::Flows;
 
 pub mod authorization;
@@ -27,6 +31,7 @@ async fn main() {
     // Load environment variables from .env file
     load_env_file();
     let config = AquilaConfig::new();
+    let app_readiness = AppReadiness::new();
 
     //Create connection to JetStream
     let client = match async_nats::connect(config.nats_url.clone()).await {
@@ -66,9 +71,14 @@ async fn main() {
         return;
     }
 
-    let server = AquilaGRPCServer::new(&config);
     let backend_url_flow = config.backend_url.clone();
-    let runtime_token_flow = config.runtime_token.clone();
+    let sagittarius_channel = create_channel_with_retry(
+        "Sagittarius Endpoint",
+        backend_url_flow,
+        app_readiness.sagittarius_ready.clone(),
+    )
+    .await;
+    let server = AquilaGRPCServer::new(&config, app_readiness.clone(), sagittarius_channel.clone());
     let kv_for_flow = kv_store.clone();
 
     let mut server_task = tokio::spawn(async move {
@@ -80,17 +90,45 @@ async fn main() {
     });
 
     let env = match config.environment {
-        code0_flow::flow_config::environment::Environment::Development => String::from("DEVELOPMENT"),
+        code0_flow::flow_config::environment::Environment::Development => {
+            String::from("DEVELOPMENT")
+        }
         code0_flow::flow_config::environment::Environment::Staging => String::from("STAGING"),
         code0_flow::flow_config::environment::Environment::Production => String::from("PRODUCTION"),
     };
 
     let mut flow_task = tokio::spawn(async move {
-        let mut flow_client =
-            SagittariusFlowClient::new(backend_url_flow, kv_for_flow, env, runtime_token_flow).await;
+        let mut backoff = Duration::from_millis(200);
+        let max_backoff = Duration::from_secs(10);
 
-        flow_client.init_flow_stream().await;
-        log::warn!("Flow stream task exited");
+        loop {
+            let ch = create_channel_with_retry(
+                "Sagittarius Stream",
+                config.backend_url.clone(),
+                app_readiness.sagittarius_ready.clone(),
+            )
+            .await;
+
+            let mut flow_client = SagittariusFlowClient::new(
+                kv_for_flow.clone(),
+                env.clone(),
+                config.runtime_token.clone(),
+                ch,
+                app_readiness.sagittarius_ready.clone(),
+            );
+
+            match flow_client.init_flow_stream().await {
+                Ok(_) => {
+                    log::warn!("Flow stream ended cleanly. Reconnecting...");
+                }
+                Err(e) => {
+                    log::warn!("Flow stream dropped: {:?}. Reconnecting...", e);
+                }
+            }
+
+            tokio::time::sleep(backoff).await;
+            backoff = std::cmp::min(backoff * 2, max_backoff);
+        }
     });
 
     #[cfg(unix)]

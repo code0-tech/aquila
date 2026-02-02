@@ -21,9 +21,13 @@ impl DataTypeService for AquilaDataTypeServiceServer {
     ) -> Result<tonic::Response<tucana::aquila::DataTypeUpdateResponse>, tonic::Status> {
         let data_type_update_request = request.into_inner();
 
-        log::info!(
+        log::debug!(
             "Received DataTypes: {:?}",
-            data_type_update_request.data_types
+            data_type_update_request
+                .data_types
+                .iter()
+                .map(|d| d.identifier.clone())
+                .collect::<Vec<_>>()
         );
 
         let mut client = self.client.lock().await;

@@ -26,9 +26,13 @@ impl RuntimeFunctionDefinitionService for AquilaRuntimeFunctionServiceServer {
     > {
         let runtime_function_definition_update_request = request.into_inner();
 
-        log::info!(
+        log::debug!(
             "Received RuntimeFunctions: {:?}",
-            runtime_function_definition_update_request.runtime_functions
+            runtime_function_definition_update_request
+                .runtime_functions
+                .iter()
+                .map(|f| f.runtime_name.clone())
+                .collect::<Vec<_>>()
         );
 
         let mut client = self.client.lock().await;
