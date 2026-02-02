@@ -21,7 +21,6 @@ impl AppReadiness {
         }
     }
 
-    /// Synchronously returns true if *all* flags are true.
     pub fn is_ready(&self) -> bool {
         self.sagittarius_ready.load(Ordering::SeqCst)
     }
