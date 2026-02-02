@@ -259,9 +259,9 @@ dependencies = [
 
 [[package]]
 name = "code0-flow"
-version = "0.0.24"
+version = "0.0.25"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f4ebec2afaa7c154191715c695390a7552693d0664efff399633150972f1accb"
+checksum = "53e10d39ec0c673c18749c0ff66c033806b68d1a99ec49cf1f4657fcd7c9d4b5"
 dependencies = [
  "async-nats",
  "async-trait",
@@ -271,6 +271,7 @@ dependencies = [
  "regex",
  "serde",
  "serde_json",
+ "tokio",
  "tonic",
  "tonic-health",
  "tucana",
