@@ -26,4 +26,3 @@ impl AppReadiness {
         self.sagittarius_ready.load(Ordering::SeqCst)
     }
 }
-
