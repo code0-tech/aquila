@@ -8,6 +8,12 @@ pub struct AppReadiness {
     pub sagittarius_ready: Arc<AtomicBool>,
 }
 
+impl Default for AppReadiness {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl AppReadiness {
     pub fn new() -> Self {
         Self {

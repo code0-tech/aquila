@@ -42,7 +42,7 @@ impl SagittariusFlowClient {
     }
 
     fn is_development(&self) -> bool {
-        self.env == String::from("DEVELOPMENT")
+        self.env == "DEVELOPMENT"
     }
 
     async fn export_flows_json_overwrite(&self, flows: Flows) {
