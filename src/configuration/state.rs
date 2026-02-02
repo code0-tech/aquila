@@ -4,7 +4,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 /// Tracks readiness of each external service.
 #[derive(Clone)]
 pub struct AppReadiness {
-    // Readieness State of Sagjttarus Service
+    // Readiness state of Sagittarius service
     pub sagittarius_ready: Arc<AtomicBool>,
 }
 
