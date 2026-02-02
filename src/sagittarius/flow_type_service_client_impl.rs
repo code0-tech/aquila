@@ -1,6 +1,4 @@
 use crate::authorization::authorization::get_authorization_metadata;
-use std::sync::Arc;
-use tokio::sync::Mutex;
 use tonic::Extensions;
 use tonic::Request;
 use tonic::transport::Channel;
@@ -15,21 +13,8 @@ pub struct SagittariusFlowTypeServiceClient {
 }
 
 impl SagittariusFlowTypeServiceClient {
-    pub async fn new_arc(sagittarius_url: String, token: String) -> Arc<Mutex<Self>> {
-        Arc::new(Mutex::new(Self::new(sagittarius_url, token).await))
-    }
-
-    pub async fn new(sagittarius_url: String, token: String) -> Self {
-        let client = match FlowTypeServiceClient::connect(sagittarius_url).await {
-            Ok(client) => {
-                log::info!("Successfully connected to Sagittarius FlowType Endpoint!");
-                client
-            }
-            Err(err) => panic!(
-                "Failed to connect to Sagittarius (FlowType Endpoint): {:?}",
-                err
-            ),
-        };
+    pub fn new(channel: Channel, token: String) -> Self {
+        let client = FlowTypeServiceClient::new(channel);
 
         Self { client, token }
     }
@@ -48,16 +33,18 @@ impl SagittariusFlowTypeServiceClient {
 
         let response = match self.client.update(request).await {
             Ok(response) => {
-                log::info!(
-                    "Successfully transferred FlowTypes. Did Sagittarius updated them? {:?}",
-                    &response
-                );
+                log::info!("Successfully transferred FlowTypes.",);
                 response.into_inner()
             }
             Err(err) => {
                 log::error!("Failed to update FlowTypes: {:?}", err);
                 return AquilaFlowTypeUpdateResponse { success: false };
             }
+        };
+
+        match response.success {
+            true => log::info!("Sagittarius successfully updated FlowTypes."),
+            false => log::error!("Sagittarius didn't update any FlowTypes."),
         };
 
         AquilaFlowTypeUpdateResponse {

@@ -15,23 +15,13 @@ pub struct SagittariusRuntimeFunctionServiceClient {
 }
 
 impl SagittariusRuntimeFunctionServiceClient {
-    pub async fn new(sagittarius_url: String, token: String) -> Self {
-        let client = match RuntimeFunctionDefinitionServiceClient::connect(sagittarius_url).await {
-            Ok(client) => {
-                log::info!("Successfully connected to Sagittarius RuntimeFunction Endpoint!");
-                client
-            }
-            Err(err) => panic!(
-                "Failed to connect to Sagittarius (RuntimeFunction Endpoint): {:?}",
-                err
-            ),
-        };
-
+    pub fn new(channel: Channel, token: String) -> Self {
+        let client = RuntimeFunctionDefinitionServiceClient::new(channel);
         Self { client, token }
     }
 
-    pub async fn new_arc(sagittarius_url: String, token: String) -> Arc<Mutex<Self>> {
-        Arc::new(Mutex::new(Self::new(sagittarius_url, token).await))
+    pub fn new_arc(channel: Channel, token: String) -> Arc<Mutex<Self>> {
+        Arc::new(Mutex::new(Self::new(channel, token)))
     }
 
     pub async fn update_runtime_function_definitions(
@@ -48,16 +38,18 @@ impl SagittariusRuntimeFunctionServiceClient {
 
         let response = match self.client.update(request).await {
             Ok(response) => {
-                log::info!(
-                    "Successfully transferred RuntimeFunctions. Did Sagittarius updated them? {:?}",
-                    &response
-                );
+                log::info!("Successfully transferred RuntimeFunctions.",);
                 response.into_inner()
             }
             Err(err) => {
                 log::error!("Failed to update RuntimeFunctions: {:?}", err);
                 return AquilaRuntimeFunctionUpdateResponse { success: false };
             }
+        };
+
+        match response.success {
+            true => log::info!("Sagittarius successfully updated RuntimeFunctions."),
+            false => log::error!("Sagittarius didn't update any RuntimeFunctionRuntimeFunctions."),
         };
 
         AquilaRuntimeFunctionUpdateResponse {
