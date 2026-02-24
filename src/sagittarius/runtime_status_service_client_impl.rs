@@ -1,6 +1,4 @@
 use crate::authorization::authorization::get_authorization_metadata;
-use std::sync::Arc;
-use tokio::sync::Mutex;
 use tonic::{Extensions, Request, transport::Channel};
 use tucana::sagittarius::runtime_status_service_client::RuntimeStatusServiceClient;
 
@@ -13,10 +11,6 @@ impl SagittariusRuntimeStatusServiceClient {
     pub fn new(channel: Channel, token: String) -> Self {
         let client = RuntimeStatusServiceClient::new(channel);
         Self { client, token }
-    }
-
-    pub fn new_arc(channel: Channel, token: String) -> Arc<Mutex<Self>> {
-        Arc::new(Mutex::new(Self::new(channel, token)))
     }
 
     pub async fn update_runtime_status(
