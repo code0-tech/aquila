@@ -21,7 +21,10 @@ impl RuntimeStatusService for AquilaRuntimeStatusServiceServer {
     ) -> Result<tonic::Response<tucana::aquila::RuntimeStatusUpdateResponse>, tonic::Status> {
         let runtime_status_update_request = request.into_inner();
 
-        log::debug!("Received Runtime Status Update");
+        log::debug!(
+            "Received Runtime Status Update: {:?}",
+            runtime_status_update_request
+        );
 
         let mut client = self.client.lock().await;
         let response = client
