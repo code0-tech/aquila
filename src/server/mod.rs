@@ -1,5 +1,5 @@
 use crate::{
-    configuration::{Config, state::AppReadiness},
+    configuration::{config::Config, state::AppReadiness},
     sagittarius::{
         data_type_service_client_impl::SagittariusDataTypeServiceClient,
         flow_type_service_client_impl::SagittariusFlowTypeServiceClient,
