@@ -1,4 +1,4 @@
-pub mod action_service_client_impl;
+pub mod action_configuration_service_client_impl;
 pub mod data_type_service_client_impl;
 pub mod flow_service_client_impl;
 pub mod flow_type_service_client_impl;
