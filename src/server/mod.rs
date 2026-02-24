@@ -22,6 +22,7 @@ use tucana::aquila::{
     runtime_function_definition_service_server::RuntimeFunctionDefinitionServiceServer,
 };
 
+mod action_configuration_service_server_impl;
 mod data_type_service_server_impl;
 mod flow_type_service_server_impl;
 mod runtime_function_service_server_impl;
