@@ -21,13 +21,13 @@ impl RuntimeUsageService for AquilaRuntimeUsageServiceServer {
         &self,
         request: tonic::Request<tucana::aquila::RuntimeUsageRequest>,
     ) -> Result<tonic::Response<tucana::aquila::RuntimeUsageResponse>, tonic::Status> {
-        let runtime_function_definition_update_request = request.into_inner();
+        let runtime_usage_request = request.into_inner();
 
         log::debug!("Received RuntimeUsageRequest",);
 
         let mut client = self.client.lock().await;
         let response = client
-            .update_runtime_usage(runtime_function_definition_update_request)
+            .update_runtime_usage(runtime_usage_request)
             .await;
 
         Ok(tonic::Response::new(tucana::aquila::RuntimeUsageResponse {
