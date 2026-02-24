@@ -28,6 +28,7 @@ use tucana::aquila::{
     runtime_usage_service_server::RuntimeUsageServiceServer,
 };
 
+mod action_configuration_service_server_impl;
 mod data_type_service_server_impl;
 mod flow_type_service_server_impl;
 mod runtime_function_service_server_impl;
