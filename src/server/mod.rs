@@ -25,7 +25,6 @@ use tucana::{
         runtime_function_definition_service_server::RuntimeFunctionDefinitionServiceServer,
         runtime_usage_service_server::RuntimeUsageServiceServer,
     },
-    sagittarius::runtime_usage_service_client::RuntimeUsageServiceClient,
 };
 
 mod data_type_service_server_impl;
