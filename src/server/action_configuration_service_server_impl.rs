@@ -1,16 +1,22 @@
-use crate::{configuration::action::ActionConfiguration, sagittarius::{action_configuration_service_client_impl::SagittariusActionConfigurationServiceClient, data_type_service_client_impl::SagittariusDataTypeServiceClient}};
+use crate::{
+    configuration::action::ActionConfiguration,
+    sagittarius::action_configuration_service_client_impl::SagittariusActionConfigurationServiceClient,
+};
 use std::sync::Arc;
 use tokio::sync::Mutex;
 use tonic::Status;
-use tucana::aquila::{action_configuration_service_server::ActionConfigurationService, data_type_service_server::DataTypeService};
+use tucana::aquila::action_configuration_service_server::ActionConfigurationService;
 
 pub struct AquilaActionConfigurationServiceServer {
     client: Arc<Mutex<SagittariusActionConfigurationServiceClient>>,
     actions: ActionConfiguration,
 }
 
-impl AquilaActionConfigurationServiceServer  {
-    pub fn new(client: Arc<Mutex<SagittariusActionConfigurationServiceClient>>, actions: ActionConfiguration) -> Self {
+impl AquilaActionConfigurationServiceServer {
+    pub fn new(
+        client: Arc<Mutex<SagittariusActionConfigurationServiceClient>>,
+        actions: ActionConfiguration,
+    ) -> Self {
         Self { client, actions }
     }
 }
@@ -20,29 +26,46 @@ impl ActionConfigurationService for AquilaActionConfigurationServiceServer {
     async fn update(
         &self,
         request: tonic::Request<tucana::aquila::ActionConfigurationUpdateRequest>,
-    ) -> Result<tonic::Response<tucana::aquila::ActionConfigurationUpdateResponse>, tonic::Status> {
-
+    ) -> Result<tonic::Response<tucana::aquila::ActionConfigurationUpdateResponse>, tonic::Status>
+    {
         let token = match request.metadata().get("authorization") {
-            Some(_) => todo!(),
-            None => Err(Status::unauthenticated("")),
+            Some(ascii) => match ascii.to_str() {
+                Ok(tk) => tk.to_string(),
+                Err(err) => {
+                    log::error!("Cannot read authorization header because: {:?}", err);
+                    return Err(Status::internal("cannot read authorization header"));
+                }
+            },
+            None => return Err(Status::unauthenticated("missing authorization token")),
         };
 
-        let data_type_update_request = request.into_inner();
-
-        log::debug!(
-            "Received DataTypes: {:?}",
-            data_type_update_request
-                .data_types
-                .iter()
-                .map(|d| d.identifier.clone())
-                .collect::<Vec<_>>()
-        );
+        let action_configuration_update_request = request.into_inner();
+        match self.actions.clone().has_action(
+            token,
+            &action_configuration_update_request.action_identifier,
+        ) {
+            true => {
+                log::debug!(
+                    "Action with identifer: {}, connected successfully",
+                    action_configuration_update_request.action_identifier
+                );
+            }
+            false => {
+                log::debug!(
+                    "Rejected action with identifer: {}, becuase its not registered",
+                    action_configuration_update_request.action_identifier
+                );
+                return Err(Status::unauthenticated(""));
+            }
+        }
 
         let mut client = self.client.lock().await;
-        let response = client.update_data_types(data_type_update_request).await;
+        let response = client
+            .update_action_configuration(action_configuration_update_request)
+            .await;
 
         Ok(tonic::Response::new(
-            tucana::aquila::DataTypeUpdateResponse {
+            tucana::aquila::ActionConfigurationUpdateResponse {
                 success: response.success,
             },
         ))

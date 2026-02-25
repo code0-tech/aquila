@@ -1,10 +1,12 @@
 use crate::{
-    configuration::{config::Config, state::AppReadiness},
+    configuration::{action::ActionConfiguration, config::Config, state::AppReadiness},
     sagittarius::{
+        action_configuration_service_client_impl::SagittariusActionConfigurationServiceClient,
         data_type_service_client_impl::SagittariusDataTypeServiceClient,
         flow_type_service_client_impl::SagittariusFlowTypeServiceClient,
         runtime_function_service_client_impl::SagittariusRuntimeFunctionServiceClient,
     },
+    server::action_configuration_service_server_impl::AquilaActionConfigurationServiceServer,
 };
 use data_type_service_server_impl::AquilaDataTypeServiceServer;
 use flow_type_service_server_impl::AquilaFlowTypeServiceServer;
@@ -17,6 +19,7 @@ use tonic::{
     transport::{Channel, Server},
 };
 use tucana::aquila::{
+    action_configuration_service_server::ActionConfigurationServiceServer,
     data_type_service_server::DataTypeServiceServer,
     flow_type_service_server::FlowTypeServiceServer,
     runtime_function_definition_service_server::RuntimeFunctionDefinitionServiceServer,
@@ -34,10 +37,16 @@ pub struct AquilaGRPCServer {
     with_health_service: bool,
     app_readiness: AppReadiness,
     channel: Channel,
+    action_configuration: ActionConfiguration,
 }
 
 impl AquilaGRPCServer {
-    pub fn new(config: &Config, app_readiness: AppReadiness, channel: Channel) -> Self {
+    pub fn new(
+        config: &Config,
+        app_readiness: AppReadiness,
+        channel: Channel,
+        action_configuration: ActionConfiguration,
+    ) -> Self {
         let address = match format!("{}:{}", config.grpc_host, config.grpc_port).parse() {
             Ok(addr) => {
                 info!("Listening on {:?}", &addr);
@@ -53,6 +62,7 @@ impl AquilaGRPCServer {
             address,
             app_readiness,
             channel,
+            action_configuration,
         }
     }
 
@@ -76,10 +86,21 @@ impl AquilaGRPCServer {
 
         info!("RuntimeFunctionService started");
 
+        let action_configuration_service = Arc::new(Mutex::new(
+            SagittariusActionConfigurationServiceClient::new(
+                self.channel.clone(),
+                self.token.clone(),
+            ),
+        ));
+
         let data_type_server = AquilaDataTypeServiceServer::new(data_type_service.clone());
         let flow_type_server = AquilaFlowTypeServiceServer::new(flow_type_service.clone());
         let runtime_function_server =
             AquilaRuntimeFunctionServiceServer::new(runtime_function_service.clone());
+        let action_configuration_server = AquilaActionConfigurationServiceServer::new(
+            action_configuration_service.clone(),
+            self.action_configuration.clone(),
+        );
 
         info!("Starting gRPC Server...");
 
@@ -119,6 +140,10 @@ impl AquilaGRPCServer {
                     runtime_function_server,
                     intercept.clone(),
                 ))
+                .add_service(ActionConfigurationServiceServer::with_interceptor(
+                    action_configuration_server,
+                    intercept.clone(),
+                ))
                 .serve(self.address)
                 .await
         } else {
@@ -133,6 +158,10 @@ impl AquilaGRPCServer {
                 ))
                 .add_service(RuntimeFunctionDefinitionServiceServer::with_interceptor(
                     runtime_function_server,
+                    intercept.clone(),
+                ))
+                .add_service(ActionConfigurationServiceServer::with_interceptor(
+                    action_configuration_server,
                     intercept.clone(),
                 ))
                 .serve(self.address)
