@@ -1,7 +1,6 @@
 use crate::{
     configuration::{action::ActionConfiguration, config::Config, state::AppReadiness},
     sagittarius::{
-        action_configuration_service_client_impl::SagittariusActionConfigurationServiceClient,
         data_type_service_client_impl::SagittariusDataTypeServiceClient,
         flow_type_service_client_impl::SagittariusFlowTypeServiceClient,
         runtime_function_service_client_impl::SagittariusRuntimeFunctionServiceClient,
@@ -21,17 +20,15 @@ use tonic::{
     Request, Status,
     transport::{Channel, Server},
 };
-use tucana::{
-    aquila::{
-        data_type_service_server::DataTypeServiceServer,
-        flow_type_service_server::FlowTypeServiceServer,
-        runtime_function_definition_service_server::RuntimeFunctionDefinitionServiceServer,
-        runtime_status_service_server::RuntimeStatusServiceServer,
-        runtime_usage_service_server::RuntimeUsageServiceServer,
-    },
-    sagittarius::action_configuration_service_server::ActionConfigurationServiceServer,
+use tucana::aquila::{
+    data_type_service_server::DataTypeServiceServer,
+    flow_type_service_server::FlowTypeServiceServer,
+    runtime_function_definition_service_server::RuntimeFunctionDefinitionServiceServer,
+    runtime_status_service_server::RuntimeStatusServiceServer,
+    runtime_usage_service_server::RuntimeUsageServiceServer,
 };
 
+mod action_transfer_service_server_impl;
 mod data_type_service_server_impl;
 mod flow_type_service_server_impl;
 mod runtime_function_service_server_impl;
@@ -106,13 +103,6 @@ impl AquilaGRPCServer {
         ));
 
         info!("RuntimeStatusService started");
-
-        let action_configuration_service = Arc::new(Mutex::new(
-            SagittariusActionConfigurationServiceClient::new(
-                self.channel.clone(),
-                self.token.clone(),
-            ),
-        ));
 
         let data_type_server = AquilaDataTypeServiceServer::new(data_type_service.clone());
         let flow_type_server = AquilaFlowTypeServiceServer::new(flow_type_service.clone());
