@@ -18,3 +18,4 @@ tonic-health = "0.14.1"
 tokio-stream = "0.1.17"
 uuid = { version = "1.18.0", features = ["v4"] }
 serde = "1.0.228"
+futures-core = "0.3.32"

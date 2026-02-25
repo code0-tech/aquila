@@ -75,6 +75,7 @@ dependencies = [
  "code0-flow",
  "env_logger",
  "futures",
+ "futures-core",
  "log",
  "prost",
  "serde",
