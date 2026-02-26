@@ -7,6 +7,9 @@ use crate::{
         runtime_usage_client_impl::SagittariusRuntimeUsageClient,
     },
     server::runtime_usage_service_server_impl::AquilaRuntimeUsageServiceServer,
+        runtime_status_service_client_impl::SagittariusRuntimeStatusServiceClient,
+    },
+    server::runtime_status_service_server_impl::AquilaRuntimeStatusServiceServer,
 };
 use data_type_service_server_impl::AquilaDataTypeServiceServer;
 use flow_type_service_server_impl::AquilaFlowTypeServiceServer;
@@ -18,18 +21,18 @@ use tonic::{
     Request, Status,
     transport::{Channel, Server},
 };
-use tucana::{
-    aquila::{
-        data_type_service_server::DataTypeServiceServer,
-        flow_type_service_server::FlowTypeServiceServer,
-        runtime_function_definition_service_server::RuntimeFunctionDefinitionServiceServer,
-        runtime_usage_service_server::RuntimeUsageServiceServer,
-    },
+use tucana::aquila::{
+    data_type_service_server::DataTypeServiceServer,
+    flow_type_service_server::FlowTypeServiceServer,
+    runtime_function_definition_service_server::RuntimeFunctionDefinitionServiceServer,
+    runtime_status_service_server::RuntimeStatusServiceServer,
+    runtime_usage_service_server::RuntimeUsageServiceServer,
 };
 
 mod data_type_service_server_impl;
 mod flow_type_service_server_impl;
 mod runtime_function_service_server_impl;
+mod runtime_status_service_server_impl;
 mod runtime_usage_service_server_impl;
 
 pub struct AquilaGRPCServer {
@@ -88,12 +91,20 @@ impl AquilaGRPCServer {
 
         info!("RuntimeUsageService started");
 
+        let runtime_status_service = Arc::new(Mutex::new(
+            SagittariusRuntimeStatusServiceClient::new(self.channel.clone(), self.token.clone()),
+        ));
+
+        info!("RuntimeStatusService started");
+
         let data_type_server = AquilaDataTypeServiceServer::new(data_type_service.clone());
         let flow_type_server = AquilaFlowTypeServiceServer::new(flow_type_service.clone());
         let runtime_function_server =
             AquilaRuntimeFunctionServiceServer::new(runtime_function_service.clone());
         let runtime_usage_server =
             AquilaRuntimeUsageServiceServer::new(runtime_usage_service.clone());
+        let runtime_status_server =
+            AquilaRuntimeStatusServiceServer::new(runtime_status_service.clone());
 
         info!("Starting gRPC Server...");
 
@@ -137,6 +148,10 @@ impl AquilaGRPCServer {
                     runtime_usage_server,
                     intercept.clone(),
                 ))
+                .add_service(RuntimeStatusServiceServer::with_interceptor(
+                    runtime_status_server,
+                    intercept.clone(),
+                ))
                 .serve(self.address)
                 .await
         } else {
@@ -155,6 +170,10 @@ impl AquilaGRPCServer {
                 ))
                 .add_service(RuntimeUsageServiceServer::with_interceptor(
                     runtime_usage_server,
+                    intercept.clone(),
+                ))
+                .add_service(RuntimeStatusServiceServer::with_interceptor(
+                    runtime_status_server,
                     intercept.clone(),
                 ))
                 .serve(self.address)
