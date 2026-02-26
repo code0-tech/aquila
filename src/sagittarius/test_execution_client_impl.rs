@@ -4,7 +4,6 @@
    In some conditions Sagittarius can't connect to Aquila
    Thus Aquila sends a `Logon` request to connect to Sagittarius establishing the connection
 */
-use code0_flow::flow_validator::verify_flow;
 use futures::StreamExt;
 use prost::Message;
 use std::sync::Arc;
@@ -100,38 +99,8 @@ impl SagittariusTestExecutionServiceClient {
 
                 let uuid = uuid::Uuid::new_v4().to_string();
 
-                if let Some(body) = &request.body
-                    && let Err(rule_violations) = verify_flow(validation_flow.clone(), body.clone())
-                {
-                    let now = SystemTime::now()
-                        .duration_since(SystemTime::UNIX_EPOCH)
-                        .unwrap()
-                        .as_millis()
-                        .to_string();
-                    let log = Log {
-                        kind: Some(tucana::sagittarius::log::Kind::ApplicationLog(
-                            ApplicationLog {
-                                message: rule_violations.to_string(),
-                                level: String::from("error"),
-                                timestamp: now,
-                            },
-                        )),
-                    };
-
-                    let execution_result = ExecutionLogonRequest {
-                        data: Some(Data::Response(TestExecutionResponse {
-                            flow_id: request.flow_id,
-                            execution_uuid: uuid,
-                            result: None,
-                            logs: vec![log],
-                        })),
-                    };
-
-                    if let Err(err) = tx.send(execution_result).await {
-                        log::error!("Failed to send ExecutionLogonResponse: {:?}", err);
-                    }
-                    continue;
-                }
+                // TODO: When the new validator is ready, the body needs to be validated at this
+                // point.
 
                 let execution_flow = ExecutionFlow {
                     flow_id: request.flow_id,
