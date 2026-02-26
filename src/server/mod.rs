@@ -1,10 +1,10 @@
 use crate::{
-    configuration::{Config, state::AppReadiness},
-    sagittarius::runtime_status_service_client_impl::SagittariusRuntimeStatusServiceClient,
+    configuration::{config::Config, state::AppReadiness},
     sagittarius::{
         data_type_service_client_impl::SagittariusDataTypeServiceClient,
         flow_type_service_client_impl::SagittariusFlowTypeServiceClient,
         runtime_function_service_client_impl::SagittariusRuntimeFunctionServiceClient,
+        runtime_status_service_client_impl::SagittariusRuntimeStatusServiceClient
         runtime_usage_client_impl::SagittariusRuntimeUsageClient,
     },
     server::runtime_status_service_server_impl::AquilaRuntimeStatusServiceServer,
