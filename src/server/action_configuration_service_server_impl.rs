@@ -41,7 +41,7 @@ impl ActionConfigurationService for AquilaActionConfigurationServiceServer {
 
         let action_configuration_update_request = request.into_inner();
         match self.actions.clone().has_action(
-            token,
+            &token,
             &action_configuration_update_request.action_identifier,
         ) {
             true => {
