@@ -14,11 +14,11 @@ pub struct ActionConfiguration {
 }
 
 impl ActionConfiguration {
-    pub fn has_action(self, token: String, action_identifier: &String) -> bool {
+    pub fn has_action(&self, token: &String, action_identifier: &String) -> bool {
         match self
             .actions
-            .into_iter()
-            .find(|x| x.token == token && x.service_name == *action_identifier)
+            .iter()
+            .find(|x| &x.token == token && &x.service_name == action_identifier)
         {
             Some(_) => true,
             None => false,
