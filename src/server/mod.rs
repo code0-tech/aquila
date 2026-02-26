@@ -4,7 +4,7 @@ use crate::{
         data_type_service_client_impl::SagittariusDataTypeServiceClient,
         flow_type_service_client_impl::SagittariusFlowTypeServiceClient,
         runtime_function_service_client_impl::SagittariusRuntimeFunctionServiceClient,
-        runtime_status_service_client_impl::SagittariusRuntimeStatusServiceClient
+        runtime_status_service_client_impl::SagittariusRuntimeStatusServiceClient,
         runtime_usage_client_impl::SagittariusRuntimeUsageClient,
     },
     server::runtime_status_service_server_impl::AquilaRuntimeStatusServiceServer,
