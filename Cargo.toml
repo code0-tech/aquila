@@ -10,8 +10,8 @@ log = "0.4.26"
 env_logger = "0.11.8"
 prost = "0.14.1"
 tonic = "0.14.1"
-tucana = { version = "0.0.52", features = ["all"] }
-code0-flow = { version = "0.0.25", features = ["flow_health", "flow_validator"] }
+tucana = { version = "0.0.54", features = ["all"] }
+code0-flow = { version = "0.0.26", features = ["flow_health"] }
 serde_json = "1.0.140"
 async-nats = "0.46.0"
 tonic-health = "0.14.1"
