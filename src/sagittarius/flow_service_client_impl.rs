@@ -147,6 +147,9 @@ impl SagittariusFlowClient {
                     };
                 }
             }
+            Data::ActionConfigurations(_action_configurations) => unimplemented!(
+                "This will be implemented in the alpha edition. Do not use while service is in MVP!"
+            ),
         }
     }
 
