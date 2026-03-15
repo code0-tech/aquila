@@ -106,6 +106,7 @@ impl SagittariusTestExecutionServiceClient {
                     input_value: request.body,
                     starting_node_id: validation_flow.starting_node_id,
                     node_functions: validation_flow.node_functions,
+                    project_id: validation_flow.project_id,
                 };
 
                 let bytes = execution_flow.encode_to_vec();
