@@ -1,6 +1,4 @@
 use crate::authorization::authorization::get_authorization_metadata;
-use std::sync::Arc;
-use tokio::sync::Mutex;
 use tonic::Extensions;
 use tonic::Request;
 use tonic::transport::Channel;
@@ -18,10 +16,6 @@ impl SagittariusRuntimeFunctionServiceClient {
     pub fn new(channel: Channel, token: String) -> Self {
         let client = RuntimeFunctionDefinitionServiceClient::new(channel);
         Self { client, token }
-    }
-
-    pub fn new_arc(channel: Channel, token: String) -> Arc<Mutex<Self>> {
-        Arc::new(Mutex::new(Self::new(channel, token)))
     }
 
     pub async fn update_runtime_function_definitions(
