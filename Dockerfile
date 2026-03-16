@@ -1,4 +1,4 @@
-FROM rust:1.93-slim as builder
+FROM rust:1.94-slim as builder
 WORKDIR /app
 COPY . .
 RUN cargo build --release
