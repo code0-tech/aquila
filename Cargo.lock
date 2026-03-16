@@ -260,9 +260,9 @@ dependencies = [
 
 [[package]]
 name = "code0-flow"
-version = "0.0.27"
+version = "0.0.28"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a4de17519c4dc211f65c7f2cd2f4c5e08dbd814bd8129da87c8825b9a5476337"
+checksum = "f9a12987b9fa4c342ee01f3d20ce7e84004ff07fab219a29d2e8023234c7adc8"
 dependencies = [
  "async-nats",
  "async-trait",
@@ -275,7 +275,7 @@ dependencies = [
  "tokio",
  "tonic",
  "tonic-health",
- "tucana 0.0.56",
+ "tucana 0.0.59",
  "walkdir",
 ]
 
@@ -2055,9 +2055,9 @@ dependencies = [
 
 [[package]]
 name = "tucana"
-version = "0.0.56"
+version = "0.0.58"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a33d3527f287b0f0f0a3784cb55c801dabc226bf79ebee28394dd31f3b9794ff"
+checksum = "9730d10bc86e1b107aad9dafcd325895fc644ecf23333341b6df7dff3027572b"
 dependencies = [
  "pbjson",
  "pbjson-build",
@@ -2075,9 +2075,9 @@ dependencies = [
 
 [[package]]
 name = "tucana"
-version = "0.0.58"
+version = "0.0.59"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9730d10bc86e1b107aad9dafcd325895fc644ecf23333341b6df7dff3027572b"
+checksum = "2a67b60390a8c62dd3bf55374b47a1ab4ef1363245808f106f4a3e812e51cf22"
 dependencies = [
  "pbjson",
  "pbjson-build",
