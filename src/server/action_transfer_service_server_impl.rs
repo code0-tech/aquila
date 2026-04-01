@@ -5,11 +5,12 @@ use futures_core::Stream;
 use prost::Message;
 use std::{pin::Pin, sync::Arc};
 use tokio::sync::Mutex;
+use tokio_stream::wrappers::ReceiverStream;
 use tonic::Status;
 use tucana::{
     aquila::{
         ActionLogon, TransferRequest, TransferResponse,
-        action_transfer_service_server::ActionTransferService,
+        action_transfer_service_server::ActionTransferService, transfer_response,
     },
     shared::{ExecutionFlow, Flows, ValidationFlow, Value},
 };
@@ -18,6 +19,7 @@ pub struct AquilaActionTransferServiceServer {
     client: async_nats::Client,
     kv: async_nats::jetstream::kv::Store,
     actions: ActionConfiguration,
+    action_config_tx: tokio::sync::broadcast::Sender<tucana::shared::ActionConfigurations>,
 }
 
 impl AquilaActionTransferServiceServer {
@@ -25,11 +27,13 @@ impl AquilaActionTransferServiceServer {
         client: async_nats::Client,
         kv: async_nats::jetstream::kv::Store,
         actions: ActionConfiguration,
+        action_config_tx: tokio::sync::broadcast::Sender<tucana::shared::ActionConfigurations>,
     ) -> Self {
         Self {
             client,
             kv,
             actions,
+            action_config_tx,
         }
     }
 }
@@ -92,6 +96,18 @@ fn convert_validation_flow(flow: ValidationFlow, input_value: Option<Value>) -> 
         project_id: flow.project_id,
     }
 }
+
+fn applies_to_action(
+    configs: &tucana::shared::ActionConfigurations,
+    action_identifier: &str,
+) -> bool {
+    configs.action_configurations.iter().any(|project_cfg| {
+        project_cfg
+            .action_configurations
+            .iter()
+            .any(|cfg| cfg.identifier == action_identifier)
+    })
+}
 //TODO: Aquila needs to listen to taurus exection requests and then send it to the action
 #[tonic::async_trait]
 impl ActionTransferService for AquilaActionTransferServiceServer {
@@ -120,10 +136,15 @@ impl ActionTransferService for AquilaActionTransferServiceServer {
         let actions = Arc::new(Mutex::new(self.actions.clone()));
         let kv = self.kv.clone();
         let client = self.client.clone();
+        let mut cfg_rx = self.action_config_tx.subscribe();
 
         let mut sub: Option<Subscriber> = None;
 
+        let (tx, rx) = tokio::sync::mpsc::channel::<Result<TransferResponse, tonic::Status>>(32);
+
         tokio::spawn(async move {
+            let mut cfg_forwarder_started = false;
+
             while let Some(next) = stream.next().await {
                 let transfer_request = match next {
                     Ok(tr) => tr,
@@ -185,6 +206,31 @@ impl ActionTransferService for AquilaActionTransferServiceServer {
                                     ));
                                 }
                             };
+
+                            if !cfg_forwarder_started {
+                                cfg_forwarder_started = true;
+                                let mut cfg_rx = cfg_rx.resubscribe();
+                                let tx = tx.clone();
+                                tokio::spawn(async move {
+                                    while let Ok(cfgs) = cfg_rx.recv().await {
+                                        // TODO: Replace incoming identifier with the correct action identifier.
+                                        if !applies_to_action(
+                                            &cfgs,
+                                            &action_logon.action_identifier,
+                                        ) {
+                                            continue;
+                                        }
+                                        let resp = TransferResponse {
+                                            data: Some(
+                                                transfer_response::Data::ActionConfigurations(cfgs),
+                                            ),
+                                        };
+                                        if tx.send(Ok(resp)).await.is_err() {
+                                            break;
+                                        }
+                                    }
+                                });
+                            }
                         }
                         _ => {
                             log::error!(
@@ -210,8 +256,7 @@ impl ActionTransferService for AquilaActionTransferServiceServer {
                         ));
                     }
                     tucana::aquila::transfer_request::Data::Event(event) => {
-                        //TODO get project id
-                        let pattern = format!("{}.*.{}.*", event.event_type, "abc");
+                        let pattern = format!("{}.*.{}.*", event.event_type, event.project_id);
                         let flows = match get_flows(pattern, kv.clone()).await {
                             Ok(f) => f,
                             Err(_) => {
@@ -242,6 +287,6 @@ impl ActionTransferService for AquilaActionTransferServiceServer {
             }
             Ok(())
         });
-        unimplemented!()
+        Ok(tonic::Response::new(Box::pin(ReceiverStream::new(rx))))
     }
 }

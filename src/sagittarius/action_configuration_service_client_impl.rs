@@ -1,6 +1,7 @@
 use crate::authorization::authorization::get_authorization_metadata;
 use tonic::transport::Channel;
 use tonic::{Extensions, Request};
+use tucana::shared::ActionConfigurationDefinition;
 
 pub struct SagittariusActionConfigurationServiceClient {
     client:
@@ -19,14 +20,15 @@ impl SagittariusActionConfigurationServiceClient {
 
     pub async fn update_action_configuration(
         &mut self,
-        action_configuration_update_request: tucana::aquila::ActionConfigurationUpdateRequest,
-    ) -> tucana::aquila::ActionConfigurationUpdateResponse {
+        action_identifier: String,
+        configs: Vec<ActionConfigurationDefinition>,
+    ) -> bool {
         let request = Request::from_parts(
             get_authorization_metadata(&self.token),
             Extensions::new(),
             tucana::sagittarius::ActionConfigurationUpdateRequest {
-                action_identifier: action_configuration_update_request.action_identifier,
-                action_configurations: action_configuration_update_request.action_configurations,
+                action_identifier: action_identifier,
+                action_configurations: configs,
             },
         );
 
@@ -37,7 +39,7 @@ impl SagittariusActionConfigurationServiceClient {
             }
             Err(err) => {
                 log::error!("Failed to update action configurations: {:?}", err);
-                return tucana::aquila::ActionConfigurationUpdateResponse { success: false };
+                return true;
             }
         };
 
@@ -46,8 +48,6 @@ impl SagittariusActionConfigurationServiceClient {
             false => log::error!("Sagittarius didn't update any ActionConfiguration."),
         };
 
-        tucana::aquila::ActionConfigurationUpdateResponse {
-            success: response.success,
-        }
+        response.success
     }
 }

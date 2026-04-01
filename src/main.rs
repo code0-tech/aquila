@@ -81,6 +81,9 @@ async fn main() {
     )
     .await;
 
+    let (action_config_tx, _) =
+        tokio::sync::broadcast::channel::<tucana::shared::ActionConfigurations>(64);
+
     let action_config = ActionConfiguration::from_path(&config.action_config_path);
     let server = AquilaGRPCServer::new(
         &config,
@@ -124,6 +127,7 @@ async fn main() {
                 config.runtime_token.clone(),
                 ch,
                 app_readiness.sagittarius_ready.clone(),
+                action_config_tx.clone(),
             );
 
             match flow_client.init_flow_stream().await {

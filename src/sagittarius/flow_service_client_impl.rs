@@ -3,6 +3,7 @@ use futures::{StreamExt, TryStreamExt};
 use prost::Message;
 use std::{path::Path, sync::Arc};
 use tokio::fs;
+use tokio::sync::broadcast;
 use tonic::{Extensions, Request, transport::Channel};
 use tucana::{
     sagittarius::{
@@ -20,6 +21,7 @@ pub struct SagittariusFlowClient {
     env: String,
     token: String,
     sagittarius_ready: Arc<AtomicBool>,
+    action_config_tx: broadcast::Sender<tucana::shared::ActionConfigurations>,
 }
 
 impl SagittariusFlowClient {
@@ -29,6 +31,7 @@ impl SagittariusFlowClient {
         token: String,
         channel: Channel,
         sagittarius_ready: Arc<AtomicBool>,
+        action_config_tx: broadcast::Sender<tucana::shared::ActionConfigurations>,
     ) -> SagittariusFlowClient {
         let client = FlowServiceClient::new(channel);
 
@@ -38,6 +41,7 @@ impl SagittariusFlowClient {
             env,
             token,
             sagittarius_ready,
+            action_config_tx,
         }
     }
 
@@ -147,8 +151,13 @@ impl SagittariusFlowClient {
                     };
                 }
             }
-            Data::ActionConfigurations(_action_configurations) => {
-                todo!("Send to the correct Action")
+            Data::ActionConfigurations(action_configurations) => {
+                if let Err(err) = self.action_config_tx.send(action_configurations) {
+                    log::warn!(
+                        "No action configuration receivers available: {:?}",
+                        err
+                    );
+                }
             }
         }
     }
