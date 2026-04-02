@@ -201,11 +201,7 @@ async fn handle_logon(
             "Starting config forwarder for action {}",
             action_logon.action_identifier
         );
-        spawn_cfg_forwarder(
-            action_logon.action_identifier.clone(),
-            cfg_tx,
-            tx.clone(),
-        );
+        spawn_cfg_forwarder(action_logon.action_identifier.clone(), cfg_tx, tx.clone());
     }
 
     Ok(action_logon)
@@ -228,10 +224,7 @@ fn spawn_cfg_forwarder(
                 );
                 continue;
             }
-            log::debug!(
-                "Forwarding config update to action {}",
-                action_identifier
-            );
+            log::debug!("Forwarding config update to action {}", action_identifier);
             let resp = TransferResponse {
                 data: Some(transfer_response::Data::ActionConfigurations(cfgs)),
             };
@@ -295,10 +288,7 @@ async fn handle_result(
         "action.{}.{}",
         action_identifier, execution_result.execution_identifier
     );
-    log::debug!(
-        "Publishing execution result to {}",
-        topic
-    );
+    log::debug!("Publishing execution result to {}", topic);
     let payload = execution_result.encode_to_vec();
     if let Err(err) = client.publish(topic, payload.into()).await {
         log::error!("Failed to publish action result: {:?}", err);

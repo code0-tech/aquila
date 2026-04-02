@@ -153,10 +153,7 @@ impl SagittariusFlowClient {
             }
             Data::ActionConfigurations(action_configurations) => {
                 if let Err(err) = self.action_config_tx.send(action_configurations) {
-                    log::warn!(
-                        "No action configuration receivers available: {:?}",
-                        err
-                    );
+                    log::warn!("No action configuration receivers available: {:?}", err);
                 }
             }
         }

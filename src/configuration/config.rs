@@ -72,7 +72,10 @@ impl Config {
                 "SAGITTARIUS_URL",
                 String::from("http://localhost:50051"),
             ),
-            action_config_path: env_with_default("ACTION_CONFIG_PATH", String::from("./action.configuration.json"))
+            action_config_path: env_with_default(
+                "ACTION_CONFIG_PATH",
+                String::from("./action.configuration.json"),
+            ),
         }
     }
 
