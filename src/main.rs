@@ -19,7 +19,6 @@ pub mod configuration;
 pub mod flow;
 pub mod sagittarius;
 pub mod server;
-pub mod stream;
 
 #[tokio::main]
 async fn main() {
@@ -90,6 +89,9 @@ async fn main() {
         app_readiness.clone(),
         sagittarius_channel.clone(),
         action_config,
+        client.clone(),
+        kv_store.clone(),
+        action_config_tx.clone(),
     );
     let kv_for_flow = kv_store.clone();
 
