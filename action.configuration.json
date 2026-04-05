@@ -1,0 +1,8 @@
+{
+	"actions": [
+		{
+			"token": "token",
+			"service_name": "example"
+		}
+	]
+}
