@@ -1,9 +1,9 @@
 use crate::configuration::action::ActionConfiguration;
-use async_nats::Subscriber;
+use async_nats::{Subject, Subscriber};
 use futures::StreamExt;
 use futures_core::Stream;
 use prost::Message;
-use std::{pin::Pin, sync::Arc};
+use std::{collections::HashMap, pin::Pin, sync::Arc};
 use tokio::sync::Mutex;
 use tokio_stream::wrappers::ReceiverStream;
 use tonic::Status;
@@ -14,6 +14,8 @@ use tucana::{
     },
     shared::{ExecutionFlow, Flows, ValidationFlow, Value},
 };
+
+type PendingReplies = Arc<Mutex<HashMap<String, Subject>>>;
 
 pub struct AquilaActionTransferServiceServer {
     client: async_nats::Client,
@@ -79,6 +81,7 @@ async fn get_flows(
             }
         }
     }
+
     log::debug!("Matched {} flows for pattern {}", collector.len(), pattern);
     Ok(Flows { flows: collector })
 }
@@ -98,6 +101,7 @@ fn is_matching_key(pattern: &String, key: &String) -> bool {
             return false;
         }
     }
+
     true
 }
 
@@ -151,9 +155,11 @@ async fn handle_logon(
     client: async_nats::Client,
     cfg_tx: tokio::sync::broadcast::Sender<tucana::shared::ActionConfigurations>,
     tx: tokio::sync::mpsc::Sender<Result<TransferResponse, tonic::Status>>,
+    pending_replies: PendingReplies,
     cfg_forwarder_started: &mut bool,
 ) -> Result<ActionLogon, Status> {
     log::info!("Action successfull logged on: {:?}", action_logon);
+
     let lock = actions.lock().await;
     if !lock.has_action(&token.to_string(), &action_logon.action_identifier) {
         log::debug!(
@@ -186,13 +192,16 @@ async fn handle_logon(
             ));
         }
     };
+
     log::debug!(
         "Subscribed to action subject action.{}.*",
         action_logon.action_identifier
     );
+
     let tx_clone = tx.clone();
+    let pending_replies_clone = pending_replies.clone();
     tokio::spawn(async move {
-        forward_nats_to_action(sub, tx_clone).await;
+        forward_nats_to_action(sub, tx_clone, pending_replies_clone).await;
     });
 
     if !*cfg_forwarder_started {
@@ -216,7 +225,6 @@ fn spawn_cfg_forwarder(
     let mut cfg_rx = cfg_tx.subscribe();
     tokio::spawn(async move {
         while let Ok(cfgs) = cfg_rx.recv().await {
-            // TODO: Replace incoming identifier with the correct action identifier.
             if !applies_to_action(&cfgs, &action_identifier) {
                 log::debug!(
                     "Config update does not apply to action {}",
@@ -224,15 +232,18 @@ fn spawn_cfg_forwarder(
                 );
                 continue;
             }
+
             log::debug!("Forwarding config update to action {}", action_identifier);
             let resp = TransferResponse {
                 data: Some(transfer_response::Data::ActionConfigurations(cfgs)),
             };
+
             if tx.send(Ok(resp)).await.is_err() {
                 log::debug!("Config forwarder channel closed for {}", action_identifier);
                 break;
             }
         }
+
         log::debug!("Config forwarder stopped for {}", action_identifier);
     });
 }
@@ -249,6 +260,7 @@ async fn handle_event(
         event.event_type,
         event.project_id
     );
+
     let flows = match get_flows(pattern, kv).await {
         Ok(f) => f,
         Err(_) => {
@@ -263,11 +275,13 @@ async fn handle_event(
         let execution_flow: ExecutionFlow = convert_validation_flow(flow, event.payload.clone());
         let bytes = execution_flow.encode_to_vec();
         let topic = format!("execution.{}", uuid);
+
         log::info!(
             "Requesting execution of flow {} with execution id {}",
             flow_id,
             uuid
         );
+
         if let Err(err) = client.request(topic, bytes.into()).await {
             log::error!(
                 "Failed to request execution for flow {}: {:?}",
@@ -278,24 +292,43 @@ async fn handle_event(
     }
 }
 
-/// Publishes execution results back to NATS for the waiting requester.
+/// Publishes execution results back to the original NATS reply subject.
 async fn handle_result(
-    action_identifier: &str,
     execution_result: ExecutionResult,
     client: async_nats::Client,
+    pending_replies: PendingReplies,
 ) {
-    let topic = format!(
-        "action.{}.{}",
-        action_identifier, execution_result.execution_identifier
+    let execution_id = execution_result.execution_identifier.clone();
+
+    let reply_subject = {
+        let mut pending = pending_replies.lock().await;
+        pending.remove(&execution_id)
+    };
+
+    let Some(reply_subject) = reply_subject else {
+        log::error!(
+            "No pending NATS reply subject found for execution {}",
+            execution_id
+        );
+        return;
+    };
+
+    log::debug!(
+        "Publishing execution result for {} to reply subject {}",
+        execution_id,
+        reply_subject
     );
-    log::debug!("Publishing execution result to {}", topic);
+
     let payload = execution_result.encode_to_vec();
-    if let Err(err) = client.publish(topic, payload.into()).await {
-        log::error!("Failed to publish action result: {:?}", err);
+    if let Err(err) = client.publish(reply_subject, payload.into()).await {
+        log::error!(
+            "Failed to publish action result for execution {}: {:?}",
+            execution_id,
+            err
+        );
     }
-    todo!("respond into nats with result")
 }
-//TODO: Aquila needs to listen to taurus exection requests and then send it to the action
+
 #[tonic::async_trait]
 impl ActionTransferService for AquilaActionTransferServiceServer {
     type TransferStream =
@@ -315,6 +348,7 @@ impl ActionTransferService for AquilaActionTransferServiceServer {
         let kv = self.kv.clone();
         let client = self.client.clone();
         let cfg_tx = self.action_config_tx.clone();
+        let pending_replies: PendingReplies = Arc::new(Mutex::new(HashMap::new()));
 
         let (tx, rx) = tokio::sync::mpsc::channel::<Result<TransferResponse, tonic::Status>>(32);
 
@@ -339,8 +373,6 @@ impl ActionTransferService for AquilaActionTransferServiceServer {
                     }
                 };
 
-                // The first request needs to be an ActionLogon request to get the serive name
-                // If its not an ActionLogon request the connection is abborted
                 if first_request {
                     first_request = false;
 
@@ -350,44 +382,51 @@ impl ActionTransferService for AquilaActionTransferServiceServer {
                                 "Received logon for action {}",
                                 action_logon.action_identifier
                             );
-                            let accepted = handle_logon(
+
+                            let accepted = match handle_logon(
                                 &token,
                                 action_logon,
                                 actions.clone(),
                                 client.clone(),
                                 cfg_tx.clone(),
                                 tx.clone(),
+                                pending_replies.clone(),
                                 &mut cfg_forwarder_started,
                             )
-                            .await?;
+                            .await
+                            {
+                                Ok(v) => v,
+                                Err(status) => {
+                                    log::error!("Logon failed: {:?}", status);
+                                    break;
+                                }
+                            };
+
                             action_props = Some(accepted);
                         }
                         _ => {
                             log::error!(
                                 "Action tried to logon but was not sending a logon request!"
                             );
-                            return Err(Status::internal(
-                                "First request needs to be a 'ActionLogonRequest'",
-                            ));
+                            break;
                         }
                     }
+
                     continue;
                 }
 
-                let props = match action_props {
-                    Some(ref p) => p.clone(),
+                let props = match action_props.clone() {
+                    Some(p) => p,
                     None => {
                         log::error!("Missing action properties after logon");
-                        return Err(Status::internal("Missing actions informations"));
+                        break;
                     }
                 };
 
                 match data {
-                    tucana::aquila::transfer_request::Data::Logon(_action_logon) => {
+                    tucana::aquila::transfer_request::Data::Logon(_) => {
                         log::error!("Received duplicate logon after initial logon");
-                        return Err(Status::internal(
-                            "Already logged on. Send 'Logon' request only once",
-                        ));
+                        break;
                     }
                     tucana::aquila::transfer_request::Data::Event(event) => {
                         log::debug!("Received event from action {}", props.action_identifier);
@@ -399,24 +438,31 @@ impl ActionTransferService for AquilaActionTransferServiceServer {
                             execution_result.execution_identifier,
                             props.action_identifier
                         );
-                        handle_result(&props.action_identifier, execution_result, client.clone())
+
+                        handle_result(execution_result, client.clone(), pending_replies.clone())
                             .await;
                     }
                 }
             }
+
             log::debug!("Action transfer stream ended");
-            Ok(())
         });
+
         Ok(tonic::Response::new(Box::pin(ReceiverStream::new(rx))))
     }
 }
 
-/// Forwards NATS execution requests to the connected action via gRPC.
+/// Forwards NATS execution requests to the connected action via gRPC and stores reply subjects.
 async fn forward_nats_to_action(
     mut sub: Subscriber,
     tx: tokio::sync::mpsc::Sender<Result<TransferResponse, tonic::Status>>,
+    pending_replies: PendingReplies,
 ) {
+    log::debug!("Waiting for incomming request");
+
     while let Some(msg) = sub.next().await {
+        log::debug!("Recieved RemoteRuntime execution request");
+
         let execution = match ExecutionRequest::decode(msg.payload.as_ref()) {
             Ok(req) => req,
             Err(err) => {
@@ -424,13 +470,43 @@ async fn forward_nats_to_action(
                 continue;
             }
         };
+
+        let execution_id = execution.execution_identifier.clone();
+
+        let Some(reply_subject) = msg.reply.clone() else {
+            log::error!(
+                "Received request for execution {} without NATS reply subject",
+                execution_id
+            );
+            continue;
+        };
+
+        {
+            let mut pending = pending_replies.lock().await;
+            pending.insert(execution_id.clone(), reply_subject.clone());
+        }
+
+        log::debug!(
+            "Stored reply subject {} for execution {}",
+            reply_subject,
+            execution_id
+        );
+
         let resp = TransferResponse {
             data: Some(transfer_response::Data::Execution(execution)),
         };
+
         if tx.send(Ok(resp)).await.is_err() {
             log::debug!("Execution forwarder channel closed");
+
+            // cleanup, since the request can no longer be delivered to the action
+            let mut pending = pending_replies.lock().await;
+            pending.remove(&execution_id);
+
             break;
         }
     }
+
     log::debug!("Execution forwarder stopped");
 }
+
