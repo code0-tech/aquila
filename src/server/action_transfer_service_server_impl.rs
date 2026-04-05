@@ -183,12 +183,12 @@ async fn handle_logon(
         Ok(s) => s,
         Err(err) => {
             log::error!(
-                "Cound not subscribe to action: {}. Reason: {:?}",
+                "Could not subscribe to action: {}. Reason: {:?}",
                 action_logon.action_identifier,
                 err
             );
             return Err(Status::internal(
-                "cound not register action into execution loop",
+                "could not register action into execution loop",
             ));
         }
     };
