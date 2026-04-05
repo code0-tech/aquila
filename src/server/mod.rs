@@ -27,7 +27,13 @@ use tonic::{
     transport::{Channel, Server},
 };
 use tucana::aquila::{
-    action_transfer_service_server::ActionTransferServiceServer, data_type_service_server::DataTypeServiceServer, flow_type_service_server::FlowTypeServiceServer, function_definition_service_server::FunctionDefinitionServiceServer, runtime_function_definition_service_server::RuntimeFunctionDefinitionServiceServer, runtime_status_service_server::RuntimeStatusServiceServer, runtime_usage_service_server::RuntimeUsageServiceServer
+    action_transfer_service_server::ActionTransferServiceServer,
+    data_type_service_server::DataTypeServiceServer,
+    flow_type_service_server::FlowTypeServiceServer,
+    function_definition_service_server::FunctionDefinitionServiceServer,
+    runtime_function_definition_service_server::RuntimeFunctionDefinitionServiceServer,
+    runtime_status_service_server::RuntimeStatusServiceServer,
+    runtime_usage_service_server::RuntimeUsageServiceServer,
 };
 
 mod action_transfer_service_server_impl;
