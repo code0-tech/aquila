@@ -26,9 +26,7 @@ impl RuntimeUsageService for AquilaRuntimeUsageServiceServer {
         log::debug!("Received RuntimeUsageRequest",);
 
         let mut client = self.client.lock().await;
-        let response = client
-            .update_runtime_usage(runtime_usage_request)
-            .await;
+        let response = client.update_runtime_usage(runtime_usage_request).await;
 
         Ok(tonic::Response::new(tucana::aquila::RuntimeUsageResponse {
             success: response.success,

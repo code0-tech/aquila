@@ -7,15 +7,12 @@
 use futures::StreamExt;
 use prost::Message;
 use std::sync::Arc;
-use std::time::SystemTime;
 use tokio_stream::wrappers::ReceiverStream;
 use tonic::Request;
 use tonic::transport::Channel;
 use tucana::sagittarius::execution_logon_request::Data;
 use tucana::sagittarius::execution_service_client::ExecutionServiceClient;
-use tucana::sagittarius::{
-    ApplicationLog, ExecutionLogonRequest, Log, Logon, TestExecutionResponse,
-};
+use tucana::sagittarius::{ExecutionLogonRequest, Logon, TestExecutionResponse};
 use tucana::shared::{ExecutionFlow, ValidationFlow, Value};
 
 pub struct SagittariusTestExecutionServiceClient {
@@ -99,8 +96,9 @@ impl SagittariusTestExecutionServiceClient {
 
                 let uuid = uuid::Uuid::new_v4().to_string();
 
-                // TODO: When triangulum is ready, validate the body with this service
-                // Task: Add back body validation using triangulum
+                // TODO: When the new validator is ready, the body needs to be validated at this
+                // point.
+
                 let execution_flow = ExecutionFlow {
                     flow_id: request.flow_id,
                     input_value: request.body,

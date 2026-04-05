@@ -1,5 +1,5 @@
 use crate::{
-    configuration::{config::Config, state::AppReadiness},
+    configuration::{action::ActionConfiguration, config::Config, state::AppReadiness},
     sagittarius::{
         data_type_service_client_impl::SagittariusDataTypeServiceClient,
         flow_type_service_client_impl::SagittariusFlowTypeServiceClient,
@@ -7,9 +7,13 @@ use crate::{
         runtime_status_service_client_impl::SagittariusRuntimeStatusServiceClient,
         runtime_usage_client_impl::SagittariusRuntimeUsageClient,
     },
-    server::runtime_status_service_server_impl::AquilaRuntimeStatusServiceServer,
-    server::runtime_usage_service_server_impl::AquilaRuntimeUsageServiceServer,
+    server::{
+        action_transfer_service_server_impl::AquilaActionTransferServiceServer,
+        runtime_status_service_server_impl::AquilaRuntimeStatusServiceServer,
+        runtime_usage_service_server_impl::AquilaRuntimeUsageServiceServer,
+    },
 };
+use async_nats::jetstream::kv::Store;
 use data_type_service_server_impl::AquilaDataTypeServiceServer;
 use flow_type_service_server_impl::AquilaFlowTypeServiceServer;
 use log::info;
@@ -21,6 +25,7 @@ use tonic::{
     transport::{Channel, Server},
 };
 use tucana::aquila::{
+    action_transfer_service_server::ActionTransferServiceServer,
     data_type_service_server::DataTypeServiceServer,
     flow_type_service_server::FlowTypeServiceServer,
     runtime_function_definition_service_server::RuntimeFunctionDefinitionServiceServer,
@@ -28,6 +33,7 @@ use tucana::aquila::{
     runtime_usage_service_server::RuntimeUsageServiceServer,
 };
 
+mod action_transfer_service_server_impl;
 mod data_type_service_server_impl;
 mod flow_type_service_server_impl;
 mod runtime_function_service_server_impl;
@@ -41,10 +47,22 @@ pub struct AquilaGRPCServer {
     with_health_service: bool,
     app_readiness: AppReadiness,
     channel: Channel,
+    action_configuration: ActionConfiguration,
+    nats_client: async_nats::Client,
+    kv_store: Arc<Store>,
+    action_config_tx: tokio::sync::broadcast::Sender<tucana::shared::ActionConfigurations>,
 }
 
 impl AquilaGRPCServer {
-    pub fn new(config: &Config, app_readiness: AppReadiness, channel: Channel) -> Self {
+    pub fn new(
+        config: &Config,
+        app_readiness: AppReadiness,
+        channel: Channel,
+        action_configuration: ActionConfiguration,
+        nats_client: async_nats::Client,
+        kv_store: Arc<Store>,
+        action_config_tx: tokio::sync::broadcast::Sender<tucana::shared::ActionConfigurations>,
+    ) -> Self {
         let address = match format!("{}:{}", config.grpc_host, config.grpc_port).parse() {
             Ok(addr) => {
                 info!("Listening on {:?}", &addr);
@@ -60,6 +78,10 @@ impl AquilaGRPCServer {
             address,
             app_readiness,
             channel,
+            action_configuration,
+            nats_client,
+            kv_store,
+            action_config_tx,
         }
     }
 
@@ -104,6 +126,13 @@ impl AquilaGRPCServer {
             AquilaRuntimeUsageServiceServer::new(runtime_usage_service.clone());
         let runtime_status_server =
             AquilaRuntimeStatusServiceServer::new(runtime_status_service.clone());
+
+        let action_transfer_server = AquilaActionTransferServiceServer::new(
+            self.nats_client.clone(),
+            self.kv_store.as_ref().clone(),
+            self.action_configuration.clone(),
+            self.action_config_tx.clone(),
+        );
 
         info!("Starting gRPC Server...");
 
@@ -151,6 +180,10 @@ impl AquilaGRPCServer {
                     runtime_status_server,
                     intercept.clone(),
                 ))
+                .add_service(ActionTransferServiceServer::with_interceptor(
+                    action_transfer_server,
+                    intercept.clone(),
+                ))
                 .serve(self.address)
                 .await
         } else {
@@ -173,6 +206,10 @@ impl AquilaGRPCServer {
                 ))
                 .add_service(RuntimeStatusServiceServer::with_interceptor(
                     runtime_status_server,
+                    intercept.clone(),
+                ))
+                .add_service(ActionTransferServiceServer::with_interceptor(
+                    action_transfer_server,
                     intercept.clone(),
                 ))
                 .serve(self.address)

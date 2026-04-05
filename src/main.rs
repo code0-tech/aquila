@@ -1,5 +1,7 @@
 use crate::{
-    configuration::{config::Config as AquilaConfig, state::AppReadiness},
+    configuration::{
+        action::ActionConfiguration, config::Config as AquilaConfig, state::AppReadiness,
+    },
     flow::get_flow_identifier,
     sagittarius::retry::create_channel_with_retry,
 };
@@ -17,7 +19,6 @@ pub mod configuration;
 pub mod flow;
 pub mod sagittarius;
 pub mod server;
-pub mod stream;
 
 #[tokio::main]
 async fn main() {
@@ -78,7 +79,20 @@ async fn main() {
         app_readiness.sagittarius_ready.clone(),
     )
     .await;
-    let server = AquilaGRPCServer::new(&config, app_readiness.clone(), sagittarius_channel.clone());
+
+    let (action_config_tx, _) =
+        tokio::sync::broadcast::channel::<tucana::shared::ActionConfigurations>(64);
+
+    let action_config = ActionConfiguration::from_path(&config.action_config_path);
+    let server = AquilaGRPCServer::new(
+        &config,
+        app_readiness.clone(),
+        sagittarius_channel.clone(),
+        action_config,
+        client.clone(),
+        kv_store.clone(),
+        action_config_tx.clone(),
+    );
     let kv_for_flow = kv_store.clone();
 
     let mut server_task = tokio::spawn(async move {
@@ -115,6 +129,7 @@ async fn main() {
                 config.runtime_token.clone(),
                 ch,
                 app_readiness.sagittarius_ready.clone(),
+                action_config_tx.clone(),
             );
 
             match flow_client.init_flow_stream().await {
