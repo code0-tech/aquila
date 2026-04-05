@@ -3,12 +3,14 @@ use crate::{
     sagittarius::{
         data_type_service_client_impl::SagittariusDataTypeServiceClient,
         flow_type_service_client_impl::SagittariusFlowTypeServiceClient,
+        function_service_client_impl::SagittariusFunctionDefinitionServiceClient,
         runtime_function_service_client_impl::SagittariusRuntimeFunctionServiceClient,
         runtime_status_service_client_impl::SagittariusRuntimeStatusServiceClient,
         runtime_usage_client_impl::SagittariusRuntimeUsageClient,
     },
     server::{
         action_transfer_service_server_impl::AquilaActionTransferServiceServer,
+        function_service_server_impl::AquilaFunctionDefinitionServiceServer,
         runtime_status_service_server_impl::AquilaRuntimeStatusServiceServer,
         runtime_usage_service_server_impl::AquilaRuntimeUsageServiceServer,
     },
@@ -28,6 +30,7 @@ use tucana::aquila::{
     action_transfer_service_server::ActionTransferServiceServer,
     data_type_service_server::DataTypeServiceServer,
     flow_type_service_server::FlowTypeServiceServer,
+    function_definition_service_server::FunctionDefinitionServiceServer,
     runtime_function_definition_service_server::RuntimeFunctionDefinitionServiceServer,
     runtime_status_service_server::RuntimeStatusServiceServer,
     runtime_usage_service_server::RuntimeUsageServiceServer,
@@ -36,6 +39,7 @@ use tucana::aquila::{
 mod action_transfer_service_server_impl;
 mod data_type_service_server_impl;
 mod flow_type_service_server_impl;
+mod function_service_server_impl;
 mod runtime_function_service_server_impl;
 mod runtime_status_service_server_impl;
 mod runtime_usage_service_server_impl;
@@ -105,6 +109,14 @@ impl AquilaGRPCServer {
 
         info!("RuntimeFunctionService started");
 
+        let function_service =
+            Arc::new(Mutex::new(SagittariusFunctionDefinitionServiceClient::new(
+                self.channel.clone(),
+                self.token.clone(),
+            )));
+
+        info!("FunctionService started");
+
         let runtime_usage_service = Arc::new(Mutex::new(SagittariusRuntimeUsageClient::new(
             self.channel.clone(),
             self.token.clone(),
@@ -120,6 +132,7 @@ impl AquilaGRPCServer {
 
         let data_type_server = AquilaDataTypeServiceServer::new(data_type_service.clone());
         let flow_type_server = AquilaFlowTypeServiceServer::new(flow_type_service.clone());
+        let function_server = AquilaFunctionDefinitionServiceServer::new(function_service.clone());
         let runtime_function_server =
             AquilaRuntimeFunctionServiceServer::new(runtime_function_service.clone());
         let runtime_usage_server =
@@ -172,6 +185,10 @@ impl AquilaGRPCServer {
                     runtime_function_server,
                     intercept.clone(),
                 ))
+                .add_service(FunctionDefinitionServiceServer::with_interceptor(
+                    function_server,
+                    intercept.clone(),
+                ))
                 .add_service(RuntimeUsageServiceServer::with_interceptor(
                     runtime_usage_server,
                     intercept.clone(),
@@ -198,6 +215,10 @@ impl AquilaGRPCServer {
                 ))
                 .add_service(RuntimeFunctionDefinitionServiceServer::with_interceptor(
                     runtime_function_server,
+                    intercept.clone(),
+                ))
+                .add_service(FunctionDefinitionServiceServer::with_interceptor(
+                    function_server,
                     intercept.clone(),
                 ))
                 .add_service(RuntimeUsageServiceServer::with_interceptor(
