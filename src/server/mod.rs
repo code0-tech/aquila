@@ -214,7 +214,7 @@ impl AquilaGRPCServer {
                     function_server,
                     intercept.clone(),
                 ))
-                 .add_service(RuntimeUsageServiceServer::with_interceptor(
+                .add_service(RuntimeUsageServiceServer::with_interceptor(
                     runtime_usage_server,
                     intercept.clone(),
                 ))
