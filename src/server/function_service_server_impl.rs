@@ -5,18 +5,18 @@ use tucana::aquila::function_definition_service_server::FunctionDefinitionServic
 
 use crate::sagittarius::function_service_client_impl::SagittariusFunctionServiceClient;
 
-pub struct AquilaFunctionServiceServer {
+pub struct AquilaFunctionDefinitionServiceServer {
     client: Arc<Mutex<SagittariusFunctionServiceClient>>,
 }
 
-impl AquilaFunctionServiceServer {
+impl AquilaFunctionDefinitionServiceServer {
     pub fn new(client: Arc<Mutex<SagittariusFunctionServiceClient>>) -> Self {
         Self { client }
     }
 }
 
 #[tonic::async_trait]
-impl FunctionDefinitionService for AquilaFunctionServiceServer {
+impl FunctionDefinitionService for AquilaFunctionDefinitionServiceServer {
     async fn update(
         &self,
         request: tonic::Request<tucana::aquila::FunctionDefinitionUpdateRequest>,
