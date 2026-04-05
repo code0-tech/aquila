@@ -4,12 +4,12 @@ use tonic::Request;
 use tonic::transport::Channel;
 use tucana::sagittarius::function_definition_service_client::FunctionDefinitionServiceClient;
 
-pub struct SagittariusFunctionServiceClient {
+pub struct SagittariusFunctionDefinitionServiceClient {
     client: FunctionDefinitionServiceClient<Channel>,
     token: String,
 }
 
-impl SagittariusFunctionServiceClient {
+impl SagittariusFunctionDefinitionServiceClient {
     pub fn new(channel: Channel, token: String) -> Self {
         let client = FunctionDefinitionServiceClient::new(channel);
         Self { client, token }
