@@ -3,14 +3,14 @@ use std::sync::Arc;
 use tokio::sync::Mutex;
 use tucana::aquila::function_definition_service_server::FunctionDefinitionService;
 
-use crate::sagittarius::function_service_client_impl::SagittariusFunctionServiceClient;
+use crate::sagittarius::function_service_client_impl::SagittariusFunctionDefinitionServiceClient;
 
 pub struct AquilaFunctionDefinitionServiceServer {
-    client: Arc<Mutex<SagittariusFunctionServiceClient>>,
+    client: Arc<Mutex<SagittariusFunctionDefinitionServiceClient>>,
 }
 
 impl AquilaFunctionDefinitionServiceServer {
-    pub fn new(client: Arc<Mutex<SagittariusFunctionServiceClient>>) -> Self {
+    pub fn new(client: Arc<Mutex<SagittariusFunctionDefinitionServiceClient>>) -> Self {
         Self { client }
     }
 }
@@ -20,10 +20,8 @@ impl FunctionDefinitionService for AquilaFunctionDefinitionServiceServer {
     async fn update(
         &self,
         request: tonic::Request<tucana::aquila::FunctionDefinitionUpdateRequest>,
-    ) -> Result<
-        tonic::Response<tucana::aquila::FunctionDefinitionUpdateResponse>,
-        tonic::Status,
-    > {
+    ) -> Result<tonic::Response<tucana::aquila::FunctionDefinitionUpdateResponse>, tonic::Status>
+    {
         let function_definition_update_request = request.into_inner();
 
         log::debug!(

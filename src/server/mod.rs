@@ -3,14 +3,14 @@ use crate::{
     sagittarius::{
         data_type_service_client_impl::SagittariusDataTypeServiceClient,
         flow_type_service_client_impl::SagittariusFlowTypeServiceClient,
-        function_service_client_impl::SagittariusFunctionServiceClient,
+        function_service_client_impl::SagittariusFunctionDefinitionServiceClient,
         runtime_function_service_client_impl::SagittariusRuntimeFunctionServiceClient,
         runtime_status_service_client_impl::SagittariusRuntimeStatusServiceClient,
         runtime_usage_client_impl::SagittariusRuntimeUsageClient,
     },
     server::{
         action_transfer_service_server_impl::AquilaActionTransferServiceServer,
-        function_service_server_impl::AquilaFunctionServiceServer,
+        function_service_server_impl::AquilaFunctionDefinitionServiceServer,
         runtime_status_service_server_impl::AquilaRuntimeStatusServiceServer,
         runtime_usage_service_server_impl::AquilaRuntimeUsageServiceServer,
     },
@@ -109,10 +109,11 @@ impl AquilaGRPCServer {
 
         info!("RuntimeFunctionService started");
 
-        let function_service = Arc::new(Mutex::new(SagittariusFunctionServiceClient::new(
-            self.channel.clone(),
-            self.token.clone(),
-        )));
+        let function_service =
+            Arc::new(Mutex::new(SagittariusFunctionDefinitionServiceClient::new(
+                self.channel.clone(),
+                self.token.clone(),
+            )));
 
         info!("FunctionService started");
 
@@ -131,7 +132,7 @@ impl AquilaGRPCServer {
 
         let data_type_server = AquilaDataTypeServiceServer::new(data_type_service.clone());
         let flow_type_server = AquilaFlowTypeServiceServer::new(flow_type_service.clone());
-        let function_server = AquilaFunctionServiceServer::new(function_service.clone());
+        let function_server = AquilaFunctionDefinitionServiceServer::new(function_service.clone());
         let runtime_function_server =
             AquilaRuntimeFunctionServiceServer::new(runtime_function_service.clone());
         let runtime_usage_server =
