@@ -458,10 +458,10 @@ async fn forward_nats_to_action(
     tx: tokio::sync::mpsc::Sender<Result<TransferResponse, tonic::Status>>,
     pending_replies: PendingReplies,
 ) {
-    log::debug!("Waiting for incomming request");
+    log::debug!("Waiting for incoming request");
 
     while let Some(msg) = sub.next().await {
-        log::debug!("Recieved RemoteRuntime execution request");
+        log::debug!("Received RemoteRuntime execution request");
 
         let execution = match ExecutionRequest::decode(msg.payload.as_ref()) {
             Ok(req) => req,
