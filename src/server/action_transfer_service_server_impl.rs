@@ -1,4 +1,4 @@
-use crate::configuration::action::ActionConfiguration;
+use crate::configuration::service::ServiceConfiguration;
 use async_nats::{Subject, Subscriber};
 use futures::StreamExt;
 use futures_core::Stream;
@@ -20,7 +20,7 @@ type PendingReplies = Arc<Mutex<HashMap<String, Subject>>>;
 pub struct AquilaActionTransferServiceServer {
     client: async_nats::Client,
     kv: async_nats::jetstream::kv::Store,
-    actions: ActionConfiguration,
+    actions: ServiceConfiguration,
     action_config_tx: tokio::sync::broadcast::Sender<tucana::shared::ActionConfigurations>,
 }
 
@@ -28,7 +28,7 @@ impl AquilaActionTransferServiceServer {
     pub fn new(
         client: async_nats::Client,
         kv: async_nats::jetstream::kv::Store,
-        actions: ActionConfiguration,
+        actions: ServiceConfiguration,
         action_config_tx: tokio::sync::broadcast::Sender<tucana::shared::ActionConfigurations>,
     ) -> Self {
         Self {
@@ -151,7 +151,7 @@ fn extract_token(
 async fn handle_logon(
     token: &str,
     action_logon: ActionLogon,
-    actions: Arc<Mutex<ActionConfiguration>>,
+    actions: Arc<Mutex<ServiceConfiguration>>,
     client: async_nats::Client,
     cfg_tx: tokio::sync::broadcast::Sender<tucana::shared::ActionConfigurations>,
     tx: tokio::sync::mpsc::Sender<Result<TransferResponse, tonic::Status>>,
@@ -509,4 +509,3 @@ async fn forward_nats_to_action(
 
     log::debug!("Execution forwarder stopped");
 }
-

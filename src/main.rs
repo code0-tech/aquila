@@ -1,6 +1,6 @@
 use crate::{
     configuration::{
-        action::ActionConfiguration, config::Config as AquilaConfig, state::AppReadiness,
+        service::ServiceConfiguration, config::Config as AquilaConfig, state::AppReadiness,
     },
     flow::get_flow_identifier,
     sagittarius::retry::create_channel_with_retry,
@@ -83,7 +83,7 @@ async fn main() {
     let (action_config_tx, _) =
         tokio::sync::broadcast::channel::<tucana::shared::ActionConfigurations>(64);
 
-    let action_config = ActionConfiguration::from_path(&config.action_config_path);
+    let action_config = ServiceConfiguration::from_path(&config.action_config_path);
     let server = AquilaGRPCServer::new(
         &config,
         app_readiness.clone(),

@@ -9,11 +9,11 @@ pub struct ActionServiceConfiguration {
 }
 
 #[derive(Serialize, Deserialize, Clone)]
-pub struct ActionConfiguration {
+pub struct ServiceConfiguration {
     actions: Vec<ActionServiceConfiguration>,
 }
 
-impl ActionConfiguration {
+impl ServiceConfiguration {
     pub fn has_action(&self, token: &String, action_identifier: &String) -> bool {
         match self
             .actions
@@ -44,7 +44,7 @@ impl ActionConfiguration {
             }
         }
 
-        match from_str::<ActionConfiguration>(&data) {
+        match from_str::<ServiceConfiguration>(&data) {
             Ok(conf) => return conf,
             Err(error) => {
                 panic!(
