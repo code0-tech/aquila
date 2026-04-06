@@ -1,11 +1,13 @@
 use serde::{Deserialize, Serialize};
 use serde_json::from_str;
 use std::{fs::File, io::Read};
+use tucana::shared::ActionConfigurations;
 
 #[derive(Serialize, Deserialize, Clone)]
 pub struct ActionServiceConfiguration {
     token: String,
     service_name: String,
+    config: Vec<ActionConfigurations>,
 }
 
 #[derive(Serialize, Deserialize, Clone)]
@@ -22,6 +24,20 @@ impl ServiceConfiguration {
         {
             Some(_) => true,
             None => false,
+        }
+    }
+
+    pub fn get_action_configuration(
+        &self,
+        action_identifier: &String,
+    ) -> Vec<ActionConfigurations> {
+        match self
+            .actions
+            .iter()
+            .find(|x| &x.service_name == action_identifier)
+        {
+            Some(a) => a.config.clone(),
+            None => vec![],
         }
     }
 

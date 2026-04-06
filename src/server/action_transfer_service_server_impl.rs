@@ -22,6 +22,7 @@ pub struct AquilaActionTransferServiceServer {
     kv: async_nats::jetstream::kv::Store,
     actions: ServiceConfiguration,
     action_config_tx: tokio::sync::broadcast::Sender<tucana::shared::ActionConfigurations>,
+    is_static: bool,
 }
 
 impl AquilaActionTransferServiceServer {
@@ -30,12 +31,14 @@ impl AquilaActionTransferServiceServer {
         kv: async_nats::jetstream::kv::Store,
         actions: ServiceConfiguration,
         action_config_tx: tokio::sync::broadcast::Sender<tucana::shared::ActionConfigurations>,
+        is_static: bool,
     ) -> Self {
         Self {
             client,
             kv,
             actions,
             action_config_tx,
+            is_static,
         }
     }
 }
@@ -348,6 +351,7 @@ impl ActionTransferService for AquilaActionTransferServiceServer {
         let kv = self.kv.clone();
         let client = self.client.clone();
         let cfg_tx = self.action_config_tx.clone();
+        let is_static = self.is_static;
         let pending_replies: PendingReplies = Arc::new(Mutex::new(HashMap::new()));
 
         let (tx, rx) = tokio::sync::mpsc::channel::<Result<TransferResponse, tonic::Status>>(32);
@@ -420,6 +424,16 @@ impl ActionTransferService for AquilaActionTransferServiceServer {
                     None => {
                         log::error!("Missing action properties after logon");
                         break;
+                    }
+                };
+
+                if is_static {
+                    let lock = actions.lock().await;
+                    let configs = lock.get_action_configuration(&props.action_identifier);
+                    for conf in configs {
+                        if let Err(err) = cfg_tx.send(conf) {
+                            log::warn!("No action configuration receivers available: {:?}", err);
+                        }
                     }
                 };
 
