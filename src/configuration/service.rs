@@ -4,31 +4,39 @@ use std::{fs::File, io::Read};
 use tucana::shared::{ActionConfigurations, helper::value::from_json_value};
 
 #[derive(Serialize, Deserialize, Clone)]
-struct SerializeableActionConfiguration {
+struct SerializableActionConfiguration {
     identifier: String,
     value: serde_json::Value,
 }
 
-#[derive(Serialize, Deserialize, Clone)]
-struct SerializeableActionProjectConfiguration {
-    project_id: i64,
-    #[serde(default)]
-    configs: Vec<SerializeableActionConfiguration>,
-}
+type SerializeableActionConfiguration = SerializableActionConfiguration;
 
 #[derive(Serialize, Deserialize, Clone)]
-pub struct SerializeableActionServiceConfiguration {
+struct SerializableActionProjectConfiguration {
+    project_id: i64,
+    #[serde(default)]
+    configs: Vec<SerializableActionConfiguration>,
+}
+
+type SerializeableActionProjectConfiguration = SerializableActionProjectConfiguration;
+
+#[derive(Serialize, Deserialize, Clone)]
+pub struct SerializableActionServiceConfiguration {
     token: String,
     identifier: String,
     #[serde(default)]
-    configs: Vec<SerializeableActionProjectConfiguration>,
+    configs: Vec<SerializableActionProjectConfiguration>,
 }
 
+pub type SerializeableActionServiceConfiguration = SerializableActionServiceConfiguration;
+
 #[derive(Serialize, Deserialize, Clone, Default)]
-pub struct SerializeableServiceConfiguration {
+pub struct SerializableServiceConfiguration {
     #[serde(default)]
-    actions: Vec<SerializeableActionServiceConfiguration>,
+    actions: Vec<SerializableActionServiceConfiguration>,
 }
+
+pub type SerializeableServiceConfiguration = SerializableServiceConfiguration;
 
 #[derive(Serialize, Deserialize, Clone)]
 pub struct ActionServiceConfiguration {
@@ -42,8 +50,8 @@ pub struct ServiceConfiguration {
     actions: Vec<ActionServiceConfiguration>,
 }
 
-impl From<SerializeableActionConfiguration> for tucana::shared::ActionConfiguration {
-    fn from(value: SerializeableActionConfiguration) -> Self {
+impl From<SerializableActionConfiguration> for tucana::shared::ActionConfiguration {
+    fn from(value: SerializableActionConfiguration) -> Self {
         Self {
             identifier: value.identifier,
             value: Some(from_json_value(value.value)),
