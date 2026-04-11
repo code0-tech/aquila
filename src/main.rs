@@ -33,6 +33,7 @@ async fn main() {
     load_env_file();
     let config = AquilaConfig::new();
     let app_readiness = AppReadiness::new();
+    let action_config = ServiceConfiguration::from_path(&config.action_config_path);
 
     //Create connection to JetStream
     let client = match async_nats::connect(config.nats_url.clone()).await {
@@ -83,7 +84,6 @@ async fn main() {
     let (action_config_tx, _) =
         tokio::sync::broadcast::channel::<tucana::shared::ActionConfigurations>(64);
 
-    let action_config = ServiceConfiguration::from_path(&config.action_config_path);
     let server = AquilaGRPCServer::new(
         &config,
         app_readiness.clone(),
