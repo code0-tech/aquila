@@ -74,7 +74,7 @@ impl Config {
             ),
             action_config_path: env_with_default(
                 "ACTION_CONFIG_PATH",
-                String::from("./action.configuration.json"),
+                String::from("./service.configuration.json"),
             ),
         }
     }

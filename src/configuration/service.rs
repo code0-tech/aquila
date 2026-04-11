@@ -5,29 +5,28 @@ use tucana::shared::{ActionConfigurations, helper::value::from_json_value};
 
 #[derive(Serialize, Deserialize, Clone)]
 struct SerializeableActionConfiguration {
-    identifier: ::prost::alloc::string::String,
+    identifier: String,
     value: serde_json::Value,
 }
+
 #[derive(Serialize, Deserialize, Clone)]
 struct SerializeableActionProjectConfiguration {
     project_id: i64,
-    action_configurations: Vec<SerializeableActionConfiguration>,
-}
-#[derive(Serialize, Deserialize, Clone)]
-struct SerializeableActionConfigurations {
-    action_identifier: String,
-    action_configurations: Vec<SerializeableActionProjectConfiguration>,
+    #[serde(default)]
+    configs: Vec<SerializeableActionConfiguration>,
 }
 
 #[derive(Serialize, Deserialize, Clone)]
 pub struct SerializeableActionServiceConfiguration {
     token: String,
-    service_name: String,
-    config: Vec<SerializeableActionConfigurations>,
+    identifier: String,
+    #[serde(default)]
+    configs: Vec<SerializeableActionProjectConfiguration>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Default)]
 pub struct SerializeableServiceConfiguration {
+    #[serde(default)]
     actions: Vec<SerializeableActionServiceConfiguration>,
 }
 
@@ -56,34 +55,22 @@ impl From<SerializeableActionProjectConfiguration> for tucana::shared::ActionPro
     fn from(value: SerializeableActionProjectConfiguration) -> Self {
         Self {
             project_id: value.project_id,
-            action_configurations: value
-                .action_configurations
-                .into_iter()
-                .map(Into::into)
-                .collect(),
-        }
-    }
-}
-
-impl From<SerializeableActionConfigurations> for ActionConfigurations {
-    fn from(value: SerializeableActionConfigurations) -> Self {
-        Self {
-            action_identifier: value.action_identifier,
-            action_configurations: value
-                .action_configurations
-                .into_iter()
-                .map(Into::into)
-                .collect(),
+            action_configurations: value.configs.into_iter().map(Into::into).collect(),
         }
     }
 }
 
 impl From<SerializeableActionServiceConfiguration> for ActionServiceConfiguration {
     fn from(value: SerializeableActionServiceConfiguration) -> Self {
+        let action_identifier = value.identifier.clone();
+
         Self {
             token: value.token,
-            service_name: value.service_name,
-            config: value.config.into_iter().map(Into::into).collect(),
+            service_name: value.identifier,
+            config: vec![ActionConfigurations {
+                action_identifier,
+                action_configurations: value.configs.into_iter().map(Into::into).collect(),
+            }],
         }
     }
 }
