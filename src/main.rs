@@ -1,6 +1,6 @@
 use crate::{
     configuration::{
-        action::ActionConfiguration, config::Config as AquilaConfig, state::AppReadiness,
+        config::Config as AquilaConfig, service::ServiceConfiguration, state::AppReadiness,
     },
     flow::get_flow_identifier,
     sagittarius::retry::create_channel_with_retry,
@@ -33,7 +33,7 @@ async fn main() {
     load_env_file();
     let config = AquilaConfig::new();
     let app_readiness = AppReadiness::new();
-    let action_config = ActionConfiguration::from_path(&config.action_config_path);
+    let action_config = ServiceConfiguration::from_path(&config.action_config_path);
 
     //Create connection to JetStream
     let client = match async_nats::connect(config.nats_url.clone()).await {

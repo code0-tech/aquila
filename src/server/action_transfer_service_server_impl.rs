@@ -1,4 +1,4 @@
-use crate::configuration::action::ActionConfiguration;
+use crate::configuration::service::ServiceConfiguration;
 use async_nats::{Subject, Subscriber};
 use futures::StreamExt;
 use futures_core::Stream;
@@ -20,22 +20,25 @@ type PendingReplies = Arc<Mutex<HashMap<String, Subject>>>;
 pub struct AquilaActionTransferServiceServer {
     client: async_nats::Client,
     kv: async_nats::jetstream::kv::Store,
-    actions: ActionConfiguration,
+    actions: ServiceConfiguration,
     action_config_tx: tokio::sync::broadcast::Sender<tucana::shared::ActionConfigurations>,
+    is_static: bool,
 }
 
 impl AquilaActionTransferServiceServer {
     pub fn new(
         client: async_nats::Client,
         kv: async_nats::jetstream::kv::Store,
-        actions: ActionConfiguration,
+        actions: ServiceConfiguration,
         action_config_tx: tokio::sync::broadcast::Sender<tucana::shared::ActionConfigurations>,
+        is_static: bool,
     ) -> Self {
         Self {
             client,
             kv,
             actions,
             action_config_tx,
+            is_static,
         }
     }
 }
@@ -151,7 +154,7 @@ fn extract_token(
 async fn handle_logon(
     token: &str,
     action_logon: ActionLogon,
-    actions: Arc<Mutex<ActionConfiguration>>,
+    actions: Arc<Mutex<ServiceConfiguration>>,
     client: async_nats::Client,
     cfg_tx: tokio::sync::broadcast::Sender<tucana::shared::ActionConfigurations>,
     tx: tokio::sync::mpsc::Sender<Result<TransferResponse, tonic::Status>>,
@@ -348,6 +351,7 @@ impl ActionTransferService for AquilaActionTransferServiceServer {
         let kv = self.kv.clone();
         let client = self.client.clone();
         let cfg_tx = self.action_config_tx.clone();
+        let is_static = self.is_static;
         let pending_replies: PendingReplies = Arc::new(Mutex::new(HashMap::new()));
 
         let (tx, rx) = tokio::sync::mpsc::channel::<Result<TransferResponse, tonic::Status>>(32);
@@ -420,6 +424,16 @@ impl ActionTransferService for AquilaActionTransferServiceServer {
                     None => {
                         log::error!("Missing action properties after logon");
                         break;
+                    }
+                };
+
+                if is_static {
+                    let lock = actions.lock().await;
+                    let configs = lock.get_action_configuration(&props.action_identifier);
+                    for conf in configs {
+                        if let Err(err) = cfg_tx.send(conf) {
+                            log::warn!("No action configuration receivers available: {:?}", err);
+                        }
                     }
                 };
 
@@ -509,4 +523,3 @@ async fn forward_nats_to_action(
 
     log::debug!("Execution forwarder stopped");
 }
-

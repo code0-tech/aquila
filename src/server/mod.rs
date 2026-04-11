@@ -1,5 +1,5 @@
 use crate::{
-    configuration::{action::ActionConfiguration, config::Config, state::AppReadiness},
+    configuration::{config::Config, service::ServiceConfiguration, state::AppReadiness},
     sagittarius::{
         data_type_service_client_impl::SagittariusDataTypeServiceClient,
         flow_type_service_client_impl::SagittariusFlowTypeServiceClient,
@@ -51,10 +51,11 @@ pub struct AquilaGRPCServer {
     with_health_service: bool,
     app_readiness: AppReadiness,
     channel: Channel,
-    action_configuration: ActionConfiguration,
+    service_configuration: ServiceConfiguration,
     nats_client: async_nats::Client,
     kv_store: Arc<Store>,
     action_config_tx: tokio::sync::broadcast::Sender<tucana::shared::ActionConfigurations>,
+    is_static: bool,
 }
 
 impl AquilaGRPCServer {
@@ -62,7 +63,7 @@ impl AquilaGRPCServer {
         config: &Config,
         app_readiness: AppReadiness,
         channel: Channel,
-        action_configuration: ActionConfiguration,
+        service_configuration: ServiceConfiguration,
         nats_client: async_nats::Client,
         kv_store: Arc<Store>,
         action_config_tx: tokio::sync::broadcast::Sender<tucana::shared::ActionConfigurations>,
@@ -82,10 +83,11 @@ impl AquilaGRPCServer {
             address,
             app_readiness,
             channel,
-            action_configuration,
+            service_configuration,
             nats_client,
             kv_store,
             action_config_tx,
+            is_static: config.is_static(),
         }
     }
 
@@ -143,8 +145,9 @@ impl AquilaGRPCServer {
         let action_transfer_server = AquilaActionTransferServiceServer::new(
             self.nats_client.clone(),
             self.kv_store.as_ref().clone(),
-            self.action_configuration.clone(),
+            self.service_configuration.clone(),
             self.action_config_tx.clone(),
+            self.is_static,
         );
 
         info!("Starting gRPC Server...");
