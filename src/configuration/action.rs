@@ -31,7 +31,11 @@ impl ActionConfiguration {
         let mut file = match File::open(path) {
             Ok(file) => file,
             Err(error) => {
-                panic!("There was a problem opening the file: {:?}", error);
+                log::warn!(
+                    "Couldn't open service configuration file, Reason: {}. Starting with empty service configuration",
+                    error
+                );
+                return ActionConfiguration { actions: vec![] };
             }
         };
 
@@ -40,17 +44,22 @@ impl ActionConfiguration {
                 log::debug!("Successfully loaded action configuration file");
             }
             Err(error) => {
-                panic!("There was a problem reading the file: {:?}", error);
+                log::warn!(
+                    "Couldn't read service configuration file, Reason: {}. Starting with empty service configuration",
+                    error
+                );
+                return ActionConfiguration { actions: vec![] };
             }
         }
 
         match from_str::<ActionConfiguration>(&data) {
             Ok(conf) => return conf,
             Err(error) => {
-                panic!(
-                    "There was a problem deserializing the json file: {:?}",
+                log::warn!(
+                    "Couldn't parse service configuration file, Reason: {}. Starting with empty service configuration",
                     error
                 );
+                return ActionConfiguration { actions: vec![] };
             }
         };
     }
