@@ -1,6 +1,6 @@
 use crate::{
     configuration::{
-        service::ServiceConfiguration, config::Config as AquilaConfig, state::AppReadiness,
+        config::Config as AquilaConfig, service::ServiceConfiguration, state::AppReadiness,
     },
     flow::get_flow_identifier,
     sagittarius::retry::create_channel_with_retry,

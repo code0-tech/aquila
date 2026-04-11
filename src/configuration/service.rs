@@ -10,7 +10,7 @@ pub struct ActionServiceConfiguration {
     config: Vec<ActionConfigurations>,
 }
 
-#[derive(Serialize, Deserialize, Clone)]
+#[derive(Serialize, Deserialize, Clone, Default)]
 pub struct ServiceConfiguration {
     actions: Vec<ActionServiceConfiguration>,
 }
@@ -51,7 +51,7 @@ impl ServiceConfiguration {
                     "Couldn't open service configuration file, Reason: {}. Starting with empty service configuration",
                     error
                 );
-                return ActionConfiguration { actions: vec![] };
+                return ServiceConfiguration::default();
             }
         };
 
@@ -64,7 +64,7 @@ impl ServiceConfiguration {
                     "Couldn't read service configuration file, Reason: {}. Starting with empty service configuration",
                     error
                 );
-                return ActionConfiguration { actions: vec![] };
+                return ServiceConfiguration::default();
             }
         }
 
@@ -75,7 +75,7 @@ impl ServiceConfiguration {
                     "Couldn't parse service configuration file, Reason: {}. Starting with empty service configuration",
                     error
                 );
-                return ActionConfiguration { actions: vec![] };
+                return ServiceConfiguration::default();
             }
         };
     }
