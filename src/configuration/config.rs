@@ -40,7 +40,7 @@ pub struct Config {
 
     pub with_health_service: bool,
 
-    pub action_config_path: String,
+    pub service_config_path: String,
 }
 
 /// Implementation for all relevant `Aquila` startup configurations
@@ -72,8 +72,8 @@ impl Config {
                 "SAGITTARIUS_URL",
                 String::from("http://localhost:50051"),
             ),
-            action_config_path: env_with_default(
-                "ACTION_CONFIG_PATH",
+            service_config_path: env_with_default(
+                "SERVICE_CONFIG_PATH",
                 String::from("./service.configuration.json"),
             ),
         }

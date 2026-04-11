@@ -9,8 +9,6 @@ struct SerializableActionConfiguration {
     value: serde_json::Value,
 }
 
-type SerializeableActionConfiguration = SerializableActionConfiguration;
-
 #[derive(Serialize, Deserialize, Clone)]
 struct SerializableActionProjectConfiguration {
     project_id: i64,
