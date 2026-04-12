@@ -14,7 +14,7 @@ use std::sync::Arc;
 pub async fn run(
     config: AquilaConfig,
     app_readiness: AppReadiness,
-    action_config: ServiceConfiguration,
+    service_config: ServiceConfiguration,
 ) {
     // Create connection to JetStream
     let client = match async_nats::connect(config.nats_url.clone()).await {
@@ -63,7 +63,7 @@ pub async fn run(
         &config,
         app_readiness.clone(),
         sagittarius_channel.clone(),
-        action_config,
+        service_config,
         client.clone(),
         kv_store.clone(),
         action_config_tx.clone(),
