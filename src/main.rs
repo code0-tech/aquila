@@ -23,6 +23,6 @@ async fn main() {
     load_env_file();
     let config = AquilaConfig::new();
     let app_readiness = AppReadiness::new();
-    let action_config = ServiceConfiguration::from_path(&config.service_config_path);
-    startup::run(config, app_readiness, action_config).await;
+    let service_config = ServiceConfiguration::from_path(&config.service_config_path);
+    startup::run(config, app_readiness, service_config).await;
 }
