@@ -10,24 +10,24 @@ struct SerializableActionConfiguration {
 }
 
 #[derive(Serialize, Deserialize, Clone)]
-struct SerializeableActionProjectConfiguration {
+struct SerializableActionProjectConfiguration {
     project_id: i64,
     #[serde(default)]
     configs: Vec<SerializableActionConfiguration>,
 }
 
 #[derive(Serialize, Deserialize, Clone)]
-pub struct SerializeableActionServiceConfiguration {
+pub struct SerializableActionServiceConfiguration {
     token: String,
     identifier: String,
     #[serde(default)]
-    configs: Vec<SerializeableActionProjectConfiguration>,
+    configs: Vec<SerializableActionProjectConfiguration>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Default)]
-pub struct SerializeableServiceConfiguration {
+pub struct SerializableServiceConfiguration {
     #[serde(default)]
-    actions: Vec<SerializeableActionServiceConfiguration>,
+    actions: Vec<SerializableActionServiceConfiguration>,
     #[serde(default)]
     runtimes: Vec<RuntimeServiceConfiguration>,
 }
@@ -60,8 +60,8 @@ impl From<SerializableActionConfiguration> for tucana::shared::ActionConfigurati
     }
 }
 
-impl From<SerializeableActionProjectConfiguration> for tucana::shared::ActionProjectConfiguration {
-    fn from(value: SerializeableActionProjectConfiguration) -> Self {
+impl From<SerializableActionProjectConfiguration> for tucana::shared::ActionProjectConfiguration {
+    fn from(value: SerializableActionProjectConfiguration) -> Self {
         Self {
             project_id: value.project_id,
             action_configurations: value.configs.into_iter().map(Into::into).collect(),
@@ -69,8 +69,8 @@ impl From<SerializeableActionProjectConfiguration> for tucana::shared::ActionPro
     }
 }
 
-impl From<SerializeableActionServiceConfiguration> for ActionServiceConfiguration {
-    fn from(value: SerializeableActionServiceConfiguration) -> Self {
+impl From<SerializableActionServiceConfiguration> for ActionServiceConfiguration {
+    fn from(value: SerializableActionServiceConfiguration) -> Self {
         let action_identifier = value.identifier.clone();
 
         Self {
@@ -84,8 +84,8 @@ impl From<SerializeableActionServiceConfiguration> for ActionServiceConfiguratio
     }
 }
 
-impl From<SerializeableServiceConfiguration> for ServiceConfiguration {
-    fn from(value: SerializeableServiceConfiguration) -> Self {
+impl From<SerializableServiceConfiguration> for ServiceConfiguration {
+    fn from(value: SerializableServiceConfiguration) -> Self {
         Self {
             actions: value.actions.into_iter().map(Into::into).collect(),
             runtimes: value.runtimes.into_iter().map(Into::into).collect(),
@@ -152,7 +152,7 @@ impl ServiceConfiguration {
             }
         }
 
-        match from_str::<SerializeableServiceConfiguration>(&data) {
+        match from_str::<SerializableServiceConfiguration>(&data) {
             Ok(conf) => return conf.into(),
             Err(error) => {
                 log::warn!(
