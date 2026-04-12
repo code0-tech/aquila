@@ -32,7 +32,7 @@ impl DataTypeService for AquilaDataTypeServiceServer {
     ) -> Result<tonic::Response<tucana::aquila::DataTypeUpdateResponse>, tonic::Status> {
         let token = match extract_token(&request) {
             Ok(t) => {
-                log::debug!("Found token: {}", t);
+                log::debug!("Authorization token extracted");
                 t
             },
             Err(status) => return Err(status),
