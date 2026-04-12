@@ -2,7 +2,7 @@
 title: Aquila Setup Guide
 ---
 
-Follow this guide to set up Aquila.
+Use this guide to install and configure Aquila.
 
 ## Setup Options
 
@@ -11,21 +11,21 @@ Follow this guide to set up Aquila.
 1. **Pull the Docker Image**  
    Pull the latest Docker image from `<image-registry-url>`.
 2. **Configure Environment Variables**  
-   Set up the necessary environment variables in a `.env` file (see [Environment Variables](#environment-variables)
-   section).
+   Set up the necessary environment variables in a `.env` file (see the [Environment Variables](#environment-variables) section).
 3. **Start the Application**  
    Run the Docker container using the appropriate command.
 
 ### Manual Installation
 
 1. **Clone Aquila**  
+   Clone the repository to your local machine.
 2. **Set Up Environment Variables**  
    Configure the `.env` file in the root folder with the required settings.
-3. **Ensure Required Service Is Running**
+3. **Ensure Required Services Are Running**
    - **NATS**:
      - Ensure a NATS instance is reachable.
-     - Activate JetStream
-     - For any help refer to the [NATS documentation](https://docs.nats.io/running-a-nats-service/introduction/installation)
+     - Enable JetStream.
+     - For help, refer to the [NATS documentation](https://docs.nats.io/running-a-nats-service/introduction/installation).
    - **Sagittarius**: Ensure a Sagittarius instance is reachable.
 4. **Start the Application**  
 
@@ -33,8 +33,7 @@ Follow this guide to set up Aquila.
 
 ## Environment Variables
 
-Below is a list of environment variables for configuring Aquila. The configuration is split into
-common variables and mode-specific variables.
+Below is a list of environment variables for configuring Aquila. The configuration is split into common variables and mode-specific variables.
 
 ### Common (Static + Dynamic)
 
@@ -55,7 +54,7 @@ Set `MODE=static` to start Aquila from a local flow file and insert flows into t
 
 | Name                 | Description                                             | Default            |
 |----------------------|---------------------------------------------------------|--------------------|
-| `FLOW_FALLBACK_PATH` | Path to the flow JSON file loaded on startup.           | `./flowExport.json`|
+| `FLOW_FALLBACK_PATH` | Path to the flow JSON file loaded on startup.           | `./flowExport.json` |
 
 ### Dynamic Mode
 
@@ -71,13 +70,13 @@ start dynamic mode (for example `MODE=hybrid` if supported by your `code0_flow` 
 
 ## Service Configuration File
 
-To add services like `Taurus`, `Draco` or an `Action` to the runtime, the serivce needs to be configured inside of `Aquila` to make shure its authorized.
+To add services like `Taurus`, `Draco`, or an `Action` to the runtime, the service must be configured in Aquila to ensure it is authorized.
 
 `SERVICE_CONFIG_PATH` points to a JSON file that defines allowed runtime/action tokens and optional
 default action configurations. This file is loaded on startup; if it is missing or invalid, Aquila
 starts with an empty service configuration.
 
-By default `Aquila` has a config for that is pre-configured for runtime services. 
+By default, Aquila includes a configuration that is preconfigured for runtime services.
 
 Default:
 
@@ -100,7 +99,7 @@ Default:
 	]
 }
 ```
-You can just add as many runtimes as you want. To add an `Action` just add an entry to `actions`. To provide a configuration for an `Acion` you can add `config` objects to the `Action`
+You can add as many runtimes as you need. To add an `Action`, add an entry to `actions`. To provide a configuration for an `Action`, add `config` objects to that action.
 
 ```json
 {

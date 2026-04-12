@@ -2,42 +2,43 @@
 title: Aquila Development Guide
 ---
 
-Follow this guide to develop Aquila.
+Use this guide to set up a development environment for Aquila. Choose either the virtual environment (recommended) or a fully local setup.
 
 ## Requirements
 
-To contribute to Aquila's development, you need the following expertise and tools:
+To contribute to Aquila, you should be comfortable with:
 
-- **[Rust Knowledge](https://rust-lang.org/)**
-- **[Experience with gRPC](https://grpc.io)**
+- **[Rust](https://rust-lang.org/)**
+- **[gRPC](https://grpc.io)**
 - **[NATS](https://nats.io)**
 
 ---
 
-## Setting Up a Virtual Development Environment (Prefered)
+## Setting Up a Virtual Development Environment (Preferred)
 
 [Visit Setup Guide](https://docs.code0.tech/general/install/)
 
-Use the Docker-Compose to start our application. Make shure to stop Aquila for development. Alternatively `COMPOSE_PROFILES` can be set to only `ide` to exclude all runtimes services (manual NATS start is required)
+Use Docker Compose to start the application. Make sure Aquila is stopped while you are developing locally.  
+Alternatively, set `COMPOSE_PROFILES=ide` to exclude runtime services (you will need to start NATS manually).
 
 ## Setting Up a Local Development Environment
 
 1. **Install Rust and Cargo**  
    Install the latest versions of Rust and its package manager, Cargo. Use [Rustup](https://rustup.rs/) for an easy installation.
 2. **Set Up Local NATS Instance**
-    - Install NATS on your local machine or use the Dockerimage.
-    - Ensure its running and accessible for Aquila.
-    - Activate JetStream
-    - For any help refer to the [NATS documentation](https://docs.nats.io/running-a-nats-service/introduction/installation)
-3. **Setup Sagittarius**
-    - Ensure Sagittarius gRPC is running and accessible for Aquila.
+    - Install NATS locally or use a Docker image.
+    - Ensure it is running and reachable by Aquila.
+    - Enable JetStream.
+    - For help, refer to the [NATS documentation](https://docs.nats.io/running-a-nats-service/introduction/installation).
+3. **Set Up Sagittarius**
+    - Ensure Sagittarius gRPC is running and reachable by Aquila.
     - [Repository](https://github.com/code0-tech/sagittarius)
 
 ---
 
 ## Additional Notes
 
-- Ensure all dependencies are compatible with the version of Aquila you are working on.
+- Ensure all dependencies are compatible with the Aquila version you are working on.
 - Use the provided `.env` file as a reference for setting up your environment variables.
 
 ---
