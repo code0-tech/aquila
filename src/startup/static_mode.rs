@@ -54,7 +54,7 @@ async fn init_flows_from_json(
 
     match file.read_to_string(&mut data) {
         Ok(_) => {
-            print!("Successfully read data from file");
+            log::info!("Successfully read data from file");
         }
         Err(error) => {
             panic!("There was a problem reading the file: {:?}", error);
