@@ -1,16 +1,26 @@
 use std::sync::Arc;
 use tokio::sync::Mutex;
+use tonic::Status;
 use tucana::aquila::flow_type_service_server::FlowTypeService;
 
-use crate::sagittarius::flow_type_service_client_impl::SagittariusFlowTypeServiceClient;
+use crate::{
+    authorization::authorization::extract_token, configuration::service::ServiceConfiguration, sagittarius::flow_type_service_client_impl::SagittariusFlowTypeServiceClient
+};
 
 pub struct AquilaFlowTypeServiceServer {
     client: Arc<Mutex<SagittariusFlowTypeServiceClient>>,
+    service_configuration: ServiceConfiguration,
 }
 
 impl AquilaFlowTypeServiceServer {
-    pub fn new(client: Arc<Mutex<SagittariusFlowTypeServiceClient>>) -> Self {
-        Self { client }
+    pub fn new(
+        client: Arc<Mutex<SagittariusFlowTypeServiceClient>>,
+        service_configuration: ServiceConfiguration,
+    ) -> Self {
+        Self {
+            client,
+            service_configuration,
+        }
     }
 }
 
@@ -20,6 +30,15 @@ impl FlowTypeService for AquilaFlowTypeServiceServer {
         &self,
         request: tonic::Request<tucana::aquila::FlowTypeUpdateRequest>,
     ) -> Result<tonic::Response<tucana::aquila::FlowTypeUpdateResponse>, tonic::Status> {
+        let token = match extract_token(&request) {
+            Ok(t) => t,
+            Err(status) => return Err(status),
+        };
+
+        if !self.service_configuration.has_service(&token.to_string()) {
+            return Err(Status::unauthenticated("token is not valid"));
+        }
+
         let flow_type_update_request = request.into_inner();
 
         log::debug!(

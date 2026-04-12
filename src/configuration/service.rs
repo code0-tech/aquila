@@ -10,31 +10,27 @@ struct SerializableActionConfiguration {
 }
 
 #[derive(Serialize, Deserialize, Clone)]
-struct SerializableActionProjectConfiguration {
+struct SerializeableActionProjectConfiguration {
     project_id: i64,
     #[serde(default)]
     configs: Vec<SerializableActionConfiguration>,
 }
 
-type SerializeableActionProjectConfiguration = SerializableActionProjectConfiguration;
-
 #[derive(Serialize, Deserialize, Clone)]
-pub struct SerializableActionServiceConfiguration {
+pub struct SerializeableActionServiceConfiguration {
     token: String,
     identifier: String,
     #[serde(default)]
-    configs: Vec<SerializableActionProjectConfiguration>,
+    configs: Vec<SerializeableActionProjectConfiguration>,
 }
-
-pub type SerializeableActionServiceConfiguration = SerializableActionServiceConfiguration;
 
 #[derive(Serialize, Deserialize, Clone, Default)]
-pub struct SerializableServiceConfiguration {
+pub struct SerializeableServiceConfiguration {
     #[serde(default)]
-    actions: Vec<SerializableActionServiceConfiguration>,
+    actions: Vec<SerializeableActionServiceConfiguration>,
+    #[serde(default)]
+    runtimes: Vec<RuntimeServiceConfiguration>,
 }
-
-pub type SerializeableServiceConfiguration = SerializableServiceConfiguration;
 
 #[derive(Serialize, Deserialize, Clone)]
 pub struct ActionServiceConfiguration {
@@ -43,9 +39,16 @@ pub struct ActionServiceConfiguration {
     config: Vec<ActionConfigurations>,
 }
 
+#[derive(Serialize, Deserialize, Clone)]
+pub struct RuntimeServiceConfiguration {
+    token: String,
+    identifier: String,
+}
+
 #[derive(Serialize, Deserialize, Clone, Default)]
 pub struct ServiceConfiguration {
     actions: Vec<ActionServiceConfiguration>,
+    runtimes: Vec<RuntimeServiceConfiguration>,
 }
 
 impl From<SerializableActionConfiguration> for tucana::shared::ActionConfiguration {
@@ -85,16 +88,24 @@ impl From<SerializeableServiceConfiguration> for ServiceConfiguration {
     fn from(value: SerializeableServiceConfiguration) -> Self {
         Self {
             actions: value.actions.into_iter().map(Into::into).collect(),
+            runtimes: value.runtimes.into_iter().map(Into::into).collect(),
         }
     }
 }
 impl ServiceConfiguration {
-    pub fn has_action(&self, token: &String, action_identifier: &String) -> bool {
-        match self
-            .actions
-            .iter()
-            .find(|x| &x.token == token && &x.service_name == action_identifier)
-        {
+    pub fn has_service(&self, token: &String) -> bool {
+        self.has_runtime(token) || self.has_action(token)
+    }
+
+    pub fn has_runtime(&self, token: &String) -> bool {
+        match self.runtimes.iter().find(|x| &x.token == token) {
+            Some(_) => true,
+            None => false,
+        }
+    }
+
+    pub fn has_action(&self, token: &String) -> bool {
+        match self.actions.iter().find(|x| &x.token == token) {
             Some(_) => true,
             None => false,
         }

@@ -132,15 +132,30 @@ impl AquilaGRPCServer {
 
         info!("RuntimeStatusService started");
 
-        let data_type_server = AquilaDataTypeServiceServer::new(data_type_service.clone());
-        let flow_type_server = AquilaFlowTypeServiceServer::new(flow_type_service.clone());
-        let function_server = AquilaFunctionDefinitionServiceServer::new(function_service.clone());
-        let runtime_function_server =
-            AquilaRuntimeFunctionServiceServer::new(runtime_function_service.clone());
-        let runtime_usage_server =
-            AquilaRuntimeUsageServiceServer::new(runtime_usage_service.clone());
-        let runtime_status_server =
-            AquilaRuntimeStatusServiceServer::new(runtime_status_service.clone());
+        let data_type_server = AquilaDataTypeServiceServer::new(
+            data_type_service.clone(),
+            self.service_configuration.clone(),
+        );
+        let flow_type_server = AquilaFlowTypeServiceServer::new(
+            flow_type_service.clone(),
+            self.service_configuration.clone(),
+        );
+        let function_server = AquilaFunctionDefinitionServiceServer::new(
+            function_service.clone(),
+            self.service_configuration.clone(),
+        );
+        let runtime_function_server = AquilaRuntimeFunctionServiceServer::new(
+            runtime_function_service.clone(),
+            self.service_configuration.clone(),
+        );
+        let runtime_usage_server = AquilaRuntimeUsageServiceServer::new(
+            runtime_usage_service.clone(),
+            self.service_configuration.clone(),
+        );
+        let runtime_status_server = AquilaRuntimeStatusServiceServer::new(
+            runtime_status_service.clone(),
+            self.service_configuration.clone(),
+        );
 
         let action_transfer_server = AquilaActionTransferServiceServer::new(
             self.nats_client.clone(),

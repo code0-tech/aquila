@@ -1,6 +1,9 @@
 pub mod authorization {
     use std::str::FromStr;
-    use tonic::metadata::{MetadataMap, MetadataValue};
+    use tonic::{
+        Request, Status,
+        metadata::{MetadataMap, MetadataValue},
+    };
 
     /// get_authorization_metadata
     ///
@@ -27,5 +30,22 @@ pub mod authorization {
         let mut map = MetadataMap::new();
         map.insert("authorization", metadata_value);
         map
+    }
+
+    pub fn extract_token<T>(request: &Request<T>) -> Result<&str, Status> {
+        let header = request
+            .metadata()
+            .get("authorization")
+            .ok_or_else(|| Status::unauthenticated("missing authorization header"))?;
+
+        let token = header
+            .to_str()
+            .map_err(|_| Status::unauthenticated("authorization header is not valid ASCII"))?;
+
+        if token.is_empty() {
+            return Err(Status::unauthenticated("authorization token is empty"));
+        }
+
+        Ok(token)
     }
 }
