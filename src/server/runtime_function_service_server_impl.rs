@@ -1,17 +1,27 @@
 use std::sync::Arc;
 
 use tokio::sync::Mutex;
+use tonic::Status;
 use tucana::aquila::runtime_function_definition_service_server::RuntimeFunctionDefinitionService;
 
-use crate::sagittarius::runtime_function_service_client_impl::SagittariusRuntimeFunctionServiceClient;
+use crate::{
+    authorization::authorization::extract_token, configuration::service::ServiceConfiguration, sagittarius::runtime_function_service_client_impl::SagittariusRuntimeFunctionServiceClient
+};
 
 pub struct AquilaRuntimeFunctionServiceServer {
     client: Arc<Mutex<SagittariusRuntimeFunctionServiceClient>>,
+    service_configuration: ServiceConfiguration,
 }
 
 impl AquilaRuntimeFunctionServiceServer {
-    pub fn new(client: Arc<Mutex<SagittariusRuntimeFunctionServiceClient>>) -> Self {
-        Self { client }
+    pub fn new(
+        client: Arc<Mutex<SagittariusRuntimeFunctionServiceClient>>,
+        service_configuration: ServiceConfiguration,
+    ) -> Self {
+        Self {
+            client,
+            service_configuration,
+        }
     }
 }
 
@@ -24,6 +34,15 @@ impl RuntimeFunctionDefinitionService for AquilaRuntimeFunctionServiceServer {
         tonic::Response<tucana::aquila::RuntimeFunctionDefinitionUpdateResponse>,
         tonic::Status,
     > {
+        let token = match extract_token(&request) {
+            Ok(t) => t,
+            Err(status) => return Err(status),
+        };
+
+        if !self.service_configuration.has_service(&token.to_string()) {
+            return Err(Status::unauthenticated("token is not valid"));
+        }
+
         let runtime_function_definition_update_request = request.into_inner();
 
         log::debug!(

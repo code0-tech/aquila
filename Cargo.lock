@@ -84,7 +84,7 @@ dependencies = [
  "tokio-stream",
  "tonic",
  "tonic-health",
- "tucana 0.0.68",
+ "tucana",
  "uuid",
 ]
 
@@ -259,9 +259,9 @@ dependencies = [
 
 [[package]]
 name = "code0-flow"
-version = "0.0.29"
+version = "0.0.30"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7eacee3742e78ea0b84a3e5cb9eabd1eecb71391d362c42f36c941db6994016f"
+checksum = "8401c34395889c3587792864120d2ff4354d24e79db8ffb01c17accc550d0de6"
 dependencies = [
  "async-nats",
  "async-trait",
@@ -274,7 +274,7 @@ dependencies = [
  "tokio",
  "tonic",
  "tonic-health",
- "tucana 0.0.65",
+ "tucana",
  "walkdir",
 ]
 
@@ -469,7 +469,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "39cab71617ae0d63f51a36d69f866391735b51691dbda63cf6f96d042b63efeb"
 dependencies = [
  "libc",
- "windows-sys 0.52.0",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -1414,7 +1414,7 @@ dependencies = [
  "errno",
  "libc",
  "linux-raw-sys",
- "windows-sys 0.52.0",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -1710,7 +1710,7 @@ dependencies = [
  "getrandom 0.4.2",
  "once_cell",
  "rustix",
- "windows-sys 0.52.0",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -2018,26 +2018,6 @@ dependencies = [
 
 [[package]]
 name = "tucana"
-version = "0.0.65"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5670bcb2c6c455486e3b5be8b829d7a07bbd06a427d7c6db873259855f34e613"
-dependencies = [
- "pbjson",
- "pbjson-build",
- "pbjson-types",
- "prost",
- "prost-build",
- "prost-types",
- "serde",
- "serde_json",
- "tonic",
- "tonic-build",
- "tonic-prost",
- "tonic-prost-build",
-]
-
-[[package]]
-name = "tucana"
 version = "0.0.68"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "abae78f798d1203bbcce361ba4cb4c500f8fe64e56d16ba3a5a0854e285377eb"
@@ -2273,7 +2253,7 @@ version = "0.1.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c2a7b1c03c876122aa43f3020e6c3c3ee5c05081c9a00739faf7503aeba10d22"
 dependencies = [
- "windows-sys 0.52.0",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]

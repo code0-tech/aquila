@@ -164,7 +164,7 @@ async fn handle_logon(
     log::info!("Action successfull logged on: {:?}", action_logon);
 
     let lock = actions.lock().await;
-    if !lock.has_action(&token.to_string(), &action_logon.action_identifier) {
+    if !lock.has_action(&token.to_string()) {
         log::debug!(
             "Rejected action with identifer: {}, becuase its not registered",
             action_logon.action_identifier

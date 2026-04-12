@@ -9,16 +9,12 @@ struct SerializableActionConfiguration {
     value: serde_json::Value,
 }
 
-type SerializeableActionConfiguration = SerializableActionConfiguration;
-
 #[derive(Serialize, Deserialize, Clone)]
 struct SerializableActionProjectConfiguration {
     project_id: i64,
     #[serde(default)]
     configs: Vec<SerializableActionConfiguration>,
 }
-
-type SerializeableActionProjectConfiguration = SerializableActionProjectConfiguration;
 
 #[derive(Serialize, Deserialize, Clone)]
 pub struct SerializableActionServiceConfiguration {
@@ -28,15 +24,13 @@ pub struct SerializableActionServiceConfiguration {
     configs: Vec<SerializableActionProjectConfiguration>,
 }
 
-pub type SerializeableActionServiceConfiguration = SerializableActionServiceConfiguration;
-
 #[derive(Serialize, Deserialize, Clone, Default)]
 pub struct SerializableServiceConfiguration {
     #[serde(default)]
     actions: Vec<SerializableActionServiceConfiguration>,
+    #[serde(default)]
+    runtimes: Vec<RuntimeServiceConfiguration>,
 }
-
-pub type SerializeableServiceConfiguration = SerializableServiceConfiguration;
 
 #[derive(Serialize, Deserialize, Clone)]
 pub struct ActionServiceConfiguration {
@@ -45,9 +39,16 @@ pub struct ActionServiceConfiguration {
     config: Vec<ActionConfigurations>,
 }
 
+#[derive(Serialize, Deserialize, Clone)]
+pub struct RuntimeServiceConfiguration {
+    token: String,
+    identifier: String,
+}
+
 #[derive(Serialize, Deserialize, Clone, Default)]
 pub struct ServiceConfiguration {
     actions: Vec<ActionServiceConfiguration>,
+    runtimes: Vec<RuntimeServiceConfiguration>,
 }
 
 impl From<SerializableActionConfiguration> for tucana::shared::ActionConfiguration {
@@ -59,8 +60,8 @@ impl From<SerializableActionConfiguration> for tucana::shared::ActionConfigurati
     }
 }
 
-impl From<SerializeableActionProjectConfiguration> for tucana::shared::ActionProjectConfiguration {
-    fn from(value: SerializeableActionProjectConfiguration) -> Self {
+impl From<SerializableActionProjectConfiguration> for tucana::shared::ActionProjectConfiguration {
+    fn from(value: SerializableActionProjectConfiguration) -> Self {
         Self {
             project_id: value.project_id,
             action_configurations: value.configs.into_iter().map(Into::into).collect(),
@@ -68,8 +69,8 @@ impl From<SerializeableActionProjectConfiguration> for tucana::shared::ActionPro
     }
 }
 
-impl From<SerializeableActionServiceConfiguration> for ActionServiceConfiguration {
-    fn from(value: SerializeableActionServiceConfiguration) -> Self {
+impl From<SerializableActionServiceConfiguration> for ActionServiceConfiguration {
+    fn from(value: SerializableActionServiceConfiguration) -> Self {
         let action_identifier = value.identifier.clone();
 
         Self {
@@ -83,20 +84,28 @@ impl From<SerializeableActionServiceConfiguration> for ActionServiceConfiguratio
     }
 }
 
-impl From<SerializeableServiceConfiguration> for ServiceConfiguration {
-    fn from(value: SerializeableServiceConfiguration) -> Self {
+impl From<SerializableServiceConfiguration> for ServiceConfiguration {
+    fn from(value: SerializableServiceConfiguration) -> Self {
         Self {
             actions: value.actions.into_iter().map(Into::into).collect(),
+            runtimes: value.runtimes.into_iter().map(Into::into).collect(),
         }
     }
 }
 impl ServiceConfiguration {
-    pub fn has_action(&self, token: &String, action_identifier: &String) -> bool {
-        match self
-            .actions
-            .iter()
-            .find(|x| &x.token == token && &x.service_name == action_identifier)
-        {
+    pub fn has_service(&self, token: &String) -> bool {
+        self.has_runtime(token) || self.has_action(token)
+    }
+
+    pub fn has_runtime(&self, token: &String) -> bool {
+        match self.runtimes.iter().find(|x| &x.token == token) {
+            Some(_) => true,
+            None => false,
+        }
+    }
+
+    pub fn has_action(&self, token: &String) -> bool {
+        match self.actions.iter().find(|x| &x.token == token) {
             Some(_) => true,
             None => false,
         }
@@ -143,7 +152,7 @@ impl ServiceConfiguration {
             }
         }
 
-        match from_str::<SerializeableServiceConfiguration>(&data) {
+        match from_str::<SerializableServiceConfiguration>(&data) {
             Ok(conf) => return conf.into(),
             Err(error) => {
                 log::warn!(
