@@ -14,31 +14,8 @@ To contribute to Aquila, you should be comfortable with:
 
 ---
 
-## Setting Up a Virtual Development Environment (Preferred)
+## Runtime Infrastructure Overview
 
-[Visit Setup Guide](https://docs.code0.tech/general/install/)
+Under construction
 
-Use Docker Compose to start the application. Make sure Aquila is stopped while you are developing locally.  
-Alternatively, set `COMPOSE_PROFILES=ide` to exclude runtime services (you will need to start NATS manually).
 
-## Setting Up a Local Development Environment
-
-1. **Install Rust and Cargo**  
-   Install the latest versions of Rust and its package manager, Cargo. Use [Rustup](https://rustup.rs/) for an easy installation.
-2. **Set Up Local NATS Instance**
-    - Install NATS locally or use a Docker image.
-    - Ensure it is running and reachable by Aquila.
-    - Enable JetStream.
-    - For help, refer to the [NATS documentation](https://docs.nats.io/running-a-nats-service/introduction/installation).
-3. **Set Up Sagittarius**
-    - Ensure Sagittarius gRPC is running and reachable by Aquila.
-    - [Repository](https://github.com/code0-tech/sagittarius)
-
----
-
-## Additional Notes
-
-- Ensure all dependencies are compatible with the Aquila version you are working on.
-- Use the provided `.env` file as a reference for setting up your environment variables.
-
----

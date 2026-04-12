@@ -8,12 +8,13 @@ Use this guide to install and configure Aquila.
 
 ### Using Docker
 
-1. **Pull the Docker Image**  
-   Pull the latest Docker image from `<image-registry-url>`.
-2. **Configure Environment Variables**  
-   Set up the necessary environment variables in a `.env` file (see the [Environment Variables](#environment-variables) section).
-3. **Start the Application**  
-   Run the Docker container using the appropriate command.
+
+### Setting Up a Virtual Development Environment (Preferred)
+
+[Visit Setup Guide](https://docs.code0.tech/general/install/)
+
+Use Docker Compose to start the application. Make sure Aquila is stopped while you are developing locally.  
+Alternatively, set `COMPOSE_PROFILES=ide` to exclude runtime services (you will need to start NATS manually).
 
 ### Manual Installation
 
