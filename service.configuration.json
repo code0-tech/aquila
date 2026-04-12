@@ -1,30 +1,17 @@
 {
-	"actions": [
+	"actions": [],
+	"runtimes": [
 		{
-			"token": "token",
-			"identifier": "discord",
-			"configs": [
-				{
-					"project_id": 1,
-					"configs": [
-						{
-							"identifier": "send_message",
-							"value": {
-								"channel_id": "123456789012345678",
-								"content": "Hello from bot"
-							}
-						},
-						{
-							"identifier": "assign_role",
-							"value": {
-								"guild_id": "987654321098765432",
-								"user_id": "111111111111111111",
-								"role_id": "222222222222222222"
-							}
-						}
-					]
-				}
-			]
+			"identifier": "taurus",
+			"token": "HsCEzbCuaUtUGSCrvwsSbJSlS2HH6TrW0ZeEKUZGTiOH8vPEZxyAEOx974Ku72l4"
+		},
+		{
+			"identifier": "draco-rest",
+			"token": "SBO3dRKmhszmGH6KxpgKoYGp0gBfgWqV6WEiKtMxldyeWiYLqJx6vwLuVLKRhu8H"
+		},
+		{
+			"identifier": "draco-cron",
+			"token": "VuTFgCj1PO6yr8smk43XLmeTUtlyKa2wjA0zvmz7WZDtgfXC62Ypd1b8fjJl8HvI"
 		}
 	]
 }
