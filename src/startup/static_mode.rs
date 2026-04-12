@@ -81,5 +81,5 @@ async fn init_flows_from_json(
         };
     }
 
-    log::info!("Shutting down after successfully inserting all flows");
+    log::info!("Successfully inserted all flows from the JSON file");
 }
