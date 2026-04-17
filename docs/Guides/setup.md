@@ -19,7 +19,7 @@ Follow this guide to set up Aquila.
 ### Manual Installation
 
 1. **Download the Latest Binary**  
-   Download the latest Aquila binary from https://github.com/code0-tech/aquila/releases.
+   Download the latest Aquila binary from <https://github.com/code0-tech/aquila/releases>.
 2. **Set Up Environment Variables**  
    Configure the `.env` file in the root folder with the required settings.
 3. **Ensure Required Service Is Running**
