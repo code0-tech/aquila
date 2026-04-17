@@ -19,10 +19,10 @@ To contribute to Aquila's development, you need the following expertise and tool
 1. **Install Rust and Cargo**  
    Install the latest versions of Rust and its package manager, Cargo. Use [Rustup](https://rustup.rs/) for an easy installation.
 2. **Set Up Local NATS Instance**
-    - Install NATS on your local machine or use the Dockerimage.
-    - Ensure its running and accessible for Aquila.
-    - Activate JetStream
-    - For any help refer to the [NATS documentation](https://docs.nats.io/running-a-nats-service/introduction/installation)
+   - Install NATS on your local machine or use the Dockerimage.
+   - Ensure its running and accessible for Aquila.
+   - Activate JetStream
+   - For any help refer to the [NATS documentation](https://docs.nats.io/running-a-nats-service/introduction/installation)
 
 ---
 
