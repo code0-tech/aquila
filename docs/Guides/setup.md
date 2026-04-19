@@ -14,7 +14,7 @@ Use this guide to install and configure Aquila.
 [Visit Setup Guide](https://docs.code0.tech/general/install/)
 
 Use Docker Compose to start the application. Make sure Aquila is stopped while you are developing locally.  
-Alternatively, set `COMPOSE_PROFILES=ide` to exclude runtime services (you will need to start NATS manually).
+Alternatively, set `COMPOSE_PROFILES=ide` to exclude runtime services (you will need to start NATS & Aquila manually).
 
 ### Manual Installation
 

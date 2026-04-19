@@ -14,6 +14,10 @@ To contribute to Aquila, you should be comfortable with:
 
 ---
 
+## Whats Static/Dynamic Mode
+
+Under construction
+
 ## Runtime Infrastructure Overview
 
 Under construction
