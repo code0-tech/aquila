@@ -33,7 +33,8 @@ graph TD
 
 %% === Middle Layer ===
 Sagittarius["`**Sagittarius**
-Persists flows, users, and related runtime metadata. Acts as a middle layer between frontend services and the execution block.`"]
+Persists flows, users, and related runtime metadata. 
+Acts as a middle layer between frontend services and the execution block.`"]
 
 Actions["`**Actions**
 Acts as runtime add-ons. Can execute single nodes or send flow groups to the execution layer.`"]
@@ -41,7 +42,8 @@ Acts as runtime add-ons. Can execute single nodes or send flow groups to the exe
 %% === Runtime / Execution Block ===
 subgraph ExecutionBlock["Runtime Block"]
   Aquila["`**Aquila**
-  Gateway to the execution block. Keeps execution state updated and informs Sagittarius about service state changes (for example DataTypes, FlowTypes, and RuntimeDefinitions).`"]
+  Gateway to the execution block. Keeps execution state updated and informs Sagittarius 
+about service state changes (for example DataTypes, FlowTypes, and RuntimeDefinitions).`"]
 
   Draco["`**Draco**
   Protocol handler (for example an HTTP server). Accepts requests and triggers flow execution.`"]
@@ -74,6 +76,7 @@ In dynamic mode, Aquila maintains an active connection to Sagittarius to keep ru
 In dynamic mode, the runtime follows the first diagram above: Aquila stays connected to Sagittarius.
 
 Reasons to run dynamic mode:
+
 - Flows are updated frequently and should be synchronized automatically
 - You expect continuous growth in flow count
 
@@ -82,6 +85,7 @@ Reasons to run dynamic mode:
 In static mode, Sagittarius is not part of the runtime path. Flows and runtime configuration are loaded from local files.
 
 Reasons to run static mode:
+
 - Runtime needs to be standalone
 - No flow updates are needed anymore
 - Infrastructure resources are constrained and should be dedicated to execution
@@ -119,4 +123,5 @@ Taurus --> NATS
 Aquila --> NATS
 ```
 
-> In static mode, flow data and service authorization are loaded from local files (for example `FLOW_FALLBACK_PATH` and `SERVICE_CONFIG_PATH`) before runtime execution starts.
+> In static mode, flow data and service authorization are loaded from local 
+files (for example `FLOW_FALLBACK_PATH` and `SERVICE_CONFIG_PATH`) before runtime execution starts.

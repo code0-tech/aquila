@@ -10,7 +10,8 @@ Use this guide to install and configure Aquila.
 
 Use Docker Compose to run Aquila and related services.
 If you are developing Aquila locally, make sure the Aquila container is stopped to avoid port conflicts.
-If your compose setup supports profiles, you can set `COMPOSE_PROFILES=ide` to run only IDE-related services and start Aquila manually.
+If your compose setup supports profiles, you can set `COMPOSE_PROFILES=ide` to run only 
+IDE-related services and start Aquila manually.
 
 ### Virtual Development Environment (Preferred)
 
@@ -83,6 +84,7 @@ Set `MODE=hybrid` to keep flows synchronized from Sagittarius.
 To authorize services like `Taurus`, `Draco`, or an `Action`, they must be declared in Aquila's service configuration file.
 
 `SERVICE_CONFIG_PATH` points to a JSON file that defines:
+
 - Allowed runtime tokens
 - Allowed action tokens
 - Optional default action configurations
