@@ -10,7 +10,7 @@ Use this guide to install and configure Aquila.
 
 Use Docker Compose to run Aquila and related services.
 If you are developing Aquila locally, make sure the Aquila container is stopped to avoid port conflicts.
-If your compose setup supports profiles, you can set `COMPOSE_PROFILES=ide` to run only 
+If your compose setup supports profiles, you can set `COMPOSE_PROFILES=ide` to run only
 IDE-related services and start Aquila manually.
 
 ### Virtual Development Environment (Preferred)

@@ -123,5 +123,5 @@ Taurus --> NATS
 Aquila --> NATS
 ```
 
-> In static mode, flow data and service authorization are loaded from local 
+> In static mode, flow data and service authorization are loaded from local
 files (for example `FLOW_FALLBACK_PATH` and `SERVICE_CONFIG_PATH`) before runtime execution starts.
