@@ -6,101 +6,114 @@ Use this guide to install and configure Aquila.
 
 ## Setup Options
 
-### Using Docker
+### Using Docker Compose
 
+Use Docker Compose to run Aquila and related services.
+If you are developing Aquila locally, make sure the Aquila container is stopped to avoid port conflicts.
+If your compose setup supports profiles, you can set `COMPOSE_PROFILES=ide` to run only IDE-related services and start Aquila manually.
 
-### Setting Up a Virtual Development Environment (Preferred)
+### Virtual Development Environment (Preferred)
 
-[Visit Setup Guide](https://docs.code0.tech/general/install/)
+Use the shared environment setup from the main platform docs:
 
-Use Docker Compose to start the application. Make sure Aquila is stopped while you are developing locally.  
-Alternatively, set `COMPOSE_PROFILES=ide` to exclude runtime services (you will need to start NATS & Aquila manually).
+- [Visit Setup Guide](https://docs.code0.tech/general/install/)
 
 ### Manual Installation
 
-1. **Clone Aquila**  
-   Clone the repository to your local machine.
-2. **Set Up Environment Variables**  
-   Configure the `.env` file in the root folder with the required settings.
-3. **Ensure Required Services Are Running**
+1. **Clone Aquila**
+   Clone this repository to your local machine.
+2. **Set up environment variables**
+   Configure `.env` in the project root with the required settings.
+   You can use `.env-example` as a starting point.
+3. **Ensure required services are running**
    - **NATS**:
-     - Ensure a NATS instance is reachable.
-     - Enable JetStream.
-     - For help, refer to the [NATS documentation](https://docs.nats.io/running-a-nats-service/introduction/installation).
-   - **Sagittarius**: Ensure a Sagittarius instance is reachable.
-4. **Start the Application**  
+     - Ensure a NATS instance is reachable
+     - Enable JetStream
+     - See [NATS installation docs](https://docs.nats.io/running-a-nats-service/introduction/installation)
+   - **Sagittarius**:
+     - Required for dynamic mode (`MODE=hybrid`)
+     - Ensure the configured endpoint is reachable
+4. **Start Aquila**
+   Run:
+
+```bash
+cargo run
+```
 
 ---
 
 ## Environment Variables
 
-Below is a list of environment variables for configuring Aquila. The configuration is split into common variables and mode-specific variables.
+Aquila configuration is split into shared variables and mode-specific variables.
 
 ### Common (Static + Dynamic)
 
-| Name                    | Description                                                                                         | Default                         |
-|-------------------------|-----------------------------------------------------------------------------------------------------|---------------------------------|
-| `MODE`                  | Application mode. `static` starts from a local flow file. Any non-`static` mode runs dynamic mode. | `static`                        |
-| `ENVIRONMENT`           | Logging/behavior environment (`development`, `staging`, `production`).                              | `development`                   |
-| `NATS_URL`              | URL of the NATS instance Aquila connects to.                                                       | `nats://localhost:4222`         |
-| `NATS_BUCKET`           | Name of the NATS KV bucket used to store flows.                                                     | `flow_store`                    |
-| `GRPC_HOST`             | Hostname for the Aquila gRPC server.                                                                | `127.0.0.1`                     |
-| `GRPC_PORT`             | Port for the Aquila gRPC server.                                                                    | `8081`                          |
-| `WITH_HEALTH_SERVICE`   | If `true`, Aquila enables the gRPC health service.                                                  | `false`                         |
-| `SERVICE_CONFIG_PATH`   | Path to the service configuration file used for action/runtime tokens and default action configs. | `./service.configuration.json` |
+| Name                  | Description                                                                                                  | Default                         |
+|-----------------------|--------------------------------------------------------------------------------------------------------------|---------------------------------|
+| `MODE`                | Runtime mode. `static` loads local flows. `hybrid` enables dynamic synchronization with Sagittarius.        | `static`                        |
+| `ENVIRONMENT`         | Runtime environment (`development`, `staging`, `production`).                                                | `development`                   |
+| `NATS_URL`            | URL of the NATS instance Aquila connects to.                                                                 | `nats://localhost:4222`         |
+| `NATS_BUCKET`         | Name of the NATS KV bucket used to store flows.                                                              | `flow_store`                    |
+| `GRPC_HOST`           | Hostname for the Aquila gRPC server.                                                                         | `127.0.0.1`                     |
+| `GRPC_PORT`           | Port for the Aquila gRPC server.                                                                             | `8081`                          |
+| `WITH_HEALTH_SERVICE` | Enables the gRPC health service when set to `true`.                                                          | `false`                         |
+| `SERVICE_CONFIG_PATH` | Path to the JSON service-configuration file used for runtime/action authorization and default action configs. | `./service.configuration.json` |
 
 ### Static Mode
 
-Set `MODE=static` to start Aquila from a local flow file and insert flows into the NATS KV store.
+Set `MODE=static` to load flows from a local JSON file and insert them into the NATS KV store on startup.
 
-| Name                 | Description                                             | Default            |
-|----------------------|---------------------------------------------------------|--------------------|
-| `FLOW_FALLBACK_PATH` | Path to the flow JSON file loaded on startup.           | `./flowExport.json` |
+| Name                 | Description                                   | Default             |
+|----------------------|-----------------------------------------------|---------------------|
+| `FLOW_FALLBACK_PATH` | Path to the flow JSON file loaded at startup. | `./flowExport.json` |
 
 ### Dynamic Mode
 
-Dynamic mode keeps flows updated by streaming from Sagittarius. Any non-`static` mode value will
-start dynamic mode (for example `MODE=hybrid` if supported by your `code0_flow` version).
+Set `MODE=hybrid` to keep flows synchronized from Sagittarius.
 
-| Name              | Description                                                                       | Default                   |
-|-------------------|-----------------------------------------------------------------------------------|---------------------------|
-| `SAGITTARIUS_URL` | URL of the Sagittarius instance Aquila connects to for flow/action configuration. | `http://localhost:50051`  |
-| `RUNTIME_TOKEN`   | Token used to authenticate Aquila with Sagittarius.                               | `default_session_token`   |
+| Name              | Description                                                                       | Default                  |
+|-------------------|-----------------------------------------------------------------------------------|--------------------------|
+| `SAGITTARIUS_URL` | URL of the Sagittarius instance Aquila connects to for flow and action updates. | `http://localhost:50051` |
+| `RUNTIME_TOKEN`   | Token used by Aquila to authenticate with Sagittarius.                            | `default_session_token`  |
 
 ---
 
 ## Service Configuration File
 
-To add services like `Taurus`, `Draco`, or an `Action` to the runtime, the service must be configured in Aquila to ensure it is authorized.
+To authorize services like `Taurus`, `Draco`, or an `Action`, they must be declared in Aquila's service configuration file.
 
-`SERVICE_CONFIG_PATH` points to a JSON file that defines allowed runtime/action tokens and optional
-default action configurations. This file is loaded on startup; if it is missing or invalid, Aquila
-starts with an empty service configuration.
+`SERVICE_CONFIG_PATH` points to a JSON file that defines:
+- Allowed runtime tokens
+- Allowed action tokens
+- Optional default action configurations
 
-By default, Aquila includes a configuration that is preconfigured for runtime services.
+This file is loaded on startup. If the file is missing or invalid, Aquila starts with an empty service configuration.
 
 Default:
 
 ```json
 {
-	"actions": [],
-	"runtimes": [
-		{
-			"identifier": "taurus",
-			"token": "HsCEzbCuaUtUGSCrvwsSbJSlS2HH6TrW0ZeEKUZGTiOH8vPEZxyAEOx974Ku72l4"
-		},
-		{
-			"identifier": "draco-rest",
-			"token": "SBO3dRKmhszmGH6KxpgKoYGp0gBfgWqV6WEiKtMxldyeWiYLqJx6vwLuVLKRhu8H"
-		},
-		{
-			"identifier": "draco-cron",
-			"token": "VuTFgCj1PO6yr8smk43XLmeTUtlyKa2wjA0zvmz7WZDtgfXC62Ypd1b8fjJl8HvI"
-		}
-	]
+  "actions": [],
+  "runtimes": [
+    {
+      "identifier": "taurus",
+      "token": "HsCEzbCuaUtUGSCrvwsSbJSlS2HH6TrW0ZeEKUZGTiOH8vPEZxyAEOx974Ku72l4"
+    },
+    {
+      "identifier": "draco-rest",
+      "token": "SBO3dRKmhszmGH6KxpgKoYGp0gBfgWqV6WEiKtMxldyeWiYLqJx6vwLuVLKRhu8H"
+    },
+    {
+      "identifier": "draco-cron",
+      "token": "VuTFgCj1PO6yr8smk43XLmeTUtlyKa2wjA0zvmz7WZDtgfXC62Ypd1b8fjJl8HvI"
+    }
+  ]
 }
 ```
-You can add as many runtimes as you need. To add an `Action`, add an entry to `actions`. To provide a configuration for an `Action`, add `config` objects to that action.
+
+You can add as many runtimes as needed.
+To add an `Action`, add an entry under `actions`.
+To provide default Action-level config, add `configs` entries for that action.
 
 ```json
 {
