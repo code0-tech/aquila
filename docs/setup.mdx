@@ -2,6 +2,8 @@
 title: Aquila Setup Guide
 ---
 
+import {Step, Steps} from 'fumadocs-ui/components/steps';
+
 Use this guide to install and configure Aquila.
 
 ## Setup Options
@@ -21,12 +23,25 @@ Use the shared environment setup from the main platform docs:
 
 ### Manual Installation
 
-1. **Clone Aquila**
-   Clone this repository to your local machine.
-2. **Set up environment variables**
-   Configure `.env` in the project root with the required settings.
-   You can use `.env-example` as a starting point.
-3. **Ensure required services are running**
+<Steps>
+
+<Step>
+####**Clone Aquila**
+
+Clone this repository to your local machine.
+
+</Step>
+
+<Step>
+####**Set up environment variables**
+
+Configure `.env` in the project root with the required settings.
+You can use `.env-example` as a starting point.
+
+</Step>
+
+<Step>
+####**Ensure required services are running**
    - **NATS**:
      - Ensure a NATS instance is reachable
      - Enable JetStream
@@ -34,13 +49,19 @@ Use the shared environment setup from the main platform docs:
    - **Sagittarius**:
      - Required for dynamic mode (`MODE=hybrid`)
      - Ensure the configured endpoint is reachable
-4. **Start Aquila**
+
+</Step>
+
+<Step>
+####**Start Aquila**
    Run:
 
 ```bash
 cargo run
 ```
+</Step>
 
+</Steps>
 ---
 
 ## Environment Variables
