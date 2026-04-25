@@ -26,6 +26,7 @@ Use the shared environment setup from the main platform docs:
 <Steps>
 
 <Step>
+
 ####**Clone Aquila**
 
 Clone this repository to your local machine.
@@ -33,6 +34,7 @@ Clone this repository to your local machine.
 </Step>
 
 <Step>
+
 ####**Set up environment variables**
 
 Configure `.env` in the project root with the required settings.
@@ -41,9 +43,11 @@ You can use `.env-example` as a starting point.
 </Step>
 
 <Step>
+
 ####**Ensure required services are running**
-   - **NATS**:
-     - Ensure a NATS instance is reachable
+
+	 - **NATS**:
+	   - Ensure a NATS instance is reachable
      - Enable JetStream
      - See [NATS installation docs](https://docs.nats.io/running-a-nats-service/introduction/installation)
    - **Sagittarius**:
@@ -53,12 +57,15 @@ You can use `.env-example` as a starting point.
 </Step>
 
 <Step>
+
 ####**Start Aquila**
-   Run:
+
+Run:
 
 ```bash
 cargo run
 ```
+
 </Step>
 
 </Steps>
