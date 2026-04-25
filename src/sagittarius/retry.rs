@@ -37,6 +37,8 @@ pub async fn create_channel_with_retry(
 
         match channel.connect().await {
             Ok(ch) => {
+                ready.store(true, Ordering::SeqCst);
+                log::info!("Successfully connected to `{}` using `{}`", channel_name, url);
                 return ch;
             }
             Err(err) => {
