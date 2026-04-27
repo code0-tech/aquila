@@ -25,6 +25,9 @@ impl SagittariusRuntimeStatusServiceClient {
                 tucana::aquila::runtime_status_update_request::Status::ExecutionRuntimeStatus(execution_runtime_status) => {
                     Some(tucana::sagittarius::runtime_status_update_request::Status::ExecutionRuntimeStatus(execution_runtime_status))
                 },
+                tucana::aquila::runtime_status_update_request::Status::ActionStatus(action_status) => {
+                    Some(tucana::sagittarius::runtime_status_update_request::Status::ActionStatus(action_status))
+                },
             },
             None => None,
         };
