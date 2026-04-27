@@ -42,7 +42,7 @@ pub struct AquilaGRPCServer {
     service_configuration: ServiceConfiguration,
     nats_client: async_nats::Client,
     kv_store: Arc<Store>,
-    action_config_tx: tokio::sync::broadcast::Sender<tucana::shared::ActionConfigurations>,
+    action_config_tx: tokio::sync::broadcast::Sender<tucana::shared::ModuleConfigurations>,
     is_static: bool,
 }
 
@@ -54,7 +54,7 @@ impl AquilaGRPCServer {
         service_configuration: ServiceConfiguration,
         nats_client: async_nats::Client,
         kv_store: Arc<Store>,
-        action_config_tx: tokio::sync::broadcast::Sender<tucana::shared::ActionConfigurations>,
+        action_config_tx: tokio::sync::broadcast::Sender<tucana::shared::ModuleConfigurations>,
     ) -> Self {
         let address = match format!("{}:{}", config.grpc_host, config.grpc_port).parse() {
             Ok(addr) => {

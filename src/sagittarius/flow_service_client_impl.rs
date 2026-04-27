@@ -21,7 +21,7 @@ pub struct SagittariusFlowClient {
     env: String,
     token: String,
     sagittarius_ready: Arc<AtomicBool>,
-    action_config_tx: broadcast::Sender<tucana::shared::ActionConfigurations>,
+    action_config_tx: broadcast::Sender<tucana::shared::ModuleConfigurations>,
 }
 
 impl SagittariusFlowClient {
@@ -31,7 +31,7 @@ impl SagittariusFlowClient {
         token: String,
         channel: Channel,
         sagittarius_ready: Arc<AtomicBool>,
-        action_config_tx: broadcast::Sender<tucana::shared::ActionConfigurations>,
+        action_config_tx: broadcast::Sender<tucana::shared::ModuleConfigurations>,
     ) -> SagittariusFlowClient {
         let client = FlowServiceClient::new(channel);
 
@@ -151,7 +151,7 @@ impl SagittariusFlowClient {
                     };
                 }
             }
-            Data::ActionConfigurations(action_configurations) => {
+            Data::ModuleConfigurations(action_configurations) => {
                 if let Err(err) = self.action_config_tx.send(action_configurations) {
                     log::warn!("No action configuration receivers available: {:?}", err);
                 }
