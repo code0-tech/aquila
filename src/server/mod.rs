@@ -1,25 +1,19 @@
 use crate::{
     configuration::{config::Config, service::ServiceConfiguration, state::AppReadiness},
     sagittarius::{
-        data_type_service_client_impl::SagittariusDataTypeServiceClient,
-        flow_type_service_client_impl::SagittariusFlowTypeServiceClient,
-        function_service_client_impl::SagittariusFunctionDefinitionServiceClient,
-        runtime_function_service_client_impl::SagittariusRuntimeFunctionServiceClient,
+        module_service_client_impl::SagittariusModuleServiceClient,
         runtime_status_service_client_impl::SagittariusRuntimeStatusServiceClient,
         runtime_usage_client_impl::SagittariusRuntimeUsageClient,
     },
     server::{
         action_transfer_service_server_impl::AquilaActionTransferServiceServer,
-        function_service_server_impl::AquilaFunctionDefinitionServiceServer,
+        module_service_server_impl::AquilaModuleServiceServer,
         runtime_status_service_server_impl::AquilaRuntimeStatusServiceServer,
         runtime_usage_service_server_impl::AquilaRuntimeUsageServiceServer,
     },
 };
 use async_nats::jetstream::kv::Store;
-use data_type_service_server_impl::AquilaDataTypeServiceServer;
-use flow_type_service_server_impl::AquilaFlowTypeServiceServer;
 use log::info;
-use runtime_function_service_server_impl::AquilaRuntimeFunctionServiceServer;
 use std::{net::SocketAddr, sync::Arc};
 use tokio::sync::Mutex;
 use tonic::{
@@ -28,19 +22,13 @@ use tonic::{
 };
 use tucana::aquila::{
     action_transfer_service_server::ActionTransferServiceServer,
-    data_type_service_server::DataTypeServiceServer,
-    flow_type_service_server::FlowTypeServiceServer,
-    function_definition_service_server::FunctionDefinitionServiceServer,
-    runtime_function_definition_service_server::RuntimeFunctionDefinitionServiceServer,
+    module_service_server::ModuleServiceServer,
     runtime_status_service_server::RuntimeStatusServiceServer,
     runtime_usage_service_server::RuntimeUsageServiceServer,
 };
 
 mod action_transfer_service_server_impl;
-mod data_type_service_server_impl;
-mod flow_type_service_server_impl;
-mod function_service_server_impl;
-mod runtime_function_service_server_impl;
+mod module_service_server_impl;
 mod runtime_status_service_server_impl;
 mod runtime_usage_service_server_impl;
 
@@ -92,32 +80,12 @@ impl AquilaGRPCServer {
     }
 
     pub async fn start(&self) -> Result<(), tonic::transport::Error> {
-        let data_type_service = Arc::new(Mutex::new(SagittariusDataTypeServiceClient::new(
+        let module_service = Arc::new(Mutex::new(SagittariusModuleServiceClient::new(
             self.channel.clone(),
             self.token.clone(),
         )));
 
-        info!("DataTypeService started");
-
-        let flow_type_service = Arc::new(Mutex::new(SagittariusFlowTypeServiceClient::new(
-            self.channel.clone(),
-            self.token.clone(),
-        )));
-        info!("FlowTypeService started");
-
-        let runtime_function_service = Arc::new(Mutex::new(
-            SagittariusRuntimeFunctionServiceClient::new(self.channel.clone(), self.token.clone()),
-        ));
-
-        info!("RuntimeFunctionService started");
-
-        let function_service =
-            Arc::new(Mutex::new(SagittariusFunctionDefinitionServiceClient::new(
-                self.channel.clone(),
-                self.token.clone(),
-            )));
-
-        info!("FunctionService started");
+        info!("ModuleService started");
 
         let runtime_usage_service = Arc::new(Mutex::new(SagittariusRuntimeUsageClient::new(
             self.channel.clone(),
@@ -132,20 +100,8 @@ impl AquilaGRPCServer {
 
         info!("RuntimeStatusService started");
 
-        let data_type_server = AquilaDataTypeServiceServer::new(
-            data_type_service.clone(),
-            self.service_configuration.clone(),
-        );
-        let flow_type_server = AquilaFlowTypeServiceServer::new(
-            flow_type_service.clone(),
-            self.service_configuration.clone(),
-        );
-        let function_server = AquilaFunctionDefinitionServiceServer::new(
-            function_service.clone(),
-            self.service_configuration.clone(),
-        );
-        let runtime_function_server = AquilaRuntimeFunctionServiceServer::new(
-            runtime_function_service.clone(),
+        let module_server = AquilaModuleServiceServer::new(
+            module_service.clone(),
             self.service_configuration.clone(),
         );
         let runtime_usage_server = AquilaRuntimeUsageServiceServer::new(
@@ -191,20 +147,8 @@ impl AquilaGRPCServer {
                 .add_service(tonic_health::pb::health_server::HealthServer::new(
                     health_service,
                 ))
-                .add_service(DataTypeServiceServer::with_interceptor(
-                    data_type_server,
-                    intercept.clone(),
-                ))
-                .add_service(FlowTypeServiceServer::with_interceptor(
-                    flow_type_server,
-                    intercept.clone(),
-                ))
-                .add_service(RuntimeFunctionDefinitionServiceServer::with_interceptor(
-                    runtime_function_server,
-                    intercept.clone(),
-                ))
-                .add_service(FunctionDefinitionServiceServer::with_interceptor(
-                    function_server,
+                .add_service(ModuleServiceServer::with_interceptor(
+                    module_server,
                     intercept.clone(),
                 ))
                 .add_service(RuntimeUsageServiceServer::with_interceptor(
@@ -223,20 +167,8 @@ impl AquilaGRPCServer {
                 .await
         } else {
             Server::builder()
-                .add_service(DataTypeServiceServer::with_interceptor(
-                    data_type_server,
-                    intercept.clone(),
-                ))
-                .add_service(FlowTypeServiceServer::with_interceptor(
-                    flow_type_server,
-                    intercept.clone(),
-                ))
-                .add_service(RuntimeFunctionDefinitionServiceServer::with_interceptor(
-                    runtime_function_server,
-                    intercept.clone(),
-                ))
-                .add_service(FunctionDefinitionServiceServer::with_interceptor(
-                    function_server,
+                .add_service(ModuleServiceServer::with_interceptor(
+                    module_server,
                     intercept.clone(),
                 ))
                 .add_service(RuntimeUsageServiceServer::with_interceptor(
