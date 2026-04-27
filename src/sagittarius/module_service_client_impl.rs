@@ -42,7 +42,7 @@ impl SagittariusModuleServiceClient {
                 }
             }
             Err(err) => {
-                log::error!("Failed to update DataTypes: {:?}", err);
+                log::error!("Failed to update Modules via Sagittarius RPC transport: {:?}", err);
                 tucana::aquila::ModuleUpdateResponse { success: false }
             }
         }
