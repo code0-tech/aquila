@@ -95,7 +95,7 @@ impl Config {
             ),
             runtime_status_monitor_interval_secs: env_with_default(
                 "RUNTIME_STATUS_MONITOR_INTERVAL_SECS",
-                1_u64,
+                3_u64,
             ),
         }
     }
