@@ -14,7 +14,7 @@ use crate::{
 };
 use async_nats::jetstream::kv::Store;
 use log::info;
-use std::{net::SocketAddr, sync::Arc};
+use std::{net::SocketAddr, sync::Arc, time::Duration};
 use tokio::sync::Mutex;
 use tonic::{
     Request, Status,
@@ -44,6 +44,9 @@ pub struct AquilaGRPCServer {
     kv_store: Arc<Store>,
     action_config_tx: tokio::sync::broadcast::Sender<tucana::shared::ModuleConfigurations>,
     is_static: bool,
+    runtime_status_not_responding_after: Duration,
+    runtime_status_stopped_after_not_responding: Duration,
+    runtime_status_monitor_interval: Duration,
 }
 
 impl AquilaGRPCServer {
@@ -76,6 +79,15 @@ impl AquilaGRPCServer {
             kv_store,
             action_config_tx,
             is_static: config.is_static(),
+            runtime_status_not_responding_after: Duration::from_secs(
+                config.runtime_status_not_responding_after_secs,
+            ),
+            runtime_status_stopped_after_not_responding: Duration::from_secs(
+                config.runtime_status_stopped_after_not_responding_secs,
+            ),
+            runtime_status_monitor_interval: Duration::from_secs(
+                config.runtime_status_monitor_interval_secs.max(1),
+            ),
         }
     }
 
@@ -111,6 +123,9 @@ impl AquilaGRPCServer {
         let runtime_status_server = AquilaRuntimeStatusServiceServer::new(
             runtime_status_service.clone(),
             self.service_configuration.clone(),
+            self.runtime_status_not_responding_after,
+            self.runtime_status_stopped_after_not_responding,
+            self.runtime_status_monitor_interval,
         );
 
         let action_transfer_server = AquilaActionTransferServiceServer::new(
