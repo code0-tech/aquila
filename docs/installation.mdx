@@ -90,6 +90,9 @@ Aquila configuration is split into shared variables and mode-specific variables.
 | `GRPC_PORT`           | Port for the Aquila gRPC server.                                                                             | `8081`                          |
 | `WITH_HEALTH_SERVICE` | Enables the gRPC health service when set to `true`.                                                          | `false`                         |
 | `SERVICE_CONFIG_PATH` | Path to the JSON service-configuration file used for runtime/action authorization and default action configs. | `./service.configuration.json` |
+| `RUNTIME_STATUS_NOT_RESPONDING_AFTER_SECS` | Seconds a runtime serivce will be marked as `not_responding` when no hearbeat was recieved. | `15s` |
+| `RUNTIME_STATUS_STOPPED_AFTER_NOT_RESPONDING_SECS` | Seconds a runtime serivce will be marked as `stopped` when no hearbeat was recieved. | `30s` |
+| `RUNTIME_STATUS_MONITOR_INTERVAL_SECS` | Interval in which the heartbeat of the services will be flagged/checked. | `3s` |
 
 ### Static Mode
 
