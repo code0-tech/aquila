@@ -12,8 +12,8 @@ use tonic::Request;
 use tonic::transport::Channel;
 use tucana::sagittarius::execution_logon_request::Data;
 use tucana::sagittarius::execution_service_client::ExecutionServiceClient;
-use tucana::sagittarius::{ExecutionLogonRequest, Logon, TestExecutionResponse};
-use tucana::shared::{ExecutionFlow, ValidationFlow, Value};
+use tucana::sagittarius::{ExecutionLogonRequest, Logon};
+use tucana::shared::{ExecutionFlow, ExecutionResult, ValidationFlow};
 
 pub struct SagittariusTestExecutionServiceClient {
     nats_client: async_nats::Client,
@@ -111,16 +111,12 @@ impl SagittariusTestExecutionServiceClient {
                 let topic = format!("test_execution.{}", uuid);
                 let result = self.nats_client.request(topic, bytes.into()).await;
 
+                // Aquila will expect a `Execution Result` back from Taurus
                 match result {
-                    Ok(message) => match Value::decode(message.payload) {
+                    Ok(message) => match ExecutionResult::decode(message.payload) {
                         Ok(value) => {
                             let execution_result = ExecutionLogonRequest {
-                                data: Some(Data::Response(TestExecutionResponse {
-                                    flow_id: request.flow_id,
-                                    execution_uuid: uuid,
-                                    result: Some(value),
-                                    logs: vec![],
-                                })),
+                                data: Some(Data::Response(value)),
                             };
 
                             if let Err(err) = tx.send(execution_result).await {

@@ -57,7 +57,7 @@ pub async fn run(
     .await;
 
     let (action_config_tx, _) =
-        tokio::sync::broadcast::channel::<tucana::shared::ActionConfigurations>(64);
+        tokio::sync::broadcast::channel::<tucana::shared::ModuleConfigurations>(64);
 
     let server = AquilaGRPCServer::new(
         &config,

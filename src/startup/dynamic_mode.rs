@@ -10,7 +10,7 @@ pub async fn run(
     config: AquilaConfig,
     app_readiness: AppReadiness,
     kv_store: Arc<async_nats::jetstream::kv::Store>,
-    action_config_tx: tokio::sync::broadcast::Sender<tucana::shared::ActionConfigurations>,
+    action_config_tx: tokio::sync::broadcast::Sender<tucana::shared::ModuleConfigurations>,
     mut server_task: tokio::task::JoinHandle<()>,
 ) {
     let kv_for_flow = kv_store.clone();

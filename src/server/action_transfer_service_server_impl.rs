@@ -9,8 +9,9 @@ use tokio_stream::wrappers::ReceiverStream;
 use tonic::Status;
 use tucana::{
     aquila::{
-        ActionLogon, Event, ExecutionRequest, ExecutionResult, TransferRequest, TransferResponse,
-        action_transfer_service_server::ActionTransferService, transfer_response,
+        ActionEvent, ActionExecutionRequest, ActionExecutionResponse, ActionLogon,
+        ActionTransferRequest, ActionTransferResponse,
+        action_transfer_service_server::ActionTransferService,
     },
     shared::{ExecutionFlow, Flows, ValidationFlow, Value},
 };
@@ -21,7 +22,7 @@ pub struct AquilaActionTransferServiceServer {
     client: async_nats::Client,
     kv: async_nats::jetstream::kv::Store,
     actions: ServiceConfiguration,
-    action_config_tx: tokio::sync::broadcast::Sender<tucana::shared::ActionConfigurations>,
+    action_config_tx: tokio::sync::broadcast::Sender<tucana::shared::ModuleConfigurations>,
     is_static: bool,
 }
 
@@ -30,7 +31,7 @@ impl AquilaActionTransferServiceServer {
         client: async_nats::Client,
         kv: async_nats::jetstream::kv::Store,
         actions: ServiceConfiguration,
-        action_config_tx: tokio::sync::broadcast::Sender<tucana::shared::ActionConfigurations>,
+        action_config_tx: tokio::sync::broadcast::Sender<tucana::shared::ModuleConfigurations>,
         is_static: bool,
     ) -> Self {
         Self {
@@ -119,12 +120,12 @@ fn convert_validation_flow(flow: ValidationFlow, input_value: Option<Value>) -> 
 }
 
 fn applies_to_action(
-    configs: &tucana::shared::ActionConfigurations,
+    configs: &tucana::shared::ModuleConfigurations,
     action_identifier: &str,
 ) -> bool {
-    configs.action_configurations.iter().any(|project_cfg| {
+    configs.module_configurations.iter().any(|project_cfg| {
         project_cfg
-            .action_configurations
+            .module_configurations
             .iter()
             .any(|cfg| cfg.identifier == action_identifier)
     })
@@ -132,7 +133,7 @@ fn applies_to_action(
 
 /// Extracts the bearer token from gRPC metadata.
 fn extract_token(
-    request: &tonic::Request<tonic::Streaming<TransferRequest>>,
+    request: &tonic::Request<tonic::Streaming<ActionTransferRequest>>,
 ) -> Result<String, Status> {
     log::debug!("Extracting authorization token from metadata");
     match request.metadata().get("authorization") {
@@ -156,18 +157,24 @@ async fn handle_logon(
     action_logon: ActionLogon,
     actions: Arc<Mutex<ServiceConfiguration>>,
     client: async_nats::Client,
-    cfg_tx: tokio::sync::broadcast::Sender<tucana::shared::ActionConfigurations>,
-    tx: tokio::sync::mpsc::Sender<Result<TransferResponse, tonic::Status>>,
+    cfg_tx: tokio::sync::broadcast::Sender<tucana::shared::ModuleConfigurations>,
+    tx: tokio::sync::mpsc::Sender<Result<ActionTransferResponse, tonic::Status>>,
     pending_replies: PendingReplies,
     cfg_forwarder_started: &mut bool,
 ) -> Result<ActionLogon, Status> {
     log::info!("Action successfull logged on: {:?}", action_logon);
 
+    let identifier = match action_logon.module {
+        Some(ref m) => m.identifier.clone(),
+        None => {
+            return Err(Status::aborted("Please provide a module configuration."));
+        }
+    };
     let lock = actions.lock().await;
     if !lock.has_action(&token.to_string()) {
         log::debug!(
             "Rejected action with identifer: {}, becuase its not registered",
-            action_logon.action_identifier
+            identifier
         );
         return Err(Status::unauthenticated(
             "token not matching to action identifier",
@@ -176,18 +183,15 @@ async fn handle_logon(
 
     log::debug!(
         "Action with identifer: {}, connected successfully",
-        action_logon.action_identifier
+        identifier
     );
 
-    let sub = match client
-        .subscribe(format!("action.{}.*", action_logon.action_identifier))
-        .await
-    {
+    let sub = match client.subscribe(format!("action.{}.*", identifier)).await {
         Ok(s) => s,
         Err(err) => {
             log::error!(
                 "Could not subscribe to action: {}. Reason: {:?}",
-                action_logon.action_identifier,
+                identifier,
                 err
             );
             return Err(Status::internal(
@@ -196,10 +200,7 @@ async fn handle_logon(
         }
     };
 
-    log::debug!(
-        "Subscribed to action subject action.{}.*",
-        action_logon.action_identifier
-    );
+    log::debug!("Subscribed to action subject action.{}.*", identifier);
 
     let tx_clone = tx.clone();
     let pending_replies_clone = pending_replies.clone();
@@ -209,11 +210,8 @@ async fn handle_logon(
 
     if !*cfg_forwarder_started {
         *cfg_forwarder_started = true;
-        log::debug!(
-            "Starting config forwarder for action {}",
-            action_logon.action_identifier
-        );
-        spawn_cfg_forwarder(action_logon.action_identifier.clone(), cfg_tx, tx.clone());
+        log::debug!("Starting config forwarder for action {}", identifier);
+        spawn_cfg_forwarder(identifier.clone(), cfg_tx, tx.clone());
     }
 
     Ok(action_logon)
@@ -222,8 +220,8 @@ async fn handle_logon(
 /// Forwards config updates for the given action identifier to the gRPC stream.
 fn spawn_cfg_forwarder(
     action_identifier: String,
-    cfg_tx: tokio::sync::broadcast::Sender<tucana::shared::ActionConfigurations>,
-    tx: tokio::sync::mpsc::Sender<Result<TransferResponse, tonic::Status>>,
+    cfg_tx: tokio::sync::broadcast::Sender<tucana::shared::ModuleConfigurations>,
+    tx: tokio::sync::mpsc::Sender<Result<ActionTransferResponse, tonic::Status>>,
 ) {
     let mut cfg_rx = cfg_tx.subscribe();
     tokio::spawn(async move {
@@ -237,8 +235,10 @@ fn spawn_cfg_forwarder(
             }
 
             log::debug!("Forwarding config update to action {}", action_identifier);
-            let resp = TransferResponse {
-                data: Some(transfer_response::Data::ActionConfigurations(cfgs)),
+            let resp = ActionTransferResponse {
+                data: Some(
+                    tucana::aquila::action_transfer_response::Data::ModuleConfigurations(cfgs),
+                ),
             };
 
             if tx.send(Ok(resp)).await.is_err() {
@@ -253,7 +253,7 @@ fn spawn_cfg_forwarder(
 
 /// Looks up matching flows for an event and requests their execution.
 async fn handle_event(
-    event: Event,
+    event: ActionEvent,
     kv: async_nats::jetstream::kv::Store,
     client: async_nats::Client,
 ) {
@@ -297,7 +297,7 @@ async fn handle_event(
 
 /// Publishes execution results back to the original NATS reply subject.
 async fn handle_result(
-    execution_result: ExecutionResult,
+    execution_result: ActionExecutionResponse,
     client: async_nats::Client,
     pending_replies: PendingReplies,
 ) {
@@ -335,11 +335,11 @@ async fn handle_result(
 #[tonic::async_trait]
 impl ActionTransferService for AquilaActionTransferServiceServer {
     type TransferStream =
-        Pin<Box<dyn Stream<Item = Result<TransferResponse, tonic::Status>> + Send + 'static>>;
+        Pin<Box<dyn Stream<Item = Result<ActionTransferResponse, tonic::Status>> + Send + 'static>>;
 
     async fn transfer(
         &self,
-        request: tonic::Request<tonic::Streaming<TransferRequest>>,
+        request: tonic::Request<tonic::Streaming<ActionTransferRequest>>,
     ) -> std::result::Result<tonic::Response<Self::TransferStream>, tonic::Status> {
         let token = extract_token(&request)?;
 
@@ -354,7 +354,8 @@ impl ActionTransferService for AquilaActionTransferServiceServer {
         let is_static = self.is_static;
         let pending_replies: PendingReplies = Arc::new(Mutex::new(HashMap::new()));
 
-        let (tx, rx) = tokio::sync::mpsc::channel::<Result<TransferResponse, tonic::Status>>(32);
+        let (tx, rx) =
+            tokio::sync::mpsc::channel::<Result<ActionTransferResponse, tonic::Status>>(32);
 
         tokio::spawn(async move {
             let mut cfg_forwarder_started = false;
@@ -381,11 +382,16 @@ impl ActionTransferService for AquilaActionTransferServiceServer {
                     first_request = false;
 
                     match data {
-                        tucana::aquila::transfer_request::Data::Logon(action_logon) => {
-                            log::debug!(
-                                "Received logon for action {}",
-                                action_logon.action_identifier
-                            );
+                        tucana::aquila::action_transfer_request::Data::Logon(action_logon) => {
+                            let identifier = match action_logon.module {
+                                Some(ref m) => m.identifier.clone(),
+                                None => {
+                                    log::error!("Logon failed (no module present)");
+                                    break;
+                                }
+                            };
+
+                            log::debug!("Received logon for action {}", identifier);
 
                             let accepted = match handle_logon(
                                 &token,
@@ -427,9 +433,17 @@ impl ActionTransferService for AquilaActionTransferServiceServer {
                     }
                 };
 
+                let identifier = match props.module {
+                    Some(ref m) => m.identifier.clone(),
+                    None => {
+                        log::error!("Logon failed (no module present)");
+                        break;
+                    }
+                };
+
                 if is_static {
                     let lock = actions.lock().await;
-                    let configs = lock.get_action_configuration(&props.action_identifier);
+                    let configs = lock.get_action_configuration(&identifier);
                     for conf in configs {
                         if let Err(err) = cfg_tx.send(conf) {
                             log::warn!("No action configuration receivers available: {:?}", err);
@@ -438,19 +452,19 @@ impl ActionTransferService for AquilaActionTransferServiceServer {
                 };
 
                 match data {
-                    tucana::aquila::transfer_request::Data::Logon(_) => {
+                    tucana::aquila::action_transfer_request::Data::Logon(_) => {
                         log::error!("Received duplicate logon after initial logon");
                         break;
                     }
-                    tucana::aquila::transfer_request::Data::Event(event) => {
-                        log::debug!("Received event from action {}", props.action_identifier);
+                    tucana::aquila::action_transfer_request::Data::Event(event) => {
+                        log::debug!("Received event from action {}", identifier);
                         handle_event(event, kv.clone(), client.clone()).await;
                     }
-                    tucana::aquila::transfer_request::Data::Result(execution_result) => {
+                    tucana::aquila::action_transfer_request::Data::Result(execution_result) => {
                         log::debug!(
                             "Received execution result {} from action {}",
                             execution_result.execution_identifier,
-                            props.action_identifier
+                            identifier,
                         );
 
                         handle_result(execution_result, client.clone(), pending_replies.clone())
@@ -469,7 +483,7 @@ impl ActionTransferService for AquilaActionTransferServiceServer {
 /// Forwards NATS execution requests to the connected action via gRPC and stores reply subjects.
 async fn forward_nats_to_action(
     mut sub: Subscriber,
-    tx: tokio::sync::mpsc::Sender<Result<TransferResponse, tonic::Status>>,
+    tx: tokio::sync::mpsc::Sender<Result<ActionTransferResponse, tonic::Status>>,
     pending_replies: PendingReplies,
 ) {
     log::debug!("Waiting for incoming request");
@@ -477,7 +491,7 @@ async fn forward_nats_to_action(
     while let Some(msg) = sub.next().await {
         log::debug!("Received RemoteRuntime execution request");
 
-        let execution = match ExecutionRequest::decode(msg.payload.as_ref()) {
+        let execution = match ActionExecutionRequest::decode(msg.payload.as_ref()) {
             Ok(req) => req,
             Err(err) => {
                 log::error!("Invalid execution request payload: {:?}", err);
@@ -506,8 +520,10 @@ async fn forward_nats_to_action(
             execution_id
         );
 
-        let resp = TransferResponse {
-            data: Some(transfer_response::Data::Execution(execution)),
+        let resp = ActionTransferResponse {
+            data: Some(tucana::aquila::action_transfer_response::Data::Execution(
+                execution,
+            )),
         };
 
         if tx.send(Ok(resp)).await.is_err() {

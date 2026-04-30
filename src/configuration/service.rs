@@ -1,19 +1,19 @@
 use serde::{Deserialize, Serialize};
 use serde_json::from_str;
 use std::{fs::File, io::Read};
-use tucana::shared::{ActionConfigurations, helper::value::from_json_value};
+use tucana::shared::{ModuleConfigurations, helper::value::from_json_value};
 
 #[derive(Serialize, Deserialize, Clone)]
-struct SerializableActionConfiguration {
+struct SerializableModuleConfiguration {
     identifier: String,
     value: serde_json::Value,
 }
 
 #[derive(Serialize, Deserialize, Clone)]
-struct SerializableActionProjectConfiguration {
+struct SerializableModuleProjectConfiguration {
     project_id: i64,
     #[serde(default)]
-    configs: Vec<SerializableActionConfiguration>,
+    configs: Vec<SerializableModuleConfiguration>,
 }
 
 #[derive(Serialize, Deserialize, Clone)]
@@ -21,7 +21,7 @@ pub struct SerializableActionServiceConfiguration {
     token: String,
     identifier: String,
     #[serde(default)]
-    configs: Vec<SerializableActionProjectConfiguration>,
+    configs: Vec<SerializableModuleProjectConfiguration>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Default)]
@@ -36,7 +36,7 @@ pub struct SerializableServiceConfiguration {
 pub struct ActionServiceConfiguration {
     token: String,
     service_name: String,
-    config: Vec<ActionConfigurations>,
+    config: Vec<ModuleConfigurations>,
 }
 
 #[derive(Serialize, Deserialize, Clone)]
@@ -51,8 +51,8 @@ pub struct ServiceConfiguration {
     runtimes: Vec<RuntimeServiceConfiguration>,
 }
 
-impl From<SerializableActionConfiguration> for tucana::shared::ActionConfiguration {
-    fn from(value: SerializableActionConfiguration) -> Self {
+impl From<SerializableModuleConfiguration> for tucana::shared::ModuleConfiguration {
+    fn from(value: SerializableModuleConfiguration) -> Self {
         Self {
             identifier: value.identifier,
             value: Some(from_json_value(value.value)),
@@ -60,25 +60,25 @@ impl From<SerializableActionConfiguration> for tucana::shared::ActionConfigurati
     }
 }
 
-impl From<SerializableActionProjectConfiguration> for tucana::shared::ActionProjectConfiguration {
-    fn from(value: SerializableActionProjectConfiguration) -> Self {
+impl From<SerializableModuleProjectConfiguration> for tucana::shared::ModuleProjectConfigurations {
+    fn from(value: SerializableModuleProjectConfiguration) -> Self {
         Self {
             project_id: value.project_id,
-            action_configurations: value.configs.into_iter().map(Into::into).collect(),
+            module_configurations: value.configs.into_iter().map(Into::into).collect(),
         }
     }
 }
 
 impl From<SerializableActionServiceConfiguration> for ActionServiceConfiguration {
     fn from(value: SerializableActionServiceConfiguration) -> Self {
-        let action_identifier = value.identifier.clone();
+        let module_identifier = value.identifier.clone();
 
         Self {
             token: value.token,
             service_name: value.identifier,
-            config: vec![ActionConfigurations {
-                action_identifier,
-                action_configurations: value.configs.into_iter().map(Into::into).collect(),
+            config: vec![ModuleConfigurations {
+                module_identifier,
+                module_configurations: value.configs.into_iter().map(Into::into).collect(),
             }],
         }
     }
@@ -114,7 +114,7 @@ impl ServiceConfiguration {
     pub fn get_action_configuration(
         &self,
         action_identifier: &String,
-    ) -> Vec<ActionConfigurations> {
+    ) -> Vec<ModuleConfigurations> {
         match self
             .actions
             .iter()
