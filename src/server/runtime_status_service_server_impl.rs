@@ -9,18 +9,19 @@ use std::{
 };
 use tokio::sync::Mutex;
 use tonic::Status;
-use tucana::aquila::runtime_status_service_server::RuntimeStatusService;
 use tucana::aquila::{
     RuntimeStatusUpdateRequest, runtime_status_update_request::Status as RuntimeStatusKind,
 };
 use tucana::shared::{
     AdapterRuntimeStatus, ExecutionRuntimeStatus, adapter_runtime_status, execution_runtime_status,
 };
+use tucana::{aquila::runtime_status_service_server::RuntimeStatusService, shared::ActionStatus};
 
 #[derive(Clone)]
 enum RuntimeStatusSnapshot {
     Adapter(AdapterRuntimeStatus),
     Execution(ExecutionRuntimeStatus),
+    Action(ActionStatus),
 }
 
 impl RuntimeStatusSnapshot {
@@ -42,6 +43,13 @@ impl RuntimeStatusSnapshot {
                     Some(Self::Execution(status.clone()))
                 }
             }
+            RuntimeStatusKind::ActionStatus(status) => {
+                if status.identifier.is_empty() {
+                    None
+                } else {
+                    Some(Self::Action(status.clone()))
+                }
+            }
         }
     }
 
@@ -49,6 +57,7 @@ impl RuntimeStatusSnapshot {
         match self {
             RuntimeStatusSnapshot::Adapter(status) => format!("adapter:{}", status.identifier),
             RuntimeStatusSnapshot::Execution(status) => format!("execution:{}", status.identifier),
+            RuntimeStatusSnapshot::Action(status) => format!("actionn:{}", status.identifier),
         }
     }
 
@@ -56,6 +65,7 @@ impl RuntimeStatusSnapshot {
         match self {
             RuntimeStatusSnapshot::Adapter(status) => &status.identifier,
             RuntimeStatusSnapshot::Execution(status) => &status.identifier,
+            RuntimeStatusSnapshot::Action(status) => &status.identifier,
         }
     }
 
@@ -65,6 +75,9 @@ impl RuntimeStatusSnapshot {
                 status.status == adapter_runtime_status::Status::Stopped as i32
             }
             RuntimeStatusSnapshot::Execution(status) => {
+                status.status == execution_runtime_status::Status::Stopped as i32
+            }
+            RuntimeStatusSnapshot::Action(status) => {
                 status.status == execution_runtime_status::Status::Stopped as i32
             }
         }
@@ -90,6 +103,15 @@ impl RuntimeStatusSnapshot {
                     status: Some(RuntimeStatusKind::ExecutionRuntimeStatus(next_status)),
                 }
             }
+            RuntimeStatusSnapshot::Action(status) => {
+                let mut next_status = status.clone();
+                next_status.status = execution_runtime_status::Status::NotResponding as i32;
+                next_status.timestamp = epoch_millis_now();
+
+                RuntimeStatusUpdateRequest {
+                    status: Some(RuntimeStatusKind::ActionStatus(next_status)),
+                }
+            }
         }
     }
 
@@ -111,6 +133,15 @@ impl RuntimeStatusSnapshot {
 
                 RuntimeStatusUpdateRequest {
                     status: Some(RuntimeStatusKind::ExecutionRuntimeStatus(next_status)),
+                }
+            }
+            RuntimeStatusSnapshot::Action(status) => {
+                let mut next_status = status.clone();
+                next_status.status = execution_runtime_status::Status::Stopped as i32;
+                next_status.timestamp = epoch_millis_now();
+
+                RuntimeStatusUpdateRequest {
+                    status: Some(RuntimeStatusKind::ActionStatus(next_status)),
                 }
             }
         }
