@@ -41,10 +41,7 @@ impl RuntimeUsageService for AquilaRuntimeUsageServiceServer {
         };
 
         if !self.service_configuration.has_service(&token.to_string()) {
-            log::warn!(
-                "Rejected runtime usage update reason=token_not_registered token={}",
-                token
-            );
+            log::warn!("Rejected runtime usage update reason=token_not_registered");
             return Err(Status::unauthenticated("token is not valid"));
         }
 
