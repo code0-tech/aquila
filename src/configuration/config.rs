@@ -41,6 +41,15 @@ pub struct Config {
     pub with_health_service: bool,
 
     pub service_config_path: String,
+
+    /// Runtime heartbeat timeout in seconds before a service is marked as NOT_RESPONDING.
+    pub runtime_status_not_responding_after_secs: u64,
+
+    /// Additional timeout in seconds after NOT_RESPONDING before a service is marked as STOPPED.
+    pub runtime_status_stopped_after_not_responding_secs: u64,
+
+    /// Interval in seconds for the runtime status timeout monitor loop.
+    pub runtime_status_monitor_interval_secs: u64,
 }
 
 /// Implementation for all relevant `Aquila` startup configurations
@@ -75,6 +84,18 @@ impl Config {
             service_config_path: env_with_default(
                 "SERVICE_CONFIG_PATH",
                 String::from("./service.configuration.json"),
+            ),
+            runtime_status_not_responding_after_secs: env_with_default(
+                "RUNTIME_STATUS_NOT_RESPONDING_AFTER_SECS",
+                15_u64,
+            ),
+            runtime_status_stopped_after_not_responding_secs: env_with_default(
+                "RUNTIME_STATUS_STOPPED_AFTER_NOT_RESPONDING_SECS",
+                30_u64,
+            ),
+            runtime_status_monitor_interval_secs: env_with_default(
+                "RUNTIME_STATUS_MONITOR_INTERVAL_SECS",
+                3_u64,
             ),
         }
     }
