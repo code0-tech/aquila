@@ -25,6 +25,12 @@ impl SagittariusRuntimeUsageClient {
         &mut self,
         runtime_usage_request: tucana::aquila::RuntimeUsageRequest,
     ) -> tucana::aquila::RuntimeUsageResponse {
+        let sample_count = runtime_usage_request.runtime_usage.len();
+        log::debug!(
+            "Forwarding runtime usage samples to Sagittarius sample_count={}",
+            sample_count
+        );
+
         let request = Request::from_parts(
             get_authorization_metadata(&self.token),
             Extensions::new(),
@@ -45,8 +51,14 @@ impl SagittariusRuntimeUsageClient {
         };
 
         match response.success {
-            true => log::info!("Sagittarius successfully updated RuntimeUsage."),
-            false => log::error!("Sagittarius didn't update RuntimeUsage."),
+            true => log::info!(
+                "Sagittarius successfully updated runtime usage sample_count={}",
+                sample_count
+            ),
+            false => log::warn!(
+                "Sagittarius did not update runtime usage sample_count={}",
+                sample_count
+            ),
         };
 
         tucana::aquila::RuntimeUsageResponse {
