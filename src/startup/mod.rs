@@ -1,12 +1,8 @@
 pub mod dynamic_mode;
 pub mod static_mode;
 
-use crate::{
-    configuration::{
-        config::Config as AquilaConfig, service::ServiceConfiguration, state::AppReadiness,
-    },
-    sagittarius::retry::create_channel_with_retry,
-    server::AquilaGRPCServer,
+use crate::configuration::{
+    config::Config as AquilaConfig, service::ServiceConfiguration, state::AppReadiness,
 };
 use async_nats::jetstream::kv::Config;
 use std::sync::Arc;
@@ -16,6 +12,17 @@ pub async fn run(
     app_readiness: AppReadiness,
     service_config: ServiceConfiguration,
 ) {
+    log::info!(
+        "Bootstrapping startup mode={} nats_url={} nats_bucket={}",
+        if config.is_static() {
+            "static"
+        } else {
+            "dynamic"
+        },
+        config.nats_url,
+        config.nats_bucket
+    );
+
     // Create connection to JetStream
     let client = match async_nats::connect(config.nats_url.clone()).await {
         Ok(client) => {
@@ -36,6 +43,7 @@ pub async fn run(
             ..Default::default()
         })
         .await;
+    log::debug!("Ensured NATS key-value bucket exists");
 
     let kv_store = match jet_stream.get_key_value(config.nats_bucket.clone()).await {
         Ok(kv) => {
@@ -48,47 +56,12 @@ pub async fn run(
         }
     };
 
-    let backend_url_flow = config.backend_url.clone();
-    let sagittarius_channel = create_channel_with_retry(
-        "Sagittarius Endpoint",
-        backend_url_flow,
-        app_readiness.sagittarius_ready.clone(),
-    )
-    .await;
-
-    let (action_config_tx, _) =
-        tokio::sync::broadcast::channel::<tucana::shared::ModuleConfigurations>(64);
-
-    let server = AquilaGRPCServer::new(
-        &config,
-        app_readiness.clone(),
-        sagittarius_channel.clone(),
-        service_config,
-        client.clone(),
-        kv_store.clone(),
-        action_config_tx.clone(),
-    );
-
-    let server_task = tokio::spawn(async move {
-        if let Err(err) = server.start().await {
-            log::error!("gRPC server error: {:?}", err);
-        } else {
-            log::info!("gRPC server stopped gracefully");
-        }
-    });
-
     if config.is_static() {
         log::info!("Starting with static configuration");
-        static_mode::run(config.flow_fallback_path, kv_store, server_task).await;
+        static_mode::run(config, app_readiness, service_config, client, kv_store).await;
         return;
     }
 
-    dynamic_mode::run(
-        config,
-        app_readiness,
-        kv_store,
-        action_config_tx,
-        server_task,
-    )
-    .await;
+    log::info!("Starting with dynamic configuration");
+    dynamic_mode::run(config, app_readiness, service_config, client, kv_store).await;
 }

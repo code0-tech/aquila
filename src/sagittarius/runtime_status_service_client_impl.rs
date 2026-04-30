@@ -17,6 +17,7 @@ impl SagittariusRuntimeStatusServiceClient {
         &mut self,
         runtime_status_request: tucana::aquila::RuntimeStatusUpdateRequest,
     ) -> tucana::aquila::RuntimeStatusUpdateResponse {
+        log::debug!("Forwarding runtime status update to Sagittarius");
         let status: Option<tucana::sagittarius::runtime_status_update_request::Status> = match runtime_status_request.status {
             Some(stat) => match stat {
                 tucana::aquila::runtime_status_update_request::Status::AdapterRuntimeStatus(adapter_runtime_status) => {
@@ -49,8 +50,8 @@ impl SagittariusRuntimeStatusServiceClient {
         };
 
         match response.success {
-            true => log::info!("Sagittarius successfully updated RuntimeStatus."),
-            false => log::error!("Sagittarius didn't update RuntimeStatus."),
+            true => log::info!("Sagittarius successfully updated runtime status"),
+            false => log::warn!("Sagittarius did not update runtime status"),
         };
 
         tucana::aquila::RuntimeStatusUpdateResponse {

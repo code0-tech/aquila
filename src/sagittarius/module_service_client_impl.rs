@@ -18,6 +18,12 @@ impl SagittariusModuleServiceClient {
         &mut self,
         modules_update_request: tucana::aquila::ModuleUpdateRequest,
     ) -> tucana::aquila::ModuleUpdateResponse {
+        let module_count = modules_update_request.modules.len();
+        log::debug!(
+            "Forwarding module update to Sagittarius module_count={}",
+            module_count
+        );
+
         let request = Request::from_parts(
             get_authorization_metadata(&self.token),
             Extensions::new(),
@@ -30,9 +36,13 @@ impl SagittariusModuleServiceClient {
             Ok(response) => {
                 let res = response.into_inner();
                 match res.success {
-                    true => log::info!("Sagittarius successfully updated Modules."),
-                    false => log::error!(
-                        "Sagittarius didn't update any Modules. Reason: {:?}",
+                    true => log::info!(
+                        "Sagittarius successfully updated modules module_count={}",
+                        module_count
+                    ),
+                    false => log::warn!(
+                        "Sagittarius rejected module update module_count={} reason={:?}",
+                        module_count,
                         res.error
                     ),
                 };
@@ -42,7 +52,10 @@ impl SagittariusModuleServiceClient {
                 }
             }
             Err(err) => {
-                log::error!("Failed to update Modules via Sagittarius RPC transport: {:?}", err);
+                log::error!(
+                    "Failed to update Modules via Sagittarius RPC transport: {:?}",
+                    err
+                );
                 tucana::aquila::ModuleUpdateResponse { success: false }
             }
         }

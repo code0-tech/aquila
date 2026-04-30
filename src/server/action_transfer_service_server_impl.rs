@@ -162,7 +162,7 @@ async fn handle_logon(
     pending_replies: PendingReplies,
     cfg_forwarder_started: &mut bool,
 ) -> Result<ActionLogon, Status> {
-    log::info!("Action successfull logged on: {:?}", action_logon);
+    log::info!("Action logon attempt payload={:?}", action_logon);
 
     let identifier = match action_logon.module {
         Some(ref m) => m.identifier.clone(),
@@ -172,8 +172,8 @@ async fn handle_logon(
     };
     let lock = actions.lock().await;
     if !lock.has_action(&token.to_string()) {
-        log::debug!(
-            "Rejected action with identifer: {}, becuase its not registered",
+        log::warn!(
+            "Rejected action logon identifier={} reason=token_not_registered",
             identifier
         );
         return Err(Status::unauthenticated(
@@ -181,10 +181,7 @@ async fn handle_logon(
         ));
     }
 
-    log::debug!(
-        "Action with identifer: {}, connected successfully",
-        identifier
-    );
+    log::debug!("Action connected identifier={}", identifier);
 
     let sub = match client.subscribe(format!("action.{}.*", identifier)).await {
         Ok(s) => s,
@@ -210,7 +207,7 @@ async fn handle_logon(
 
     if !*cfg_forwarder_started {
         *cfg_forwarder_started = true;
-        log::debug!("Starting config forwarder for action {}", identifier);
+        log::debug!("Starting config forwarder action={}", identifier);
         spawn_cfg_forwarder(identifier.clone(), cfg_tx, tx.clone());
     }
 
@@ -280,7 +277,7 @@ async fn handle_event(
         let topic = format!("execution.{}", uuid);
 
         log::info!(
-            "Requesting execution of flow {} with execution id {}",
+            "Requesting execution flow_id={} execution_id={}",
             flow_id,
             uuid
         );
@@ -310,7 +307,7 @@ async fn handle_result(
 
     let Some(reply_subject) = reply_subject else {
         log::error!(
-            "No pending NATS reply subject found for execution {}",
+            "No pending NATS reply subject found execution_id={}",
             execution_id
         );
         return;
@@ -342,6 +339,7 @@ impl ActionTransferService for AquilaActionTransferServiceServer {
         request: tonic::Request<tonic::Streaming<ActionTransferRequest>>,
     ) -> std::result::Result<tonic::Response<Self::TransferStream>, tonic::Status> {
         let token = extract_token(&request)?;
+        log::debug!("Action transfer stream opened token={}", &token);
 
         let mut first_request = true;
         let mut action_props: Option<ActionLogon> = None;
@@ -365,7 +363,7 @@ impl ActionTransferService for AquilaActionTransferServiceServer {
                 let transfer_request = match next {
                     Ok(tr) => tr,
                     Err(status) => {
-                        log::error!("Stream was closed with status code: {:?}", status);
+                        log::error!("Action transfer stream closed status={:?}", status);
                         break;
                     }
                 };
@@ -373,7 +371,7 @@ impl ActionTransferService for AquilaActionTransferServiceServer {
                 let data = match transfer_request.data {
                     Some(d) => d,
                     None => {
-                        log::error!("Recieved empty request, waiting on next one");
+                        log::warn!("Received empty action transfer request");
                         continue;
                     }
                 };
@@ -407,7 +405,7 @@ impl ActionTransferService for AquilaActionTransferServiceServer {
                             {
                                 Ok(v) => v,
                                 Err(status) => {
-                                    log::error!("Logon failed: {:?}", status);
+                                    log::error!("Action logon failed status={:?}", status);
                                     break;
                                 }
                             };
@@ -415,9 +413,7 @@ impl ActionTransferService for AquilaActionTransferServiceServer {
                             action_props = Some(accepted);
                         }
                         _ => {
-                            log::error!(
-                                "Action tried to logon but was not sending a logon request!"
-                            );
+                            log::error!("Action stream protocol violation expected=logon");
                             break;
                         }
                     }
@@ -436,7 +432,7 @@ impl ActionTransferService for AquilaActionTransferServiceServer {
                 let identifier = match props.module {
                     Some(ref m) => m.identifier.clone(),
                     None => {
-                        log::error!("Logon failed (no module present)");
+                        log::error!("Logon state missing module");
                         break;
                     }
                 };
@@ -453,16 +449,16 @@ impl ActionTransferService for AquilaActionTransferServiceServer {
 
                 match data {
                     tucana::aquila::action_transfer_request::Data::Logon(_) => {
-                        log::error!("Received duplicate logon after initial logon");
+                        log::error!("Received duplicate logon");
                         break;
                     }
                     tucana::aquila::action_transfer_request::Data::Event(event) => {
-                        log::debug!("Received event from action {}", identifier);
+                        log::debug!("Received event action={}", identifier);
                         handle_event(event, kv.clone(), client.clone()).await;
                     }
                     tucana::aquila::action_transfer_request::Data::Result(execution_result) => {
                         log::debug!(
-                            "Received execution result {} from action {}",
+                            "Received execution result execution_id={} action={}",
                             execution_result.execution_identifier,
                             identifier,
                         );
@@ -486,7 +482,7 @@ async fn forward_nats_to_action(
     tx: tokio::sync::mpsc::Sender<Result<ActionTransferResponse, tonic::Status>>,
     pending_replies: PendingReplies,
 ) {
-    log::debug!("Waiting for incoming request");
+    log::debug!("Waiting for incoming action execution request");
 
     while let Some(msg) = sub.next().await {
         log::debug!("Received RemoteRuntime execution request");
@@ -503,7 +499,7 @@ async fn forward_nats_to_action(
 
         let Some(reply_subject) = msg.reply.clone() else {
             log::error!(
-                "Received request for execution {} without NATS reply subject",
+                "Received request without NATS reply subject execution_id={}",
                 execution_id
             );
             continue;
@@ -515,7 +511,7 @@ async fn forward_nats_to_action(
         }
 
         log::debug!(
-            "Stored reply subject {} for execution {}",
+            "Stored reply subject reply_subject={} execution_id={}",
             reply_subject,
             execution_id
         );
