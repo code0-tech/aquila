@@ -14,7 +14,7 @@ use crate::{
 };
 use async_nats::jetstream::kv::Store;
 use log::info;
-use std::{net::SocketAddr, sync::Arc};
+use std::{net::SocketAddr, sync::Arc, time::Duration};
 use tokio::sync::Mutex;
 use tonic::transport::{Channel, Server};
 use tucana::aquila::{
@@ -36,6 +36,10 @@ pub struct AquilaDynamicServer {
     nats_client: async_nats::Client,
     kv_store: Arc<Store>,
     action_config_tx: tokio::sync::broadcast::Sender<tucana::shared::ModuleConfigurations>,
+
+    runtime_status_not_responding_after_secs: u64,
+    runtime_status_stopped_after_not_responding_secs: u64,
+    runtime_status_monitor_interval_secs: u64,
 }
 
 impl AquilaDynamicServer {
@@ -67,6 +71,16 @@ impl AquilaDynamicServer {
             nats_client,
             kv_store,
             action_config_tx,
+            runtime_status_not_responding_after_secs: config
+                .runtime_status_not_responding_after_secs
+                .clone(),
+
+            runtime_status_stopped_after_not_responding_secs: config
+                .runtime_status_stopped_after_not_responding_secs
+                .clone(),
+            runtime_status_monitor_interval_secs: config
+                .runtime_status_monitor_interval_secs
+                .clone(),
         }
     }
 
@@ -102,6 +116,12 @@ impl AquilaDynamicServer {
         let runtime_status_server = AquilaRuntimeStatusServiceServer::new(
             runtime_status_service.clone(),
             self.service_configuration.clone(),
+            Duration::from_secs(self.runtime_status_not_responding_after_secs.clone()),
+            Duration::from_secs(
+                self.runtime_status_stopped_after_not_responding_secs
+                    .clone(),
+            ),
+            Duration::from_secs(self.runtime_status_monitor_interval_secs.clone()),
         );
 
         let action_transfer_server = AquilaActionTransferServiceServer::new(

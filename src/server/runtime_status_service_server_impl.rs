@@ -1,6 +1,5 @@
 use crate::{
     authorization::authorization::extract_token, configuration::service::ServiceConfiguration,
-    configuration::service::ServiceConfiguration,
     sagittarius::runtime_status_service_client_impl::SagittariusRuntimeStatusServiceClient,
 };
 use std::{
