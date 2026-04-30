@@ -33,16 +33,18 @@ pub mod authorization {
     }
 
     pub fn extract_token<T>(request: &Request<T>) -> Result<&str, Status> {
-        let header = request
-            .metadata()
-            .get("authorization")
-            .ok_or_else(|| Status::unauthenticated("missing authorization header"))?;
+        let header = request.metadata().get("authorization").ok_or_else(|| {
+            log::warn!("Missing authorization header");
+            Status::unauthenticated("missing authorization header")
+        })?;
 
-        let token = header
-            .to_str()
-            .map_err(|_| Status::unauthenticated("authorization header is not valid ASCII"))?;
+        let token = header.to_str().map_err(|_| {
+            log::warn!("Authorization header is not valid ASCII");
+            Status::unauthenticated("authorization header is not valid ASCII")
+        })?;
 
         if token.is_empty() {
+            log::warn!("Authorization token is empty");
             return Err(Status::unauthenticated("authorization token is empty"));
         }
 

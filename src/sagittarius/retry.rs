@@ -20,6 +20,13 @@ pub async fn create_channel_with_retry(
 
     loop {
         ready.store(false, Ordering::SeqCst);
+        let attempt = retries + 1;
+        log::debug!(
+            "Dialing Sagittarius channel={} url={} attempt={}",
+            channel_name,
+            url,
+            attempt
+        );
 
         let channel = match Endpoint::from_shared(url.clone()) {
             Ok(c) => {
@@ -39,17 +46,19 @@ pub async fn create_channel_with_retry(
             Ok(ch) => {
                 ready.store(true, Ordering::SeqCst);
                 log::info!(
-                    "Successfully connected to `{}` using `{}`",
+                    "Successfully connected channel={} url={} attempt={}",
                     channel_name,
-                    url
+                    url,
+                    attempt
                 );
                 return ch;
             }
             Err(err) => {
                 log::warn!(
-                    "Retry connect to `{}` using url: `{}` failed: {:?}, retrying in {}ms",
+                    "Connection failed channel={} url={} attempt={} error={:?} retry_in_ms={}",
                     channel_name,
                     url,
+                    attempt,
                     err,
                     backoff
                 );
@@ -59,6 +68,12 @@ pub async fn create_channel_with_retry(
                 retries += 1;
 
                 if retries >= MAX_RETRIES {
+                    log::error!(
+                        "Reached max retries channel={} url={} max_retries={}",
+                        channel_name,
+                        url,
+                        MAX_RETRIES
+                    );
                     panic!("Reached max retries to url {}", url)
                 }
             }

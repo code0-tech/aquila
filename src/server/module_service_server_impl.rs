@@ -32,17 +32,24 @@ impl ModuleService for AquilaModuleServiceServer {
     ) -> Result<tonic::Response<tucana::aquila::ModuleUpdateResponse>, tonic::Status> {
         let token = match extract_token(&request) {
             Ok(t) => t,
-            Err(status) => return Err(status),
+            Err(status) => {
+                log::warn!("Rejected module update reason=missing_or_invalid_token");
+                return Err(status);
+            }
         };
 
         if !self.service_configuration.has_service(&token.to_string()) {
+            log::warn!(
+                "Rejected module update reason=token_not_registered token={}",
+                token
+            );
             return Err(Status::unauthenticated("token is not valid"));
         }
 
         let modules_update_request = request.into_inner();
 
         log::debug!(
-            "Received Modules: {:?}",
+            "Received module update modules={:?}",
             modules_update_request
                 .modules
                 .iter()
@@ -52,6 +59,8 @@ impl ModuleService for AquilaModuleServiceServer {
 
         let mut client = self.client.lock().await;
         let response = client.update_modules(modules_update_request).await;
+
+        log::debug!("Completed module update success={}", response.success);
 
         Ok(tonic::Response::new(tucana::aquila::ModuleUpdateResponse {
             success: response.success,
