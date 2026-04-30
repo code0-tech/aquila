@@ -25,7 +25,7 @@ use tucana::aquila::{
 };
 
 pub struct AquilaDynamicServer {
-    // Token of Sagittaius
+    // Token of Sagittarius
     token: String,
     nats_url: String,
     address: SocketAddr,
