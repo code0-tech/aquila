@@ -1,15 +1,50 @@
-use crate::flow::get_flow_identifier;
+use crate::{
+    configuration::{config::Config, service::ServiceConfiguration, state::AppReadiness},
+    flow::get_flow_identifier,
+    server::static_server::AquilaStaticServer,
+};
+use async_nats::Client;
 use prost::Message;
 use serde_json::from_str;
 use std::{fs::File, io::Read, sync::Arc};
 use tucana::shared::Flows;
 
 pub async fn run(
-    flow_fallback_path: String,
+    config: Config,
+    app_readiness: AppReadiness,
+    service_config: ServiceConfiguration,
+
+    client: Client,
     flow_store_client: Arc<async_nats::jetstream::kv::Store>,
-    mut server_task: tokio::task::JoinHandle<()>,
 ) {
-    init_flows_from_json(flow_fallback_path, flow_store_client).await;
+    log::info!(
+        "Static mode starting grpc={}:{} fallback_path={}",
+        config.grpc_host,
+        config.grpc_port,
+        config.flow_fallback_path
+    );
+
+    init_flows_from_json(config.flow_fallback_path.clone(), flow_store_client.clone()).await;
+
+    let (action_config_tx, _) =
+        tokio::sync::broadcast::channel::<tucana::shared::ModuleConfigurations>(64);
+
+    let server = AquilaStaticServer::new(
+        &config,
+        app_readiness.clone(),
+        service_config,
+        client.clone(),
+        flow_store_client.clone(),
+        action_config_tx.clone(),
+    );
+
+    let mut server_task = tokio::spawn(async move {
+        if let Err(err) = server.start().await {
+            log::error!("gRPC server error: {:?}", err);
+        } else {
+            log::info!("gRPC server stopped gracefully");
+        }
+    });
 
     #[cfg(unix)]
     let sigterm = async {
@@ -44,6 +79,7 @@ async fn init_flows_from_json(
     flow_store_client: Arc<async_nats::jetstream::kv::Store>,
 ) {
     let mut data = String::new();
+    log::info!("Loading fallback flows from {}", path);
 
     let mut file = match File::open(path) {
         Ok(file) => file,
@@ -70,6 +106,13 @@ async fn init_flows_from_json(
             );
         }
     };
+
+    let flow_count = flows.flows.len();
+    if flow_count == 0 {
+        log::warn!("Fallback flow file contains zero flows");
+    } else {
+        log::info!("Loaded {} fallback flows", flow_count);
+    }
 
     for flow in flows.flows {
         let key = get_flow_identifier(&flow);
