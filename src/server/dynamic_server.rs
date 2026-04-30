@@ -1,6 +1,5 @@
 use crate::{
     configuration::{config::Config, service::ServiceConfiguration, state::AppReadiness},
-    logging::create_readiness_interceptor,
     sagittarius::{
         module_service_client_impl::SagittariusModuleServiceClient,
         runtime_status_service_client_impl::SagittariusRuntimeStatusServiceClient,
@@ -8,7 +7,7 @@ use crate::{
     },
     server::{
         action_transfer_service_server_impl::AquilaActionTransferServiceServer,
-        module_service_server_impl::AquilaModuleServiceServer,
+        create_readiness_interceptor, module_service_server_impl::AquilaModuleServiceServer,
         runtime_status_service_server_impl::AquilaRuntimeStatusServiceServer,
         runtime_usage_service_server_impl::AquilaRuntimeUsageServiceServer,
     },

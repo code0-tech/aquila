@@ -1,5 +1,6 @@
 use crate::{
     authorization::authorization::extract_token, configuration::service::ServiceConfiguration,
+    configuration::service::ServiceConfiguration,
     sagittarius::module_service_client_impl::SagittariusModuleServiceClient,
 };
 use std::sync::Arc;
