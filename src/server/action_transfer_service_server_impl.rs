@@ -173,9 +173,8 @@ async fn handle_logon(
     let lock = actions.lock().await;
     if !lock.has_action(&token.to_string()) {
         log::warn!(
-            "Rejected action logon identifier={} reason=token_not_registered token={}",
-            identifier,
-            token
+            "Rejected action logon identifier={} reason=token_not_registered",
+            identifier
         );
         return Err(Status::unauthenticated(
             "token not matching to action identifier",
