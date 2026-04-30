@@ -1,7 +1,9 @@
 use crate::{
     configuration::{config::Config, service::ServiceConfiguration, state::AppReadiness},
-    logging::create_readiness_interceptor,
-    server::action_transfer_service_server_impl::AquilaActionTransferServiceServer,
+    server::{
+        action_transfer_service_server_impl::AquilaActionTransferServiceServer,
+        create_readiness_interceptor,
+    },
 };
 use async_nats::jetstream::kv::Store;
 use log::info;

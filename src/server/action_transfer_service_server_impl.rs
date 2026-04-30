@@ -1,4 +1,6 @@
-use crate::{configuration::service::ServiceConfiguration, logging::mask_token};
+use crate::{
+    authorization::authorization::mask_token, configuration::service::ServiceConfiguration,
+};
 use async_nats::{Subject, Subscriber};
 use futures::StreamExt;
 use futures_core::Stream;

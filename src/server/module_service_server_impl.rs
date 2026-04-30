@@ -1,6 +1,7 @@
 use crate::{
-    authorization::authorization::extract_token, configuration::service::ServiceConfiguration,
-    logging::mask_token, sagittarius::module_service_client_impl::SagittariusModuleServiceClient,
+    authorization::authorization::{extract_token, mask_token},
+    configuration::service::ServiceConfiguration,
+    sagittarius::module_service_client_impl::SagittariusModuleServiceClient,
 };
 use std::sync::Arc;
 use tokio::sync::Mutex;

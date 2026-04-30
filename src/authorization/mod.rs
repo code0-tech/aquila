@@ -50,4 +50,17 @@ pub mod authorization {
 
         Ok(token)
     }
+
+    pub fn mask_token(token: &str) -> String {
+        let visible = 4;
+        if token.len() <= visible {
+            return "*".repeat(token.len());
+        }
+
+        format!(
+            "{}{}",
+            "*".repeat(token.len() - visible),
+            &token[token.len() - visible..]
+        )
+    }
 }

@@ -6,14 +6,13 @@ use code0_flow::flow_config::load_env_file;
 pub mod authorization;
 pub mod configuration;
 pub mod flow;
-pub mod logging;
 pub mod sagittarius;
 pub mod server;
 pub mod startup;
 
 #[tokio::main]
 async fn main() {
-    logging::init_logger();
+    env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info")).init();
     log::info!("Starting Aquila");
 
     // Load environment variables from .env file

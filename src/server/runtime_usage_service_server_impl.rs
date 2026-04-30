@@ -5,8 +5,9 @@ use tonic::Status;
 use tucana::aquila::runtime_usage_service_server::RuntimeUsageService;
 
 use crate::{
-    authorization::authorization::extract_token, configuration::service::ServiceConfiguration,
-    logging::mask_token, sagittarius::runtime_usage_client_impl::SagittariusRuntimeUsageClient,
+    authorization::authorization::{extract_token, mask_token},
+    configuration::service::ServiceConfiguration,
+    sagittarius::runtime_usage_client_impl::SagittariusRuntimeUsageClient,
 };
 
 pub struct AquilaRuntimeUsageServiceServer {

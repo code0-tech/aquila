@@ -6,7 +6,7 @@ use crate::{
 use async_nats::Client;
 use prost::Message;
 use serde_json::from_str;
-use std::{fs::File, io::Read, sync::Arc};
+use std::{fs::File, io::Read, sync::Arc, sync::atomic::Ordering};
 use tucana::shared::Flows;
 
 pub async fn run(
@@ -23,6 +23,9 @@ pub async fn run(
         config.grpc_port,
         config.flow_fallback_path
     );
+    app_readiness
+        .sagittarius_ready
+        .store(true, Ordering::SeqCst);
 
     init_flows_from_json(config.flow_fallback_path.clone(), flow_store_client.clone()).await;
 
