@@ -93,19 +93,45 @@ impl From<SerializableServiceConfiguration> for ServiceConfiguration {
     }
 }
 impl ServiceConfiguration {
-    pub fn has_service(&self, token: &String) -> bool {
-        self.has_runtime(token) || self.has_action(token)
+    // This function is used to extract the real service name via modules
+    pub fn extract_service_name(name: &String) -> Option<String> {
+        if name.starts_with("draco") {
+            return Some(name.clone());
+        };
+
+        if name.starts_with("taurus") {
+            return Some(String::from("taurus"));
+        };
+
+        None
     }
 
-    pub fn has_runtime(&self, token: &String) -> bool {
-        match self.runtimes.iter().find(|x| &x.token == token) {
+    pub fn has_service(&self, token: &String, name: &String) -> bool {
+        self.has_runtime(token, name) || self.has_action(token, name)
+    }
+
+    pub fn has_runtime(&self, token: &String, runtime_name: &String) -> bool {
+        let name = match Self::extract_service_name(runtime_name) {
+            Some(n) => n,
+            None => return false,
+        };
+
+        match self
+            .runtimes
+            .iter()
+            .find(|x| &x.token == token && x.identifier == name)
+        {
             Some(_) => true,
             None => false,
         }
     }
 
-    pub fn has_action(&self, token: &String) -> bool {
-        match self.actions.iter().find(|x| &x.token == token) {
+    pub fn has_action(&self, token: &String, action_name: &String) -> bool {
+        match self
+            .actions
+            .iter()
+            .find(|x| &x.token == token && &x.service_name == action_name)
+        {
             Some(_) => true,
             None => false,
         }

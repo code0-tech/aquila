@@ -31,22 +31,29 @@ impl ModuleService for AquilaModuleServiceServer {
         request: tonic::Request<tucana::aquila::ModuleUpdateRequest>,
     ) -> Result<tonic::Response<tucana::aquila::ModuleUpdateResponse>, tonic::Status> {
         let token = match extract_token(&request) {
-            Ok(t) => t,
+            Ok(t) => t.to_string(),
             Err(status) => {
                 log::warn!("Rejected module update reason=missing_or_invalid_token");
                 return Err(status);
             }
         };
 
-        if !self.service_configuration.has_service(&token.to_string()) {
+        let modules_update_request = request.into_inner();
+        let first_module_identifier = modules_update_request.modules.first();
+
+        let module_name = match first_module_identifier {
+            Some(f) => f.identifier.clone(),
+            None => return Err(Status::invalid_argument("empty list of modules")),
+        };
+
+
+        if !self.service_configuration.has_service(&token, &module_name) {
             log::warn!(
                 "Rejected module update reason=token_not_registered token={}",
                 token
             );
             return Err(Status::unauthenticated("token is not valid"));
         }
-
-        let modules_update_request = request.into_inner();
 
         log::debug!(
             "Received module update modules={:?}",

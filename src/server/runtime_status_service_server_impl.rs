@@ -323,22 +323,36 @@ impl RuntimeStatusService for AquilaRuntimeStatusServiceServer {
         request: tonic::Request<tucana::aquila::RuntimeStatusUpdateRequest>,
     ) -> Result<tonic::Response<tucana::aquila::RuntimeStatusUpdateResponse>, tonic::Status> {
         let token = match extract_token(&request) {
-            Ok(t) => t,
+            Ok(t) => t.to_string(),
             Err(status) => {
                 log::warn!("Rejected runtime status update reason=missing_or_invalid_token");
                 return Err(status);
             }
         };
 
-        if !self.service_configuration.has_service(&token.to_string()) {
+        let runtime_status_update_request = request.into_inner();
+
+        let runtime_identifier = match runtime_status_update_request.status.as_ref() {
+            Some(RuntimeStatusKind::AdapterRuntimeStatus(status)) => status.identifier.clone(),
+            Some(RuntimeStatusKind::ExecutionRuntimeStatus(status)) => status.identifier.clone(),
+            Some(RuntimeStatusKind::ActionStatus(status)) => status.identifier.clone(),
+            None => return Err(Status::invalid_argument("missing runtime status payload")),
+        };
+
+        if runtime_identifier.is_empty() {
+            return Err(Status::invalid_argument("runtime identifier is missing"));
+        }
+
+        if !self
+            .service_configuration
+            .has_service(&token, &runtime_identifier)
+        {
             log::warn!(
                 "Rejected runtime status update reason=token_not_registered token={}",
                 token
             );
             return Err(Status::unauthenticated("token is not valid"));
         }
-
-        let runtime_status_update_request = request.into_inner();
         self.track_runtime_update(&runtime_status_update_request)
             .await;
 
