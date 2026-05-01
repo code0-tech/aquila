@@ -33,14 +33,14 @@ impl RuntimeUsageService for AquilaRuntimeUsageServiceServer {
         request: tonic::Request<tucana::aquila::RuntimeUsageRequest>,
     ) -> Result<tonic::Response<tucana::aquila::RuntimeUsageResponse>, tonic::Status> {
         let token = match extract_token(&request) {
-            Ok(t) => t,
+            Ok(t) => t.to_string(),
             Err(status) => {
                 log::warn!("Rejected runtime usage update reason=missing_or_invalid_token");
                 return Err(status);
             }
         };
 
-        if !self.service_configuration.has_service(&token.to_string()) {
+        if !self.service_configuration.has_service(&token, &String::from("taurus")) {
             log::warn!("Rejected runtime usage update reason=token_not_registered");
             return Err(Status::unauthenticated("token is not valid"));
         }
