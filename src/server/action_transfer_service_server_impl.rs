@@ -138,10 +138,17 @@ fn extract_token(
     log::debug!("Extracting authorization token from metadata");
     match request.metadata().get("authorization") {
         Some(ascii) => match ascii.to_str() {
-            Ok(tk) => Ok(tk.to_string()),
+            Ok(tk) => {
+                if tk.is_empty() {
+                    log::error!("Authorization token is empty");
+                    return Err(Status::unauthenticated("authorization token is empty"));
+                }
+
+                Ok(tk.to_string())
+            }
             Err(err) => {
                 log::error!("Cannot read authorization header because: {:?}", err);
-                Err(Status::internal("cannot read authorization header"))
+                Err(Status::unauthenticated("invalid authorization header"))
             }
         },
         None => {
