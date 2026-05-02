@@ -54,7 +54,7 @@ You can use `.env-example` as a starting point.
 
 **Sagittarius**:
 
-- Required for dynamic mode (`MODE=hybrid`)
+- Required for dynamic mode (`MODE=dynamic`)
 - Ensure the configured endpoint is reachable
 
 </Step>
@@ -82,7 +82,7 @@ Aquila configuration is split into shared variables and mode-specific variables.
 
 | Name                  | Description                                                                                                  | Default                         |
 |-----------------------|--------------------------------------------------------------------------------------------------------------|---------------------------------|
-| `MODE`                | Runtime mode. `static` loads local flows. `hybrid` enables dynamic synchronization with Sagittarius.        | `static`                        |
+| `MODE`                | Runtime mode. `static` loads local flows. `dynamic` enables dynamic synchronization with Sagittarius.        | `static`                        |
 | `ENVIRONMENT`         | Runtime environment (`development`, `staging`, `production`).                                                | `development`                   |
 | `NATS_URL`            | URL of the NATS instance Aquila connects to.                                                                 | `nats://localhost:4222`         |
 | `NATS_BUCKET`         | Name of the NATS KV bucket used to store flows.                                                              | `flow_store`                    |
@@ -104,7 +104,7 @@ Set `MODE=static` to load flows from a local JSON file and insert them into the 
 
 ### Dynamic Mode
 
-Set `MODE=hybrid` to keep flows synchronized from Sagittarius.
+Set `MODE=dynamic` to keep flows synchronized from Sagittarius.
 
 | Name              | Description                                                                       | Default                  |
 |-------------------|-----------------------------------------------------------------------------------|--------------------------|
