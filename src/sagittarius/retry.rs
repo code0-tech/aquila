@@ -32,7 +32,6 @@ pub async fn create_channel_with_retry(
             Ok(c) => {
                 log::debug!("Creating a new endpoint for the: {} Service", channel_name);
                 c.connect_timeout(Duration::from_secs(2))
-                    .timeout(Duration::from_secs(10))
             }
             Err(err) => {
                 panic!(
