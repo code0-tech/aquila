@@ -5,8 +5,11 @@ use crate::{
         config::Config as AquilaConfig, service::ServiceConfiguration, state::AppReadiness,
     },
     sagittarius::{
-        flow_service_client_impl::SagittariusFlowClient, retry::create_channel_with_retry,
-        test_execution_client_impl::SagittariusTestExecutionServiceClient,
+        flow_service_client_impl::SagittariusFlowClient,
+        retry::create_channel_with_retry,
+        test_execution_client_impl::{
+            SagittariusExecutionResponseSender, SagittariusTestExecutionServiceClient,
+        },
     },
     server::dynamic_server::AquilaDynamicServer,
 };
@@ -36,6 +39,7 @@ pub async fn run(
 
     let (action_config_tx, _) =
         tokio::sync::broadcast::channel::<tucana::shared::ModuleConfigurations>(64);
+    let execution_response_sender = SagittariusExecutionResponseSender::new();
 
     let server = AquilaDynamicServer::new(
         &config,
@@ -45,6 +49,7 @@ pub async fn run(
         client.clone(),
         kv_store.clone(),
         action_config_tx.clone(),
+        execution_response_sender.clone(),
     );
 
     let mut server_task = tokio::spawn(async move {
@@ -61,6 +66,7 @@ pub async fn run(
     let runtime_token_for_test_execution = config.runtime_token.clone();
     let sagittarius_ready_for_test_execution = app_readiness.sagittarius_ready.clone();
     let nats_client_for_test_execution = client.clone();
+    let execution_response_sender_for_test_execution = execution_response_sender.clone();
 
     let backend_url_for_flow = config.backend_url.clone();
     let runtime_token_for_flow = config.runtime_token.clone();
@@ -80,11 +86,11 @@ pub async fn run(
 
         loop {
             log::debug!(
-                "Attempting to initialize Sagittarius test execution stream backoff_ms={}",
+                "Attempting to initialize Sagittarius execution stream backoff_ms={}",
                 backoff.as_millis()
             );
             let ch = create_channel_with_retry(
-                "Sagittarius Test Execution Stream",
+                "Sagittarius Execution Stream",
                 backend_url_for_test_execution.clone(),
                 sagittarius_ready_for_test_execution.clone(),
             )
@@ -95,13 +101,14 @@ pub async fn run(
                 kv_for_test_execution.clone(),
                 ch,
                 runtime_token_for_test_execution.clone(),
+                execution_response_sender_for_test_execution.clone(),
             );
 
             test_execution_client.logon().await;
             tokio::time::sleep(backoff).await;
             backoff = std::cmp::min(backoff * 2, max_backoff);
             log::debug!(
-                "Next test execution stream reconnect backoff_ms={}",
+                "Next execution stream reconnect backoff_ms={}",
                 backoff.as_millis()
             );
         }
