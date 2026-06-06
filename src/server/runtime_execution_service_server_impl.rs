@@ -49,10 +49,7 @@ impl ExecutionService for AquilaExecutionServiceServer {
             .service_configuration
             .has_runtime(&token, &String::from("taurus"))
         {
-            log::warn!(
-                "Rejected execution update reason=token_not_registered token={}",
-                token
-            );
+            log::warn!("Rejected execution update reason=token_not_registered runtime=taurus");
             return Err(Status::unauthenticated("token is not valid"));
         }
         log::debug!("Accepted execution update from runtime runtime=taurus");
@@ -66,8 +63,6 @@ impl ExecutionService for AquilaExecutionServiceServer {
         let flow_id = execution_result.flow_id;
         let node_result_count = execution_result.node_execution_results.len();
         let result_status = execution_result_status(&execution_result);
-
-        log::debug!("{:#?}", execution_result);
 
         log::info!(
             "Received execution result from runtime execution_id={} flow_id={} result_status={} node_results={}",

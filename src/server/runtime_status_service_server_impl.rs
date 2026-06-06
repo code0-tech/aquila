@@ -348,8 +348,8 @@ impl RuntimeStatusService for AquilaRuntimeStatusServiceServer {
             .has_service(&token, &runtime_identifier)
         {
             log::warn!(
-                "Rejected runtime status update reason=token_not_registered token={}",
-                token
+                "Rejected runtime status update reason=token_not_registered runtime_identifier={}",
+                runtime_identifier
             );
             return Err(Status::unauthenticated("token is not valid"));
         }
@@ -357,8 +357,8 @@ impl RuntimeStatusService for AquilaRuntimeStatusServiceServer {
             .await;
 
         log::debug!(
-            "Received Runtime Status Update payload={:?}",
-            runtime_status_update_request
+            "Received runtime status update runtime_identifier={}",
+            runtime_identifier
         );
 
         let mut client = self.client.lock().await;

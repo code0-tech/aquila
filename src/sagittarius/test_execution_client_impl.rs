@@ -6,7 +6,11 @@
 */
 use futures::StreamExt;
 use prost::Message;
-use std::{collections::HashMap, sync::Arc};
+use std::{
+    collections::HashMap,
+    sync::Arc,
+    time::{Duration, Instant},
+};
 use tokio::sync::Mutex;
 use tokio_stream::wrappers::ReceiverStream;
 use tonic::transport::Channel;
@@ -18,10 +22,18 @@ use tucana::shared::{ExecutionFlow, ExecutionResult, ValidationFlow};
 
 use crate::authorization::authorization::get_authorization_metadata;
 
+const EXECUTION_FLOW_ID_TTL: Duration = Duration::from_secs(30 * 60);
+const MAX_EXECUTION_FLOW_IDS: usize = 10_000;
+
+struct ExecutionFlowIdMapping {
+    flow_id: i64,
+    expires_at: Instant,
+}
+
 #[derive(Clone, Default)]
 pub struct SagittariusExecutionResponseSender {
     sender: Arc<Mutex<Option<tokio::sync::mpsc::Sender<ExecutionLogonRequest>>>>,
-    execution_flow_ids: Arc<Mutex<HashMap<String, i64>>>,
+    execution_flow_ids: Arc<Mutex<HashMap<String, ExecutionFlowIdMapping>>>,
 }
 
 impl SagittariusExecutionResponseSender {
@@ -56,11 +68,37 @@ impl SagittariusExecutionResponseSender {
         }
 
         let mut execution_flow_ids = self.execution_flow_ids.lock().await;
-        execution_flow_ids.insert(execution_id.to_string(), flow_id);
+        let now = Instant::now();
+        let expired_count = prune_expired_execution_flow_ids(&mut execution_flow_ids, now);
+        let replacing_existing = execution_flow_ids.contains_key(execution_id);
+        let evicted_execution_id =
+            if !replacing_existing && execution_flow_ids.len() >= MAX_EXECUTION_FLOW_IDS {
+                remove_oldest_execution_flow_id(&mut execution_flow_ids)
+            } else {
+                None
+            };
+
+        execution_flow_ids.insert(
+            execution_id.to_string(),
+            ExecutionFlowIdMapping {
+                flow_id,
+                expires_at: now + EXECUTION_FLOW_ID_TTL,
+            },
+        );
+
+        if let Some(evicted_execution_id) = evicted_execution_id {
+            log::warn!(
+                "Evicted execution flow mapping because cache is full evicted_execution_id={} max_entries={}",
+                evicted_execution_id,
+                MAX_EXECUTION_FLOW_IDS
+            );
+        }
         log::debug!(
-            "Remembered execution flow mapping execution_id={} flow_id={}",
+            "Remembered execution flow mapping execution_id={} flow_id={} cached_entries={} expired_entries={}",
             execution_id,
-            flow_id
+            flow_id,
+            execution_flow_ids.len(),
+            expired_count
         );
     }
 
@@ -84,7 +122,16 @@ impl SagittariusExecutionResponseSender {
         }
 
         let mut execution_flow_ids = self.execution_flow_ids.lock().await;
-        execution_flow_ids.remove(execution_id)
+        let mapping = execution_flow_ids.remove(execution_id)?;
+        if mapping.expires_at > Instant::now() {
+            Some(mapping.flow_id)
+        } else {
+            log::debug!(
+                "Dropped expired execution flow mapping execution_id={}",
+                execution_id
+            );
+            None
+        }
     }
 
     pub async fn send_execution_result(
@@ -171,6 +218,27 @@ impl SagittariusExecutionResponseSender {
             }
         }
     }
+}
+
+fn prune_expired_execution_flow_ids(
+    execution_flow_ids: &mut HashMap<String, ExecutionFlowIdMapping>,
+    now: Instant,
+) -> usize {
+    let initial_len = execution_flow_ids.len();
+    execution_flow_ids.retain(|_, mapping| mapping.expires_at > now);
+    initial_len - execution_flow_ids.len()
+}
+
+fn remove_oldest_execution_flow_id(
+    execution_flow_ids: &mut HashMap<String, ExecutionFlowIdMapping>,
+) -> Option<String> {
+    let oldest_execution_id = execution_flow_ids
+        .iter()
+        .min_by_key(|(_, mapping)| mapping.expires_at)
+        .map(|(execution_id, _)| execution_id.clone())?;
+
+    execution_flow_ids.remove(&oldest_execution_id);
+    Some(oldest_execution_id)
 }
 
 fn execution_result_status(execution_result: &ExecutionResult) -> &'static str {

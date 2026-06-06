@@ -346,7 +346,7 @@ impl ActionTransferService for AquilaActionTransferServiceServer {
         request: tonic::Request<tonic::Streaming<ActionTransferRequest>>,
     ) -> std::result::Result<tonic::Response<Self::TransferStream>, tonic::Status> {
         let token = extract_token(&request)?;
-        log::debug!("Action transfer stream opened token={}", &token);
+        log::debug!("Action transfer stream opened");
 
         let mut first_request = true;
         let mut action_props: Option<ActionLogon> = None;
