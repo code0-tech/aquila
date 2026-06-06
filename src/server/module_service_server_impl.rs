@@ -46,11 +46,10 @@ impl ModuleService for AquilaModuleServiceServer {
             None => return Err(Status::invalid_argument("empty list of modules")),
         };
 
-
         if !self.service_configuration.has_service(&token, &module_name) {
             log::warn!(
-                "Rejected module update reason=token_not_registered token={}",
-                token
+                "Rejected module update reason=token_not_registered module={}",
+                module_name
             );
             return Err(Status::unauthenticated("token is not valid"));
         }

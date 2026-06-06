@@ -5,6 +5,7 @@ use tonic::{Extensions, Request, transport::Channel};
 use tucana::sagittarius::runtime_usage_service_client::RuntimeUsageServiceClient as SagittariusRuntimeUsageServiceClient;
 
 use crate::authorization::authorization::get_authorization_metadata;
+use crate::sagittarius::SAGITTARIUS_UNARY_RPC_TIMEOUT;
 
 pub struct SagittariusRuntimeUsageClient {
     client: SagittariusRuntimeUsageServiceClient<Channel>,
@@ -31,13 +32,14 @@ impl SagittariusRuntimeUsageClient {
             sample_count
         );
 
-        let request = Request::from_parts(
+        let mut request = Request::from_parts(
             get_authorization_metadata(&self.token),
             Extensions::new(),
             tucana::sagittarius::RuntimeUsageRequest {
                 runtime_usage: runtime_usage_request.runtime_usage,
             },
         );
+        request.set_timeout(SAGITTARIUS_UNARY_RPC_TIMEOUT);
 
         let response = match self.client.update(request).await {
             Ok(response) => {

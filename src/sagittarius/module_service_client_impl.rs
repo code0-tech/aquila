@@ -1,4 +1,5 @@
 use crate::authorization::authorization::get_authorization_metadata;
+use crate::sagittarius::SAGITTARIUS_UNARY_RPC_TIMEOUT;
 use tonic::transport::Channel;
 use tonic::{Extensions, Request};
 
@@ -24,13 +25,14 @@ impl SagittariusModuleServiceClient {
             module_count
         );
 
-        let request = Request::from_parts(
+        let mut request = Request::from_parts(
             get_authorization_metadata(&self.token),
             Extensions::new(),
             tucana::sagittarius::ModuleUpdateRequest {
                 modules: modules_update_request.modules,
             },
         );
+        request.set_timeout(SAGITTARIUS_UNARY_RPC_TIMEOUT);
 
         match self.client.update(request).await {
             Ok(response) => {

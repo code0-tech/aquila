@@ -4,10 +4,12 @@ use crate::{
         module_service_client_impl::SagittariusModuleServiceClient,
         runtime_status_service_client_impl::SagittariusRuntimeStatusServiceClient,
         runtime_usage_client_impl::SagittariusRuntimeUsageClient,
+        test_execution_client_impl::SagittariusExecutionResponseSender,
     },
     server::{
         action_transfer_service_server_impl::AquilaActionTransferServiceServer,
         create_readiness_interceptor, module_service_server_impl::AquilaModuleServiceServer,
+        runtime_execution_service_server_impl::AquilaExecutionServiceServer,
         runtime_status_service_server_impl::AquilaRuntimeStatusServiceServer,
         runtime_usage_service_server_impl::AquilaRuntimeUsageServiceServer,
     },
@@ -19,7 +21,7 @@ use tokio::sync::Mutex;
 use tonic::transport::{Channel, Server};
 use tucana::aquila::{
     action_transfer_service_server::ActionTransferServiceServer,
-    module_service_server::ModuleServiceServer,
+    execution_service_server::ExecutionServiceServer, module_service_server::ModuleServiceServer,
     runtime_status_service_server::RuntimeStatusServiceServer,
     runtime_usage_service_server::RuntimeUsageServiceServer,
 };
@@ -36,6 +38,7 @@ pub struct AquilaDynamicServer {
     nats_client: async_nats::Client,
     kv_store: Arc<Store>,
     action_config_tx: tokio::sync::broadcast::Sender<tucana::shared::ModuleConfigurations>,
+    execution_response_sender: SagittariusExecutionResponseSender,
 
     runtime_status_not_responding_after_secs: u64,
     runtime_status_stopped_after_not_responding_secs: u64,
@@ -51,6 +54,7 @@ impl AquilaDynamicServer {
         nats_client: async_nats::Client,
         kv_store: Arc<Store>,
         action_config_tx: tokio::sync::broadcast::Sender<tucana::shared::ModuleConfigurations>,
+        execution_response_sender: SagittariusExecutionResponseSender,
     ) -> Self {
         let address = match format!("{}:{}", config.grpc_host, config.grpc_port).parse() {
             Ok(addr) => {
@@ -71,6 +75,7 @@ impl AquilaDynamicServer {
             nats_client,
             kv_store,
             action_config_tx,
+            execution_response_sender,
             runtime_status_not_responding_after_secs: config
                 .runtime_status_not_responding_after_secs
                 .clone(),
@@ -105,6 +110,10 @@ impl AquilaDynamicServer {
 
         info!("RuntimeStatusService started");
 
+        let execution_server = AquilaExecutionServiceServer::new(
+            self.service_configuration.clone(),
+            self.execution_response_sender.clone(),
+        );
         let module_server = AquilaModuleServiceServer::new(
             module_service.clone(),
             self.service_configuration.clone(),
@@ -145,6 +154,10 @@ impl AquilaDynamicServer {
                 .add_service(tonic_health::pb::health_server::HealthServer::new(
                     health_service,
                 ))
+                .add_service(ExecutionServiceServer::with_interceptor(
+                    execution_server,
+                    intercept.clone(),
+                ))
                 .add_service(ModuleServiceServer::with_interceptor(
                     module_server,
                     intercept.clone(),
@@ -165,6 +178,10 @@ impl AquilaDynamicServer {
                 .await
         } else {
             Server::builder()
+                .add_service(ExecutionServiceServer::with_interceptor(
+                    execution_server,
+                    intercept.clone(),
+                ))
                 .add_service(ModuleServiceServer::with_interceptor(
                     module_server,
                     intercept.clone(),
