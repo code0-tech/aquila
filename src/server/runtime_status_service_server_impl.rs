@@ -9,141 +9,58 @@ use std::{
 };
 use tokio::sync::Mutex;
 use tonic::Status;
-use tucana::aquila::{
-    RuntimeStatusUpdateRequest, runtime_status_update_request::Status as RuntimeStatusKind,
+use tucana::{
+    aquila::{RuntimeStatusUpdateRequest, runtime_status_service_server::RuntimeStatusService},
+    shared::{ModuleStatus, module_status},
 };
-use tucana::shared::{
-    AdapterRuntimeStatus, ExecutionRuntimeStatus, adapter_runtime_status, execution_runtime_status,
-};
-use tucana::{aquila::runtime_status_service_server::RuntimeStatusService, shared::ActionStatus};
 
 #[derive(Clone)]
-enum RuntimeStatusSnapshot {
-    Adapter(AdapterRuntimeStatus),
-    Execution(ExecutionRuntimeStatus),
-    Action(ActionStatus),
+struct RuntimeStatusSnapshot {
+    status: ModuleStatus,
 }
 
 impl RuntimeStatusSnapshot {
     fn from_update(request: &RuntimeStatusUpdateRequest) -> Option<Self> {
         let status = request.status.as_ref()?;
 
-        match status {
-            RuntimeStatusKind::AdapterRuntimeStatus(status) => {
-                if status.identifier.is_empty() {
-                    None
-                } else {
-                    Some(Self::Adapter(status.clone()))
-                }
-            }
-            RuntimeStatusKind::ExecutionRuntimeStatus(status) => {
-                if status.identifier.is_empty() {
-                    None
-                } else {
-                    Some(Self::Execution(status.clone()))
-                }
-            }
-            RuntimeStatusKind::ActionStatus(status) => {
-                if status.identifier.is_empty() {
-                    None
-                } else {
-                    Some(Self::Action(status.clone()))
-                }
-            }
+        if status.identifier.is_empty() {
+            None
+        } else {
+            Some(Self {
+                status: status.clone(),
+            })
         }
     }
 
     fn key(&self) -> String {
-        match self {
-            RuntimeStatusSnapshot::Adapter(status) => format!("adapter:{}", status.identifier),
-            RuntimeStatusSnapshot::Execution(status) => format!("execution:{}", status.identifier),
-            RuntimeStatusSnapshot::Action(status) => format!("actionn:{}", status.identifier),
-        }
+        self.status.identifier.clone()
     }
 
     fn identifier(&self) -> &str {
-        match self {
-            RuntimeStatusSnapshot::Adapter(status) => &status.identifier,
-            RuntimeStatusSnapshot::Execution(status) => &status.identifier,
-            RuntimeStatusSnapshot::Action(status) => &status.identifier,
-        }
+        &self.status.identifier
     }
 
     fn is_stopped(&self) -> bool {
-        match self {
-            RuntimeStatusSnapshot::Adapter(status) => {
-                status.status == adapter_runtime_status::Status::Stopped as i32
-            }
-            RuntimeStatusSnapshot::Execution(status) => {
-                status.status == execution_runtime_status::Status::Stopped as i32
-            }
-            RuntimeStatusSnapshot::Action(status) => {
-                status.status == execution_runtime_status::Status::Stopped as i32
-            }
-        }
+        self.status.status == module_status::StatusVariant::Stopped as i32
     }
 
     fn not_responding_update(&self) -> RuntimeStatusUpdateRequest {
-        match self {
-            RuntimeStatusSnapshot::Adapter(status) => {
-                let mut next_status = status.clone();
-                next_status.status = adapter_runtime_status::Status::NotResponding as i32;
-                next_status.timestamp = epoch_millis_now();
+        let mut next_status = self.status.clone();
+        next_status.status = module_status::StatusVariant::NotResponding as i32;
+        next_status.timestamp = epoch_seconds_now();
 
-                RuntimeStatusUpdateRequest {
-                    status: Some(RuntimeStatusKind::AdapterRuntimeStatus(next_status)),
-                }
-            }
-            RuntimeStatusSnapshot::Execution(status) => {
-                let mut next_status = status.clone();
-                next_status.status = execution_runtime_status::Status::NotResponding as i32;
-                next_status.timestamp = epoch_millis_now();
-
-                RuntimeStatusUpdateRequest {
-                    status: Some(RuntimeStatusKind::ExecutionRuntimeStatus(next_status)),
-                }
-            }
-            RuntimeStatusSnapshot::Action(status) => {
-                let mut next_status = status.clone();
-                next_status.status = execution_runtime_status::Status::NotResponding as i32;
-                next_status.timestamp = epoch_millis_now();
-
-                RuntimeStatusUpdateRequest {
-                    status: Some(RuntimeStatusKind::ActionStatus(next_status)),
-                }
-            }
+        RuntimeStatusUpdateRequest {
+            status: Some(next_status),
         }
     }
 
     fn stopped_update(&self) -> RuntimeStatusUpdateRequest {
-        match self {
-            RuntimeStatusSnapshot::Adapter(status) => {
-                let mut next_status = status.clone();
-                next_status.status = adapter_runtime_status::Status::Stopped as i32;
-                next_status.timestamp = epoch_millis_now();
+        let mut next_status = self.status.clone();
+        next_status.status = module_status::StatusVariant::Stopped as i32;
+        next_status.timestamp = epoch_seconds_now();
 
-                RuntimeStatusUpdateRequest {
-                    status: Some(RuntimeStatusKind::AdapterRuntimeStatus(next_status)),
-                }
-            }
-            RuntimeStatusSnapshot::Execution(status) => {
-                let mut next_status = status.clone();
-                next_status.status = execution_runtime_status::Status::Stopped as i32;
-                next_status.timestamp = epoch_millis_now();
-
-                RuntimeStatusUpdateRequest {
-                    status: Some(RuntimeStatusKind::ExecutionRuntimeStatus(next_status)),
-                }
-            }
-            RuntimeStatusSnapshot::Action(status) => {
-                let mut next_status = status.clone();
-                next_status.status = execution_runtime_status::Status::Stopped as i32;
-                next_status.timestamp = epoch_millis_now();
-
-                RuntimeStatusUpdateRequest {
-                    status: Some(RuntimeStatusKind::ActionStatus(next_status)),
-                }
-            }
+        RuntimeStatusUpdateRequest {
+            status: Some(next_status),
         }
     }
 }
@@ -306,9 +223,9 @@ fn collect_timeout_updates(
     timeout_updates
 }
 
-fn epoch_millis_now() -> i64 {
+fn epoch_seconds_now() -> i64 {
     match SystemTime::now().duration_since(UNIX_EPOCH) {
-        Ok(duration) => duration.as_millis() as i64,
+        Ok(duration) => duration.as_secs() as i64,
         Err(error) => {
             log::warn!("System time before UNIX_EPOCH: {:?}", error);
             0
@@ -333,9 +250,7 @@ impl RuntimeStatusService for AquilaRuntimeStatusServiceServer {
         let runtime_status_update_request = request.into_inner();
 
         let runtime_identifier = match runtime_status_update_request.status.as_ref() {
-            Some(RuntimeStatusKind::AdapterRuntimeStatus(status)) => status.identifier.clone(),
-            Some(RuntimeStatusKind::ExecutionRuntimeStatus(status)) => status.identifier.clone(),
-            Some(RuntimeStatusKind::ActionStatus(status)) => status.identifier.clone(),
+            Some(status) => status.identifier.clone(),
             None => return Err(Status::invalid_argument("missing runtime status payload")),
         };
 
