@@ -19,24 +19,12 @@ impl SagittariusRuntimeStatusServiceClient {
         runtime_status_request: tucana::aquila::RuntimeStatusUpdateRequest,
     ) -> tucana::aquila::RuntimeStatusUpdateResponse {
         log::debug!("Forwarding runtime status update to Sagittarius");
-        let status: Option<tucana::sagittarius::runtime_status_update_request::Status> = match runtime_status_request.status {
-            Some(stat) => match stat {
-                tucana::aquila::runtime_status_update_request::Status::AdapterRuntimeStatus(adapter_runtime_status) => {
-                    Some(tucana::sagittarius::runtime_status_update_request::Status::AdapterRuntimeStatus(adapter_runtime_status))
-                },
-                tucana::aquila::runtime_status_update_request::Status::ExecutionRuntimeStatus(execution_runtime_status) => {
-                    Some(tucana::sagittarius::runtime_status_update_request::Status::ExecutionRuntimeStatus(execution_runtime_status))
-                },
-                tucana::aquila::runtime_status_update_request::Status::ActionStatus(action_status) => {
-                    Some(tucana::sagittarius::runtime_status_update_request::Status::ActionStatus(action_status))
-                },
-            },
-            None => None,
-        };
         let mut request = Request::from_parts(
             get_authorization_metadata(&self.token),
             Extensions::new(),
-            tucana::sagittarius::RuntimeStatusUpdateRequest { status },
+            tucana::sagittarius::RuntimeStatusUpdateRequest {
+                status: runtime_status_request.status,
+            },
         );
         request.set_timeout(SAGITTARIUS_UNARY_RPC_TIMEOUT);
 
