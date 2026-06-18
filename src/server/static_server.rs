@@ -56,6 +56,7 @@ impl AquilaStaticServer {
             self.nats_client.clone(),
             self.kv_store.as_ref().clone(),
             self.service_configuration.clone(),
+            None,
             self.action_config_tx.clone(),
             true,
         );
