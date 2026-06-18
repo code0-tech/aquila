@@ -137,6 +137,7 @@ impl AquilaDynamicServer {
             self.nats_client.clone(),
             self.kv_store.as_ref().clone(),
             self.service_configuration.clone(),
+            Some(module_service.clone()),
             self.action_config_tx.clone(),
             false,
         );
