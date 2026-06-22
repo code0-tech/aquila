@@ -3,7 +3,6 @@ use crate::{
     sagittarius::{
         module_service_client_impl::SagittariusModuleServiceClient,
         runtime_status_service_client_impl::SagittariusRuntimeStatusServiceClient,
-        runtime_usage_client_impl::SagittariusRuntimeUsageClient,
         test_execution_client_impl::SagittariusExecutionResponseSender,
     },
     server::{
@@ -11,7 +10,6 @@ use crate::{
         create_readiness_interceptor, module_service_server_impl::AquilaModuleServiceServer,
         runtime_execution_service_server_impl::AquilaExecutionServiceServer,
         runtime_status_service_server_impl::AquilaRuntimeStatusServiceServer,
-        runtime_usage_service_server_impl::AquilaRuntimeUsageServiceServer,
     },
 };
 use async_nats::jetstream::kv::Store;
@@ -23,7 +21,6 @@ use tucana::aquila::{
     action_transfer_service_server::ActionTransferServiceServer,
     execution_service_server::ExecutionServiceServer, module_service_server::ModuleServiceServer,
     runtime_status_service_server::RuntimeStatusServiceServer,
-    runtime_usage_service_server::RuntimeUsageServiceServer,
 };
 
 pub struct AquilaDynamicServer {
@@ -97,13 +94,6 @@ impl AquilaDynamicServer {
 
         info!("ModuleService started");
 
-        let runtime_usage_service = Arc::new(Mutex::new(SagittariusRuntimeUsageClient::new(
-            self.channel.clone(),
-            self.token.clone(),
-        )));
-
-        info!("RuntimeUsageService started");
-
         let runtime_status_service = Arc::new(Mutex::new(
             SagittariusRuntimeStatusServiceClient::new(self.channel.clone(), self.token.clone()),
         ));
@@ -118,11 +108,7 @@ impl AquilaDynamicServer {
             module_service.clone(),
             self.service_configuration.clone(),
         );
-        let runtime_usage_server = AquilaRuntimeUsageServiceServer::new(
-            runtime_usage_service.clone(),
-            self.service_configuration.clone(),
-        );
-        let runtime_status_server = AquilaRuntimeStatusServiceServer::new(
+       let runtime_status_server = AquilaRuntimeStatusServiceServer::new(
             runtime_status_service.clone(),
             self.service_configuration.clone(),
             Duration::from_secs(self.runtime_status_not_responding_after_secs.clone()),
@@ -163,10 +149,6 @@ impl AquilaDynamicServer {
                     module_server,
                     intercept.clone(),
                 ))
-                .add_service(RuntimeUsageServiceServer::with_interceptor(
-                    runtime_usage_server,
-                    intercept.clone(),
-                ))
                 .add_service(RuntimeStatusServiceServer::with_interceptor(
                     runtime_status_server,
                     intercept.clone(),
@@ -185,10 +167,6 @@ impl AquilaDynamicServer {
                 ))
                 .add_service(ModuleServiceServer::with_interceptor(
                     module_server,
-                    intercept.clone(),
-                ))
-                .add_service(RuntimeUsageServiceServer::with_interceptor(
-                    runtime_usage_server,
                     intercept.clone(),
                 ))
                 .add_service(RuntimeStatusServiceServer::with_interceptor(
