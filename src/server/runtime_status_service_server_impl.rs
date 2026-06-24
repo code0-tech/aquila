@@ -101,7 +101,7 @@ impl AquilaRuntimeStatusServiceServer {
 
     fn spawn_timeout_monitor(&self, monitor_interval: Duration) {
         let tracked_runtimes = self.tracked_runtimes.clone();
-        let client = self.client.clone();
+        let _client = self.client.clone();
         let not_responding_after = self.not_responding_after;
         let stopped_after_not_responding = self.stopped_after_not_responding;
 
@@ -126,9 +126,10 @@ impl AquilaRuntimeStatusServiceServer {
                     continue;
                 }
 
-                let mut client = client.lock().await;
-                for timeout_update in timeout_updates {
-                    let _ = client.update_runtime_status(timeout_update).await;
+                // Uncomment in #360
+                // let mut client = _client.lock().await;
+                for _timeout_update in timeout_updates {
+                    // let _ = client.update_runtime_status(timeout_update).await;
                 }
             }
         });
@@ -276,10 +277,14 @@ impl RuntimeStatusService for AquilaRuntimeStatusServiceServer {
             runtime_identifier
         );
 
-        let mut client = self.client.lock().await;
-        let response = client
-            .update_runtime_status(runtime_status_update_request)
-            .await;
+        // Temporarily disabled: do not forward runtime status updates to Sagittarius.
+        // Re-enable with the timeout updates above when runtime usage reporting is restored.
+        // let mut client = self.client.lock().await;
+        // let response = client
+        //     .update_runtime_status(runtime_status_update_request)
+        //     .await;
+        let response = tucana::aquila::RuntimeStatusUpdateResponse { success: true };
+
         log::debug!(
             "Completed runtime status update success={}",
             response.success
