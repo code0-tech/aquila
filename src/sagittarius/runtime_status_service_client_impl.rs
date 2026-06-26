@@ -1,17 +1,22 @@
 use crate::authorization::authorization::get_authorization_metadata;
-use crate::sagittarius::SAGITTARIUS_UNARY_RPC_TIMEOUT;
+use std::time::Duration;
 use tonic::{Extensions, Request, transport::Channel};
 use tucana::sagittarius::runtime_status_service_client::RuntimeStatusServiceClient;
 
 pub struct SagittariusRuntimeStatusServiceClient {
     client: RuntimeStatusServiceClient<Channel>,
     token: String,
+    unary_rpc_timeout: Duration,
 }
 
 impl SagittariusRuntimeStatusServiceClient {
-    pub fn new(channel: Channel, token: String) -> Self {
+    pub fn new(channel: Channel, token: String, unary_rpc_timeout: Duration) -> Self {
         let client = RuntimeStatusServiceClient::new(channel);
-        Self { client, token }
+        Self {
+            client,
+            token,
+            unary_rpc_timeout,
+        }
     }
 
     pub async fn update_runtime_status(
@@ -26,7 +31,7 @@ impl SagittariusRuntimeStatusServiceClient {
                 status: runtime_status_request.status,
             },
         );
-        request.set_timeout(SAGITTARIUS_UNARY_RPC_TIMEOUT);
+        request.set_timeout(self.unary_rpc_timeout);
 
         let response = match self.client.update(request).await {
             Ok(response) => {

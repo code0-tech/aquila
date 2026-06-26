@@ -40,6 +40,7 @@ pub struct AquilaDynamicServer {
     runtime_status_not_responding_after_secs: u64,
     runtime_status_stopped_after_not_responding_secs: u64,
     runtime_status_monitor_interval_secs: u64,
+    sagittarius_unary_rpc_timeout: Duration,
 }
 
 impl AquilaDynamicServer {
@@ -83,6 +84,9 @@ impl AquilaDynamicServer {
             runtime_status_monitor_interval_secs: config
                 .runtime_status_monitor_interval_secs
                 .clone(),
+            sagittarius_unary_rpc_timeout: Duration::from_secs(
+                config.sagittarius_unary_rpc_timeout_secs,
+            ),
         }
     }
 
@@ -90,13 +94,17 @@ impl AquilaDynamicServer {
         let module_service = Arc::new(Mutex::new(SagittariusModuleServiceClient::new(
             self.channel.clone(),
             self.token.clone(),
+            self.sagittarius_unary_rpc_timeout,
         )));
 
         info!("ModuleService started");
 
-        let runtime_status_service = Arc::new(Mutex::new(
-            SagittariusRuntimeStatusServiceClient::new(self.channel.clone(), self.token.clone()),
-        ));
+        let runtime_status_service =
+            Arc::new(Mutex::new(SagittariusRuntimeStatusServiceClient::new(
+                self.channel.clone(),
+                self.token.clone(),
+                self.sagittarius_unary_rpc_timeout,
+            )));
 
         info!("RuntimeStatusService started");
 
@@ -108,7 +116,7 @@ impl AquilaDynamicServer {
             module_service.clone(),
             self.service_configuration.clone(),
         );
-       let runtime_status_server = AquilaRuntimeStatusServiceServer::new(
+        let runtime_status_server = AquilaRuntimeStatusServiceServer::new(
             runtime_status_service.clone(),
             self.service_configuration.clone(),
             Duration::from_secs(self.runtime_status_not_responding_after_secs.clone()),
