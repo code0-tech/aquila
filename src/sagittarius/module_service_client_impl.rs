@@ -1,18 +1,23 @@
 use crate::authorization::authorization::get_authorization_metadata;
-use crate::sagittarius::SAGITTARIUS_UNARY_RPC_TIMEOUT;
+use std::time::Duration;
 use tonic::transport::Channel;
 use tonic::{Extensions, Request};
 
 pub struct SagittariusModuleServiceClient {
     client: tucana::sagittarius::module_service_client::ModuleServiceClient<Channel>,
     token: String,
+    unary_rpc_timeout: Duration,
 }
 
 impl SagittariusModuleServiceClient {
-    pub fn new(channel: Channel, token: String) -> Self {
+    pub fn new(channel: Channel, token: String, unary_rpc_timeout: Duration) -> Self {
         let client = tucana::sagittarius::module_service_client::ModuleServiceClient::new(channel);
 
-        Self { client, token }
+        Self {
+            client,
+            token,
+            unary_rpc_timeout,
+        }
     }
 
     pub async fn update_modules(
@@ -32,7 +37,7 @@ impl SagittariusModuleServiceClient {
                 modules: modules_update_request.modules,
             },
         );
-        request.set_timeout(SAGITTARIUS_UNARY_RPC_TIMEOUT);
+        request.set_timeout(self.unary_rpc_timeout);
 
         match self.client.update(request).await {
             Ok(response) => {

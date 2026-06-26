@@ -50,6 +50,9 @@ pub struct Config {
 
     /// Interval in seconds for the runtime status timeout monitor loop.
     pub runtime_status_monitor_interval_secs: u64,
+
+    /// Timeout in seconds for unary RPC calls from Aquila to Sagittarius.
+    pub sagittarius_unary_rpc_timeout_secs: u64,
 }
 
 /// Implementation for all relevant `Aquila` startup configurations
@@ -96,6 +99,10 @@ impl Config {
             runtime_status_monitor_interval_secs: env_with_default(
                 "RUNTIME_STATUS_MONITOR_INTERVAL_SECS",
                 30_u64,
+            ),
+            sagittarius_unary_rpc_timeout_secs: env_with_default(
+                "SAGITTARIUS_UNARY_RPC_TIMEOUT_SECS",
+                5_u64,
             ),
         }
     }
