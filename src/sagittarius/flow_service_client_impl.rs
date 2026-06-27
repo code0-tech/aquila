@@ -14,6 +14,23 @@ use tucana::{
 
 use std::sync::atomic::{AtomicBool, Ordering};
 
+fn module_config_stats(configs: &tucana::shared::ModuleConfigurations) -> (usize, usize) {
+    let project_count = configs.module_configurations.len();
+    let config_count = configs
+        .module_configurations
+        .iter()
+        .map(|project_cfg| project_cfg.module_configurations.len())
+        .sum();
+
+    (project_count, config_count)
+}
+
+fn key_has_flow_id(key: &str, flow_id: i64) -> bool {
+    key.rsplit_once('.')
+        .and_then(|(_, id)| id.parse::<i64>().ok())
+        == Some(flow_id)
+}
+
 #[derive(Clone)]
 pub struct SagittariusFlowClient {
     store: Arc<async_nats::jetstream::kv::Store>,
@@ -103,11 +120,44 @@ impl SagittariusFlowClient {
         match data {
             Data::DeletedFlowId(id) => {
                 log::info!("Deleting the Flow with the id: {}", id);
-                let identifier = format!("{}::*", id);
-                match self.store.delete(identifier).await {
-                    Ok(_) => log::info!("Flow deleted successfully"),
-                    Err(err) => log::error!("Failed to delete flow. Reason: {:?}", err),
+                let mut keys = match self.store.keys().await {
+                    Ok(keys) => keys.boxed(),
+                    Err(err) => {
+                        log::error!(
+                            "Failed to list flows while deleting flow {}. Reason: {:?}",
+                            id,
+                            err
+                        );
+                        return;
+                    }
                 };
+
+                let mut deleted_count = 0;
+                while let Ok(Some(key)) = keys.try_next().await {
+                    if !key_has_flow_id(&key, id) {
+                        continue;
+                    }
+
+                    match self.store.delete(&key).await {
+                        Ok(_) => deleted_count += 1,
+                        Err(err) => log::error!(
+                            "Failed to delete flow {} with key {}. Reason: {:?}",
+                            id,
+                            key,
+                            err
+                        ),
+                    }
+                }
+
+                if deleted_count == 0 {
+                    log::warn!("No stored flow found with the id: {}", id);
+                } else {
+                    log::info!(
+                        "Flow deleted successfully id={} deleted_keys={}",
+                        id,
+                        deleted_count
+                    );
+                }
             }
             Data::UpdatedFlow(flow) => {
                 log::info!("Updating the Flow with the id: {}", &flow.flow_id);
@@ -152,8 +202,22 @@ impl SagittariusFlowClient {
                 }
             }
             Data::ModuleConfigurations(action_configurations) => {
-                if let Err(err) = self.action_config_tx.send(action_configurations) {
-                    log::warn!("No action configuration receivers available: {:?}", err);
+                let (project_count, config_count) = module_config_stats(&action_configurations);
+                log::debug!(
+                    "Received module configurations from flow stream module_identifier={} project_count={} config_count={}",
+                    action_configurations.module_identifier,
+                    project_count,
+                    config_count
+                );
+
+                match self.action_config_tx.send(action_configurations) {
+                    Ok(receiver_count) => log::debug!(
+                        "Broadcasted module configurations to action forwarders receiver_count={}",
+                        receiver_count
+                    ),
+                    Err(err) => {
+                        log::warn!("No action configuration receivers available: {:?}", err);
+                    }
                 }
             }
         }
