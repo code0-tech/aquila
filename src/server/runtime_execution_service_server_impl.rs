@@ -61,16 +61,8 @@ impl ExecutionService for AquilaExecutionServiceServer {
 
         let execution_id = execution_result.execution_identifier.clone();
         let flow_id = execution_result.flow_id;
-        let node_result_count = execution_result.node_execution_results.len();
         let result_status = execution_result_status(&execution_result);
 
-        log::info!(
-            "Received execution result from runtime execution_id={} flow_id={} result_status={} node_results={}",
-            execution_id,
-            flow_id,
-            result_status,
-            node_result_count
-        );
         log::debug!(
             "Forwarding execution result into Sagittarius stream execution_id={} flow_id={}",
             execution_id,
