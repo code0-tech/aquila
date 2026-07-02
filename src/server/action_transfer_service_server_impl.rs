@@ -135,12 +135,7 @@ fn applies_to_action(
     configs: &tucana::shared::ModuleConfigurations,
     action_identifier: &str,
 ) -> bool {
-    configs.module_configurations.iter().any(|project_cfg| {
-        project_cfg
-            .module_configurations
-            .iter()
-            .any(|cfg| cfg.identifier == action_identifier)
-    })
+    configs.module_identifier == action_identifier
 }
 
 fn overwrite_module_definition_sources(
@@ -611,10 +606,9 @@ impl ActionTransferService for AquilaActionTransferServiceServer {
                     }
                     tucana::aquila::action_transfer_request::Data::Result(execution_result) => {
                         log::debug!(
-                            "Received execution result execution_id={} action={}, result={:#?}",
+                            "Received execution result execution_id={} action={}",
                             execution_result.execution_identifier,
-                            identifier,
-                            execution_result
+                            identifier
                         );
 
                         handle_result(execution_result, client.clone(), pending_replies.clone())
@@ -722,6 +716,23 @@ async fn forward_nats_to_action(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn module_configurations_apply_by_module_identifier() {
+        let configs = tucana::shared::ModuleConfigurations {
+            module_identifier: "gls-action".to_string(),
+            module_configurations: vec![tucana::shared::ModuleProjectConfigurations {
+                project_id: 1,
+                module_configurations: vec![tucana::shared::ModuleConfiguration {
+                    identifier: "username".to_string(),
+                    value: None,
+                }],
+            }],
+        };
+
+        assert!(applies_to_action(&configs, "gls-action"));
+        assert!(!applies_to_action(&configs, "another-action"));
+    }
 
     #[test]
     fn overwrite_module_definition_sources_uses_action_source() {
