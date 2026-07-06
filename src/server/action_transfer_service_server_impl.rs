@@ -1,15 +1,17 @@
 use crate::{
     configuration::service::ServiceConfiguration,
     sagittarius::module_service_client_impl::SagittariusModuleServiceClient,
+    telemetry::{errors, metrics},
 };
 use async_nats::{Subject, Subscriber};
 use futures::StreamExt;
 use futures_core::Stream;
 use prost::Message;
-use std::{collections::HashMap, pin::Pin, sync::Arc};
+use std::{collections::HashMap, pin::Pin, sync::Arc, time::Instant};
 use tokio::sync::Mutex;
 use tokio_stream::wrappers::ReceiverStream;
 use tonic::Status;
+use tracing::Instrument;
 use tucana::{
     aquila::{
         ActionEvent, ActionExecutionRequest, ActionExecutionResponse, ActionLogon,
@@ -25,6 +27,7 @@ type PendingReplies = Arc<Mutex<HashMap<String, PendingReply>>>;
 struct PendingReply {
     reply_subject: Subject,
     keys: Vec<String>,
+    started_at: Instant,
 }
 
 pub struct AquilaActionTransferServiceServer {
@@ -57,8 +60,20 @@ impl AquilaActionTransferServiceServer {
 }
 
 #[derive(Debug)]
-enum FlowIdentificationError {
-    KVError,
+struct FlowIdentificationError {
+    source: Box<dyn std::error::Error + Send + Sync>,
+}
+
+impl std::fmt::Display for FlowIdentificationError {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter.write_str("failed to identify flows")
+    }
+}
+
+impl std::error::Error for FlowIdentificationError {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        Some(self.source.as_ref())
+    }
 }
 
 async fn get_flows(
@@ -70,8 +85,9 @@ async fn get_flows(
     let mut keys = match kv.keys().await {
         Ok(keys) => keys.boxed(),
         Err(err) => {
-            log::error!("Failed to get keys: {:?}", err);
-            return Err(FlowIdentificationError::KVError);
+            return Err(FlowIdentificationError {
+                source: Box::new(err),
+            });
         }
     };
 
@@ -86,7 +102,12 @@ async fn get_flows(
                 match decoded_flow {
                     Ok(flow) => collector.push(flow),
                     Err(err) => {
-                        log::error!("Failed to decode flow {}: {:?}", key, err);
+                        errors::record(
+                            "flow_storage",
+                            "flow.decode",
+                            &err,
+                            format!("flow.key={key}"),
+                        );
                     }
                 }
             }
@@ -94,7 +115,12 @@ async fn get_flows(
                 log::debug!("Flow key disappeared while reading: {}", key);
             }
             Err(err) => {
-                log::error!("Failed to fetch flow {}: {:?}", key, err);
+                errors::record(
+                    "flow_storage",
+                    "flow.fetch",
+                    &err,
+                    format!("flow.key={key}"),
+                );
             }
         }
     }
@@ -171,6 +197,18 @@ fn subject_execution_identifier(subject: &Subject) -> Option<String> {
         .map(ToString::to_string)
 }
 
+fn action_result_outcome(result: &ActionExecutionResponse) -> &'static str {
+    match result
+        .node_result
+        .as_ref()
+        .and_then(|node_result| node_result.result.as_ref())
+    {
+        Some(tucana::shared::node_execution_result::Result::Success(_)) => "success",
+        Some(tucana::shared::node_execution_result::Result::Error(_)) => "error",
+        None => "missing",
+    }
+}
+
 fn pending_reply_keys(
     request_execution_id: &str,
     subject_execution_id: Option<&str>,
@@ -198,6 +236,7 @@ fn insert_pending_reply(
     let pending_reply = PendingReply {
         reply_subject,
         keys: keys.clone(),
+        started_at: Instant::now(),
     };
 
     for key in keys {
@@ -272,6 +311,8 @@ async fn handle_logon(
     {
         let lock = actions.lock().await;
         if !lock.has_action(&token.to_string(), &identifier) {
+            metrics::action_connection(&identifier, "rejected");
+            metrics::action_failure(&identifier, "authentication");
             log::warn!(
                 "Rejected action logon identifier={} reason=token_not_registered",
                 identifier
@@ -293,9 +334,13 @@ async fn handle_logon(
             .await;
 
         if !response.success {
-            log::error!(
-                "Rejected action logon identifier={} reason=sagittarius_module_update_failed",
-                identifier
+            metrics::action_connection(&identifier, "rejected");
+            metrics::action_failure(&identifier, "module_update");
+            errors::record_message(
+                "dependency",
+                "action.logon",
+                "Sagittarius rejected the action module update",
+                format!("action.identifier={identifier}"),
             );
             return Err(Status::internal(
                 "could not update action module via Sagittarius",
@@ -308,11 +353,13 @@ async fn handle_logon(
     let sub = match client.subscribe(format!("action.{}.*", identifier)).await {
         Ok(s) => s,
         Err(err) => {
-            log::error!(
-                "Failed to subscribe to action execution subject identifier={} subject=action.{}.* error={:?}",
-                identifier,
-                identifier,
-                err
+            metrics::action_connection(&identifier, "rejected");
+            metrics::action_failure(&identifier, "subscription");
+            errors::record(
+                "messaging",
+                "action.subscribe",
+                &err,
+                format!("action.identifier={identifier} subject=action.{identifier}.*"),
             );
             return Err(Status::internal(
                 "could not register action into execution loop",
@@ -321,10 +368,13 @@ async fn handle_logon(
     };
 
     if let Err(err) = client.flush().await {
-        log::error!(
-            "Failed to flush action execution subscription identifier={} error={:?}",
-            identifier,
-            err
+        metrics::action_connection(&identifier, "rejected");
+        metrics::action_failure(&identifier, "subscription_flush");
+        errors::record(
+            "messaging",
+            "action.subscribe.flush",
+            &err,
+            format!("action.identifier={identifier}"),
         );
         return Err(Status::internal(
             "could not register action subscription with NATS",
@@ -335,8 +385,9 @@ async fn handle_logon(
 
     let tx_clone = tx.clone();
     let pending_replies_clone = pending_replies.clone();
+    let forwarder_identifier = identifier.clone();
     tokio::spawn(async move {
-        forward_nats_to_action(sub, tx_clone, pending_replies_clone).await;
+        forward_nats_to_action(forwarder_identifier, sub, tx_clone, pending_replies_clone).await;
     });
 
     if !*cfg_forwarder_started {
@@ -373,9 +424,12 @@ fn spawn_cfg_forwarder(
             };
 
             if tx.send(Ok(resp)).await.is_err() {
+                metrics::action_config_update(&action_identifier, "failed");
+                metrics::action_failure(&action_identifier, "configuration_forward");
                 log::debug!("Config forwarder channel closed for {}", action_identifier);
                 break;
             }
+            metrics::action_config_update(&action_identifier, "success");
         }
 
         log::debug!("Config forwarder stopped for {}", action_identifier);
@@ -384,6 +438,7 @@ fn spawn_cfg_forwarder(
 
 /// Looks up matching flows for an event and requests their execution.
 async fn handle_event(
+    action_identifier: &str,
     event: ActionEvent,
     kv: async_nats::jetstream::kv::Store,
     client: async_nats::Client,
@@ -398,12 +453,14 @@ async fn handle_event(
     let flows = match get_flows(pattern.clone(), kv).await {
         Ok(f) => f,
         Err(err) => {
-            log::error!(
-                "Failed to find flows for action event event_type={} project_id={} pattern={} error={:?}",
-                event.event_type,
-                event.project_id,
-                pattern,
-                err
+            errors::record(
+                "flow_storage",
+                "action.event.find_flows",
+                &err,
+                format!(
+                    "action.identifier={} event_type={} project_id={} pattern={}",
+                    action_identifier, event.event_type, event.project_id, pattern
+                ),
             );
             return;
         }
@@ -432,12 +489,14 @@ async fn handle_event(
         );
 
         if let Err(err) = client.request(topic.clone(), bytes.into()).await {
-            log::error!(
-                "Failed to request execution flow_id={} execution_id={} topic={} error={:?}",
-                flow_id,
-                uuid,
-                topic,
-                err
+            errors::record(
+                "messaging",
+                "action.event.request_execution",
+                &err,
+                format!(
+                    "action.identifier={} flow_id={} execution_id={} topic={}",
+                    action_identifier, flow_id, uuid, topic
+                ),
             );
         }
     }
@@ -445,11 +504,13 @@ async fn handle_event(
 
 /// Publishes execution results back to the original NATS reply subject.
 async fn handle_result(
+    action_identifier: &str,
     execution_result: ActionExecutionResponse,
     client: async_nats::Client,
     pending_replies: PendingReplies,
 ) {
     let execution_id = execution_result.execution_identifier.clone();
+    metrics::action_result(action_identifier, action_result_outcome(&execution_result));
 
     let pending_reply = {
         let mut pending = pending_replies.lock().await;
@@ -457,12 +518,19 @@ async fn handle_result(
     };
 
     let Some(pending_reply) = pending_reply else {
-        log::error!(
-            "No pending NATS reply subject found execution_id={}",
-            execution_id
+        metrics::action_failure(action_identifier, "result_unmatched");
+        errors::record_message(
+            "protocol",
+            "action.result.match",
+            "No pending NATS reply subject found",
+            format!("action.identifier={action_identifier} execution_id={execution_id}"),
         );
         return;
     };
+    metrics::action_execution_duration(
+        action_identifier,
+        pending_reply.started_at.elapsed().as_secs_f64(),
+    );
 
     log::debug!(
         "Publishing execution result execution_id={} reply_subject={}",
@@ -475,21 +543,28 @@ async fn handle_result(
         .publish(pending_reply.reply_subject.clone(), payload.into())
         .await
     {
-        log::error!(
-            "Failed to publish action result execution_id={} reply_subject={} error={:?}",
-            execution_id,
-            pending_reply.reply_subject,
-            err
+        metrics::action_failure(action_identifier, "result_publish");
+        errors::record(
+            "messaging",
+            "action.result.publish",
+            &err,
+            format!(
+                "action.identifier={} execution_id={} reply_subject={}",
+                action_identifier, execution_id, pending_reply.reply_subject
+            ),
         );
         return;
     }
 
     if let Err(err) = client.flush().await {
-        log::error!(
-            "Failed to flush action result execution_id={} error={:?}",
-            execution_id,
-            err
+        metrics::action_failure(action_identifier, "result_flush");
+        errors::record(
+            "messaging",
+            "action.result.flush",
+            &err,
+            format!("action.identifier={action_identifier} execution_id={execution_id}"),
         );
+        return;
     }
 }
 
@@ -498,6 +573,11 @@ impl ActionTransferService for AquilaActionTransferServiceServer {
     type TransferStream =
         Pin<Box<dyn Stream<Item = Result<ActionTransferResponse, tonic::Status>> + Send + 'static>>;
 
+    #[tracing::instrument(
+        name = "aquila.action.transfer",
+        skip_all,
+        fields(rpc.system = "grpc", rpc.service = "ActionTransferService", rpc.method = "Transfer")
+    )]
     async fn transfer(
         &self,
         request: tonic::Request<tonic::Streaming<ActionTransferRequest>>,
@@ -520,8 +600,14 @@ impl ActionTransferService for AquilaActionTransferServiceServer {
         let (tx, rx) =
             tokio::sync::mpsc::channel::<Result<ActionTransferResponse, tonic::Status>>(32);
 
+        let stream_span = tracing::info_span!(
+            "aquila.action.stream",
+            action.identifier = tracing::field::Empty
+        );
         tokio::spawn(async move {
             let mut cfg_forwarder_started = false;
+            let mut connected_at = None;
+            let mut connected_identifier = None;
             log::debug!("Action transfer stream started");
 
             while let Some(next) = stream.next().await {
@@ -582,6 +668,12 @@ impl ActionTransferService for AquilaActionTransferServiceServer {
                             };
 
                             action_props = Some(accepted);
+                            tracing::Span::current()
+                                .record("action.identifier", identifier.as_str());
+                            metrics::action_connection(&identifier, "accepted");
+                            metrics::action_active(&identifier, 1);
+                            connected_at = Some(std::time::Instant::now());
+                            connected_identifier = Some(identifier);
                         }
                         _ => {
                             log::error!("Action stream protocol violation expected=logon");
@@ -628,7 +720,8 @@ impl ActionTransferService for AquilaActionTransferServiceServer {
                     }
                     tucana::aquila::action_transfer_request::Data::Event(event) => {
                         log::debug!("Received event action={}", identifier);
-                        handle_event(event, kv.clone(), client.clone()).await;
+                        metrics::action_event(&identifier);
+                        handle_event(&identifier, event, kv.clone(), client.clone()).await;
                     }
                     tucana::aquila::action_transfer_request::Data::Result(execution_result) => {
                         log::debug!(
@@ -637,14 +730,30 @@ impl ActionTransferService for AquilaActionTransferServiceServer {
                             identifier
                         );
 
-                        handle_result(execution_result, client.clone(), pending_replies.clone())
-                            .await;
+                        handle_result(
+                            &identifier,
+                            execution_result,
+                            client.clone(),
+                            pending_replies.clone(),
+                        )
+                        .await;
                     }
                 }
             }
 
+            if let Some(identifier) = connected_identifier {
+                metrics::action_active(&identifier, -1);
+                metrics::action_connection(&identifier, "closed");
+                if let Some(connected_at) = connected_at {
+                    metrics::action_connection_duration(
+                        &identifier,
+                        connected_at.elapsed().as_secs_f64(),
+                    );
+                }
+            }
             log::debug!("Action transfer stream ended");
-        });
+        }
+        .instrument(stream_span));
 
         Ok(tonic::Response::new(Box::pin(ReceiverStream::new(rx))))
     }
@@ -652,6 +761,7 @@ impl ActionTransferService for AquilaActionTransferServiceServer {
 
 /// Forwards NATS execution requests to the connected action via gRPC and stores reply subjects.
 async fn forward_nats_to_action(
+    action_identifier: String,
     mut sub: Subscriber,
     tx: tokio::sync::mpsc::Sender<Result<ActionTransferResponse, tonic::Status>>,
     pending_replies: PendingReplies,
@@ -662,11 +772,18 @@ async fn forward_nats_to_action(
         let mut execution = match ActionExecutionRequest::decode(msg.payload.as_ref()) {
             Ok(req) => req,
             Err(err) => {
-                log::error!(
-                    "Invalid action execution request payload subject={} payload_bytes={} error={:?}",
-                    msg.subject,
-                    msg.payload.len(),
-                    err
+                metrics::action_execution(&action_identifier, "invalid");
+                metrics::action_failure(&action_identifier, "execution_decode");
+                errors::record(
+                    "protocol",
+                    "action.execution.decode",
+                    &err,
+                    format!(
+                        "action.identifier={} subject={} payload_bytes={}",
+                        action_identifier,
+                        msg.subject,
+                        msg.payload.len()
+                    ),
                 );
                 continue;
             }
@@ -687,6 +804,8 @@ async fn forward_nats_to_action(
         let execution_id = execution.execution_identifier.clone();
 
         let Some(reply_subject) = msg.reply.clone() else {
+            metrics::action_execution(&action_identifier, "invalid");
+            metrics::action_failure(&action_identifier, "missing_reply_subject");
             log::error!(
                 "Received request without NATS reply subject execution_id={}",
                 execution_id
@@ -696,6 +815,8 @@ async fn forward_nats_to_action(
 
         let keys = pending_reply_keys(&execution_id, subject_execution_id.as_deref());
         if keys.is_empty() {
+            metrics::action_execution(&action_identifier, "invalid");
+            metrics::action_failure(&action_identifier, "missing_execution_identifier");
             log::error!(
                 "Cannot store NATS reply subject without execution identifier subject={} reply_subject={}",
                 msg.subject,
@@ -729,6 +850,8 @@ async fn forward_nats_to_action(
         };
 
         if tx.send(Ok(resp)).await.is_err() {
+            metrics::action_execution(&action_identifier, "forward_failed");
+            metrics::action_failure(&action_identifier, "execution_forward");
             log::debug!("Execution forwarder channel closed");
 
             // cleanup, since the request can no longer be delivered to the action
@@ -737,6 +860,7 @@ async fn forward_nats_to_action(
 
             break;
         }
+        metrics::action_execution(&action_identifier, "forwarded");
     }
 
     log::debug!("Execution forwarder stopped");
@@ -852,6 +976,37 @@ mod tests {
         assert_eq!(
             subject_execution_identifier(&Subject::from("action.example.execution-id")),
             Some("execution-id".to_string())
+        );
+    }
+
+    #[test]
+    fn action_result_outcome_distinguishes_success_error_and_missing() {
+        use tucana::shared::{Error, NodeExecutionResult, Value, node_execution_result};
+
+        let response = |result| ActionExecutionResponse {
+            execution_identifier: "execution-id".into(),
+            node_result: Some(NodeExecutionResult {
+                result,
+                ..Default::default()
+            }),
+        };
+
+        assert_eq!(
+            action_result_outcome(&response(Some(node_execution_result::Result::Success(
+                Value::default()
+            )))),
+            "success"
+        );
+        assert_eq!(
+            action_result_outcome(&response(Some(node_execution_result::Result::Error(
+                Error::default()
+            )))),
+            "error"
+        );
+        assert_eq!(action_result_outcome(&response(None)), "missing");
+        assert_eq!(
+            action_result_outcome(&ActionExecutionResponse::default()),
+            "missing"
         );
     }
 }

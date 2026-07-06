@@ -1,4 +1,4 @@
-use crate::authorization::authorization::get_authorization_metadata;
+use crate::{authorization::authorization::get_authorization_metadata, telemetry::errors};
 use std::time::Duration;
 use tonic::{Extensions, Request, transport::Channel};
 use tucana::sagittarius::runtime_status_service_client::RuntimeStatusServiceClient;
@@ -35,15 +35,19 @@ impl SagittariusRuntimeStatusServiceClient {
 
         let response = match self.client.update(request).await {
             Ok(response) => {
-                log::info!("Successfully transferred RuntimeStatus.",);
+                log::info!("Sagittarius accepted the runtime status update");
                 response.into_inner()
             }
             Err(err) => {
-                log::error!(
-                    "Sagittarius runtime status update RPC failed code={} message={} timeout_ms={}",
-                    err.code(),
-                    err.message(),
-                    self.unary_rpc_timeout.as_millis()
+                errors::record(
+                    "dependency",
+                    "sagittarius.runtime_status.update",
+                    &err,
+                    format!(
+                        "code={} timeout_ms={}",
+                        err.code(),
+                        self.unary_rpc_timeout.as_millis()
+                    ),
                 );
                 return tucana::aquila::RuntimeStatusUpdateResponse { success: false };
             }

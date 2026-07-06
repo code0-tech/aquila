@@ -26,6 +26,11 @@ impl AquilaModuleServiceServer {
 
 #[tonic::async_trait]
 impl ModuleService for AquilaModuleServiceServer {
+    #[tracing::instrument(
+        name = "aquila.module.update",
+        skip_all,
+        fields(rpc.system = "grpc", rpc.service = "ModuleService", rpc.method = "Update")
+    )]
     async fn update(
         &self,
         request: tonic::Request<tucana::aquila::ModuleUpdateRequest>,
