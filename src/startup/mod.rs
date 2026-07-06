@@ -30,7 +30,6 @@ pub async fn run(
             client
         }
         Err(err) => {
-            log::error!("Failed to connect to NATS: {:?}", err);
             panic!("Failed to connect to NATS server: {:?}", err)
         }
     };
@@ -61,12 +60,10 @@ pub async fn run(
             Arc::new(kv)
         }
         Err(err) => {
-            log::error!(
+            panic!(
                 "Failed to open NATS key-value store bucket={} error={:?}",
-                config.nats.bucket,
-                err
-            );
-            panic!("Failed to get key-value store: {:?}", err)
+                config.nats.bucket, err
+            )
         }
     };
 

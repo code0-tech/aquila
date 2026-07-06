@@ -71,14 +71,10 @@ pub async fn create_channel_with_retry(
                 retries += 1;
 
                 if retries >= MAX_RETRIES {
-                    log::error!(
+                    panic!(
                         "Sagittarius connection retries exhausted channel={} url={} attempts={} last_error={:?}",
-                        channel_name,
-                        url,
-                        MAX_RETRIES,
-                        err
+                        channel_name, url, MAX_RETRIES, err
                     );
-                    panic!("Reached max retries to url {}", url)
                 }
             }
         }

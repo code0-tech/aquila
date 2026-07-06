@@ -170,6 +170,7 @@ pub async fn run(
         result = &mut server_task => {
             match result {
                 Ok(()) => log::warn!("gRPC server task exited unexpectedly; shutting down"),
+                Err(err) if err.is_panic() => {}
                 Err(err) => log::error!("gRPC server task failed; shutting down error={:?}", err),
             }
             flow_task.abort();
@@ -178,6 +179,7 @@ pub async fn run(
         result = &mut test_execution_task => {
             match result {
                 Ok(()) => log::warn!("Test execution stream task exited unexpectedly; shutting down"),
+                Err(err) if err.is_panic() => {}
                 Err(err) => log::error!("Test execution stream task failed; shutting down error={:?}", err),
             }
             server_task.abort();
@@ -186,6 +188,7 @@ pub async fn run(
         result = &mut flow_task => {
             match result {
                 Ok(()) => log::warn!("Flow stream task exited unexpectedly; shutting down"),
+                Err(err) if err.is_panic() => {}
                 Err(err) => log::error!("Flow stream task failed; shutting down error={:?}", err),
             }
             server_task.abort();

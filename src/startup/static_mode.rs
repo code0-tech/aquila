@@ -68,6 +68,7 @@ pub async fn run(
         result = &mut server_task => {
             match result {
                 Ok(()) => log::warn!("gRPC server task exited unexpectedly; shutting down"),
+                Err(err) if err.is_panic() => {}
                 Err(err) => log::error!("gRPC server task failed; shutting down error={:?}", err),
             }
         }
