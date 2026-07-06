@@ -14,6 +14,7 @@ pub struct Config {
     pub environment: Environment,
     pub mode: Mode,
     pub log_level: String,
+    pub telemetry: Telemetry,
     pub nats: Nats,
     pub static_config: StaticConfig,
     pub dynamic_config: DynamicConfig,
@@ -26,6 +27,13 @@ pub struct Config {
 pub struct Nats {
     pub url: String,
     pub bucket: String,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+#[serde(default)]
+pub struct Telemetry {
+    pub enabled: bool,
+    pub endpoint: String,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -78,11 +86,21 @@ impl Default for Config {
             environment: Environment::Development,
             mode: Mode::Static,
             log_level: "debug".into(),
+            telemetry: Telemetry::default(),
             nats: Nats::default(),
             static_config: StaticConfig::default(),
             dynamic_config: DynamicConfig::default(),
             grpc: Grpc::default(),
             runtime_status: RuntimeStatus::default(),
+        }
+    }
+}
+
+impl Default for Telemetry {
+    fn default() -> Self {
+        Self {
+            enabled: false,
+            endpoint: "http://localhost:4317".into(),
         }
     }
 }
@@ -175,6 +193,9 @@ impl fmt::Display for Config {
         writeln!(formatter, "  Environment: {}", self.environment)?;
         writeln!(formatter, "  Mode:        {}", self.mode)?;
         writeln!(formatter, "  Log level:   {}", self.log_level)?;
+        writeln!(formatter, "  OpenTelemetry")?;
+        writeln!(formatter, "    Enabled:   {}", self.telemetry.enabled)?;
+        writeln!(formatter, "    Endpoint:  {}", self.telemetry.endpoint)?;
         writeln!(formatter, "  NATS")?;
         writeln!(formatter, "    URL:       {}", self.nats.url)?;
         writeln!(formatter, "    Bucket:    {}", self.nats.bucket)?;
