@@ -24,12 +24,12 @@ pub async fn run(
 ) {
     log::info!(
         "Dynamic mode starting grpc={}:{} backend_url={}",
-        config.grpc_host,
-        config.grpc_port,
-        config.backend_url
+        config.grpc.host,
+        config.grpc.port,
+        config.dynamic_config.backend_url
     );
 
-    let backend_url_flow = config.backend_url.clone();
+    let backend_url_flow = config.dynamic_config.backend_url.clone();
     let sagittarius_channel = create_channel_with_retry(
         "Sagittarius Endpoint",
         backend_url_flow,
@@ -62,22 +62,20 @@ pub async fn run(
 
     let kv_for_test_execution = kv_store.clone();
     let kv_for_flow = kv_store.clone();
-    let backend_url_for_test_execution = config.backend_url.clone();
-    let runtime_token_for_test_execution = config.runtime_token.clone();
+    let backend_url_for_test_execution = config.dynamic_config.backend_url.clone();
+    let runtime_token_for_test_execution = config.dynamic_config.backend_token.clone();
     let sagittarius_ready_for_test_execution = app_readiness.sagittarius_ready.clone();
     let nats_client_for_test_execution = client.clone();
     let execution_response_sender_for_test_execution = execution_response_sender.clone();
 
-    let backend_url_for_flow = config.backend_url.clone();
-    let runtime_token_for_flow = config.runtime_token.clone();
+    let backend_url_for_flow = config.dynamic_config.backend_url.clone();
+    let runtime_token_for_flow = config.dynamic_config.backend_token.clone();
     let sagittarius_ready_for_flow = app_readiness.sagittarius_ready.clone();
 
     let env = match config.environment {
-        code0_flow::flow_config::environment::Environment::Development => {
-            String::from("DEVELOPMENT")
-        }
-        code0_flow::flow_config::environment::Environment::Staging => String::from("STAGING"),
-        code0_flow::flow_config::environment::Environment::Production => String::from("PRODUCTION"),
+        crate::configuration::env::Environment::Development => String::from("DEVELOPMENT"),
+        crate::configuration::env::Environment::Staging => String::from("STAGING"),
+        crate::configuration::env::Environment::Production => String::from("PRODUCTION"),
     };
 
     let mut test_execution_task = tokio::spawn(async move {
@@ -169,18 +167,27 @@ pub async fn run(
     let sigterm = std::future::pending::<()>();
 
     tokio::select! {
-        _ = &mut server_task => {
-            log::warn!("gRPC server task finished, shutting down");
+        result = &mut server_task => {
+            match result {
+                Ok(()) => log::warn!("gRPC server task exited unexpectedly; shutting down"),
+                Err(err) => log::error!("gRPC server task failed; shutting down error={:?}", err),
+            }
             flow_task.abort();
             test_execution_task.abort();
         }
-        _ = &mut test_execution_task => {
-            log::warn!("Test execution stream task finished, shutting down");
+        result = &mut test_execution_task => {
+            match result {
+                Ok(()) => log::warn!("Test execution stream task exited unexpectedly; shutting down"),
+                Err(err) => log::error!("Test execution stream task failed; shutting down error={:?}", err),
+            }
             server_task.abort();
             flow_task.abort();
         }
-        _ = &mut flow_task => {
-            log::warn!("Flow stream task finished, shutting down");
+        result = &mut flow_task => {
+            match result {
+                Ok(()) => log::warn!("Flow stream task exited unexpectedly; shutting down"),
+                Err(err) => log::error!("Flow stream task failed; shutting down error={:?}", err),
+            }
             server_task.abort();
             test_execution_task.abort();
         }

@@ -31,7 +31,7 @@ impl AquilaStaticServer {
         kv_store: Arc<Store>,
         action_config_tx: tokio::sync::broadcast::Sender<tucana::shared::ModuleConfigurations>,
     ) -> Self {
-        let address = match format!("{}:{}", config.grpc_host, config.grpc_port).parse() {
+        let address = match format!("{}:{}", config.grpc.host, config.grpc.port).parse() {
             Ok(addr) => {
                 info!("Listening on {:?}", &addr);
                 addr
@@ -40,8 +40,8 @@ impl AquilaStaticServer {
         };
 
         AquilaStaticServer {
-            nats_url: config.nats_url.clone(),
-            with_health_service: config.with_health_service,
+            nats_url: config.nats.url.clone(),
+            with_health_service: config.grpc.health_service,
             address,
             app_readiness,
             service_configuration,

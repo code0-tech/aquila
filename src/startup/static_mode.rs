@@ -19,15 +19,19 @@ pub async fn run(
 ) {
     log::info!(
         "Static mode starting grpc={}:{} fallback_path={}",
-        config.grpc_host,
-        config.grpc_port,
-        config.flow_fallback_path
+        config.grpc.host,
+        config.grpc.port,
+        config.static_config.flow_path
     );
     app_readiness
         .sagittarius_ready
         .store(true, Ordering::SeqCst);
 
-    init_flows_from_json(config.flow_fallback_path.clone(), flow_store_client.clone()).await;
+    init_flows_from_json(
+        config.static_config.flow_path.clone(),
+        flow_store_client.clone(),
+    )
+    .await;
 
     let (action_config_tx, _) =
         tokio::sync::broadcast::channel::<tucana::shared::ModuleConfigurations>(64);
@@ -61,8 +65,11 @@ pub async fn run(
     let sigterm = std::future::pending::<()>();
 
     tokio::select! {
-        _ = &mut server_task => {
-            log::warn!("gRPC server task finished, shutting down");
+        result = &mut server_task => {
+            match result {
+                Ok(()) => log::warn!("gRPC server task exited unexpectedly; shutting down"),
+                Err(err) => log::error!("gRPC server task failed; shutting down error={:?}", err),
+            }
         }
         _ = tokio::signal::ctrl_c() => {
             log::info!("Ctrl+C/Exit signal received, shutting down");
@@ -84,48 +91,57 @@ async fn init_flows_from_json(
     let mut data = String::new();
     log::info!("Loading fallback flows from {}", path);
 
-    let mut file = match File::open(path) {
+    let mut file = match File::open(&path) {
         Ok(file) => file,
         Err(error) => {
-            panic!("There was a problem opening the file: {:?}", error);
+            panic!("Failed to open fallback flow file path={path}: {error:?}");
         }
     };
 
     match file.read_to_string(&mut data) {
-        Ok(_) => {
-            log::info!("Successfully read data from file");
+        Ok(byte_count) => {
+            log::debug!("Read fallback flow file path={} bytes={}", path, byte_count);
         }
         Err(error) => {
-            panic!("There was a problem reading the file: {:?}", error);
+            panic!("Failed to read fallback flow file path={path}: {error:?}");
         }
     }
 
     let flows: Flows = match from_str(&data) {
         Ok(flows) => flows,
         Err(error) => {
-            panic!(
-                "There was a problem deserializing the json file: {:?}",
-                error
-            );
+            panic!("Failed to deserialize fallback flow file path={path}: {error:?}");
         }
     };
 
     let flow_count = flows.flows.len();
     if flow_count == 0 {
-        log::warn!("Fallback flow file contains zero flows");
+        log::warn!("Fallback flow file contains zero flows path={}", path);
     } else {
-        log::info!("Loaded {} fallback flows", flow_count);
+        log::info!(
+            "Parsed fallback flow file path={} flow_count={}",
+            path,
+            flow_count
+        );
     }
 
+    let mut stored_count = 0;
     for flow in flows.flows {
         let key = get_flow_identifier(&flow);
         let bytes = flow.encode_to_vec();
-        log::info!("Inserting flow with key {}", &key);
-        match flow_store_client.put(key, bytes.into()).await {
-            Ok(_) => log::info!("Flow updated successfully"),
-            Err(err) => log::error!("Failed to update flow. Reason: {:?}", err),
+        match flow_store_client.put(key.clone(), bytes.into()).await {
+            Ok(_) => {
+                stored_count += 1;
+                log::debug!("Stored fallback flow key={}", key);
+            }
+            Err(err) => log::error!("Failed to store fallback flow key={} error={:?}", key, err),
         };
     }
 
-    log::info!("Successfully inserted all flows from the JSON file");
+    log::info!(
+        "Finished loading fallback flows path={} parsed_count={} stored_count={}",
+        path,
+        flow_count,
+        stored_count
+    );
 }

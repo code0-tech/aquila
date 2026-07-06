@@ -71,12 +71,14 @@ impl SagittariusFlowClient {
             return;
         }
 
-        log::info!("Will export flows into file because env is set to `DEVELOPMENT`");
-
         let json = match serde_json::to_vec_pretty(&flows) {
             Ok(b) => b,
             Err(e) => {
-                log::error!("Failed to serialize flows to JSON: {:?}", e);
+                log::error!(
+                    "Failed to serialize development flow export flow_count={} error={:?}",
+                    flows.flows.len(),
+                    e
+                );
                 return;
             }
         };
@@ -85,16 +87,48 @@ impl SagittariusFlowClient {
         let tmp_path = Path::new("flowExport.json.tmp");
 
         if let Err(e) = fs::write(tmp_path, &json).await {
-            log::error!("Failed to write {}: {}", tmp_path.display(), e);
+            log::error!(
+                "Failed to write development flow export path={} error={}",
+                tmp_path.display(),
+                e
+            );
             return;
         }
 
         if let Err(e) = fs::rename(tmp_path, final_path).await {
-            log::warn!("rename failed (will try remove+rename): {}", e);
-            let _ = fs::remove_file(final_path).await;
+            log::warn!(
+                "Could not atomically replace development flow export path={} error={}; retrying after removing destination",
+                final_path.display(),
+                e
+            );
+            match fs::remove_file(final_path).await {
+                Ok(()) => log::debug!(
+                    "Removed previous development flow export path={}",
+                    final_path.display()
+                ),
+                Err(remove_error) if remove_error.kind() == std::io::ErrorKind::NotFound => {}
+                Err(remove_error) => log::warn!(
+                    "Failed to remove previous development flow export path={} error={}",
+                    final_path.display(),
+                    remove_error
+                ),
+            }
             if let Err(e2) = fs::rename(tmp_path, final_path).await {
-                log::error!("Failed to move export into place: {}", e2);
-                let _ = fs::remove_file(tmp_path).await;
+                log::error!(
+                    "Failed to replace development flow export source_path={} destination_path={} initial_rename_error={} retry_error={}",
+                    tmp_path.display(),
+                    final_path.display(),
+                    e,
+                    e2
+                );
+                if let Err(cleanup_error) = fs::remove_file(tmp_path).await {
+                    log::warn!(
+                        "Failed to clean up temporary development flow export path={} error={}",
+                        tmp_path.display(),
+                        cleanup_error
+                    );
+                }
+                return;
             }
         }
 
@@ -107,24 +141,21 @@ impl SagittariusFlowClient {
 
     async fn handle_response(&mut self, response: FlowResponse) {
         let data = match response.data {
-            Some(data) => {
-                log::info!("Received a FlowResponse");
-                data
-            }
+            Some(data) => data,
             None => {
-                log::error!("Received a empty FlowResponse");
+                log::warn!("Received empty Sagittarius flow response");
                 return;
             }
         };
 
         match data {
             Data::DeletedFlowId(id) => {
-                log::info!("Deleting the Flow with the id: {}", id);
+                log::debug!("Applying flow deletion flow_id={}", id);
                 let mut keys = match self.store.keys().await {
                     Ok(keys) => keys.boxed(),
                     Err(err) => {
                         log::error!(
-                            "Failed to list flows while deleting flow {}. Reason: {:?}",
+                            "Failed to list stored flows for deletion flow_id={} error={:?}",
                             id,
                             err
                         );
@@ -141,7 +172,7 @@ impl SagittariusFlowClient {
                     match self.store.delete(&key).await {
                         Ok(_) => deleted_count += 1,
                         Err(err) => log::error!(
-                            "Failed to delete flow {} with key {}. Reason: {:?}",
+                            "Failed to delete stored flow flow_id={} key={} error={:?}",
                             id,
                             key,
                             err
@@ -150,7 +181,7 @@ impl SagittariusFlowClient {
                 }
 
                 if deleted_count == 0 {
-                    log::warn!("No stored flow found with the id: {}", id);
+                    log::warn!("Flow deletion matched no stored keys flow_id={}", id);
                 } else {
                     log::info!(
                         "Flow deleted successfully id={} deleted_keys={}",
@@ -160,23 +191,35 @@ impl SagittariusFlowClient {
                 }
             }
             Data::UpdatedFlow(flow) => {
-                log::info!("Updating the Flow with the id: {}", &flow.flow_id);
                 let key = get_flow_identifier(&flow);
+                let flow_id = flow.flow_id.clone();
                 let bytes = flow.encode_to_vec();
-                match self.store.put(key, bytes.into()).await {
-                    Ok(_) => log::info!("Flow updated successfully"),
-                    Err(err) => log::error!("Failed to update flow. Reason: {:?}", err),
+                match self.store.put(key.clone(), bytes.into()).await {
+                    Ok(_) => log::info!("Stored flow update flow_id={} key={}", flow_id, key),
+                    Err(err) => log::error!(
+                        "Failed to store flow update flow_id={} key={} error={:?}",
+                        flow_id,
+                        key,
+                        err
+                    ),
                 };
             }
             Data::Flows(flows) => {
-                log::info!("Dropping all Flows & inserting the new ones!");
+                let received_count = flows.flows.len();
+                log::info!(
+                    "Replacing stored flows from Sagittarius received_count={}",
+                    received_count
+                );
 
                 self.export_flows_json_overwrite(flows.clone()).await;
 
                 let mut keys = match self.store.keys().await {
                     Ok(keys) => keys.boxed(),
                     Err(err) => {
-                        log::error!("Service wasn't able to get keys. Reason: {:?}", err);
+                        log::error!(
+                            "Failed to list stored flows before replacement error={:?}",
+                            err
+                        );
                         return;
                     }
                 };
@@ -185,21 +228,34 @@ impl SagittariusFlowClient {
                 while let Ok(Some(key)) = keys.try_next().await {
                     match self.store.purge(&key).await {
                         Ok(_) => purged_count += 1,
-                        Err(e) => log::error!("Failed to purge key {}: {}", key, e),
+                        Err(e) => {
+                            log::error!("Failed to purge stored flow key={} error={}", key, e)
+                        }
                     }
                 }
 
-                log::info!("Purged {} existing keys", purged_count);
-
+                let mut stored_count = 0;
                 for flow in flows.flows {
                     let key = get_flow_identifier(&flow);
-                    log::debug!("trying to insert: {}", key);
                     let bytes = flow.encode_to_vec();
-                    match self.store.put(key, bytes.into()).await {
-                        Ok(_) => log::info!("Flow updated successfully"),
-                        Err(err) => log::error!("Failed to update flow. Reason: {:?}", err),
+                    match self.store.put(key.clone(), bytes.into()).await {
+                        Ok(_) => {
+                            stored_count += 1;
+                            log::debug!("Stored replacement flow key={}", key);
+                        }
+                        Err(err) => log::error!(
+                            "Failed to store replacement flow key={} error={:?}",
+                            key,
+                            err
+                        ),
                     };
                 }
+                log::info!(
+                    "Finished replacing stored flows received_count={} purged_count={} stored_count={}",
+                    received_count,
+                    purged_count,
+                    stored_count
+                );
             }
             Data::ModuleConfigurations(action_configurations) => {
                 let (project_count, config_count) = module_config_stats(&action_configurations);

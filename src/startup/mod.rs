@@ -19,12 +19,12 @@ pub async fn run(
         } else {
             "dynamic"
         },
-        config.nats_url,
-        config.nats_bucket
+        config.nats.url,
+        config.nats.bucket
     );
 
     // Create connection to JetStream
-    let client = match async_nats::connect(config.nats_url.clone()).await {
+    let client = match async_nats::connect(config.nats.url.clone()).await {
         Ok(client) => {
             log::info!("Connected to NATS");
             client
@@ -37,21 +37,35 @@ pub async fn run(
 
     let jet_stream = async_nats::jetstream::new(client.clone());
 
-    let _ = jet_stream
+    match jet_stream
         .create_key_value(Config {
-            bucket: config.nats_bucket.clone(),
+            bucket: config.nats.bucket.clone(),
             ..Default::default()
         })
-        .await;
-    log::debug!("Ensured NATS key-value bucket exists");
+        .await
+    {
+        Ok(_) => log::debug!(
+            "NATS key-value bucket is available bucket={}",
+            config.nats.bucket
+        ),
+        Err(err) => log::debug!(
+            "NATS key-value bucket creation skipped or failed; attempting to open existing bucket bucket={} error={:?}",
+            config.nats.bucket,
+            err
+        ),
+    }
 
-    let kv_store = match jet_stream.get_key_value(config.nats_bucket.clone()).await {
+    let kv_store = match jet_stream.get_key_value(config.nats.bucket.clone()).await {
         Ok(kv) => {
-            log::info!("Connected to JetStream");
+            log::info!("Opened NATS key-value store bucket={}", config.nats.bucket);
             Arc::new(kv)
         }
         Err(err) => {
-            log::error!("Failed to get key-value store: {:?}", err);
+            log::error!(
+                "Failed to open NATS key-value store bucket={} error={:?}",
+                config.nats.bucket,
+                err
+            );
             panic!("Failed to get key-value store: {:?}", err)
         }
     };

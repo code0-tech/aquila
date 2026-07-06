@@ -39,7 +39,12 @@ impl SagittariusRuntimeStatusServiceClient {
                 response.into_inner()
             }
             Err(err) => {
-                log::error!("Failed to update RuntimeStatus: {:?}", err);
+                log::error!(
+                    "Sagittarius runtime status update RPC failed code={} message={} timeout_ms={}",
+                    err.code(),
+                    err.message(),
+                    self.unary_rpc_timeout.as_millis()
+                );
                 return tucana::aquila::RuntimeStatusUpdateResponse { success: false };
             }
         };

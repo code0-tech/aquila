@@ -30,7 +30,11 @@ pub async fn create_channel_with_retry(
 
         let channel = match Endpoint::from_shared(url.clone()) {
             Ok(c) => {
-                log::debug!("Creating a new endpoint for the: {} Service", channel_name);
+                log::debug!(
+                    "Created Sagittarius endpoint channel={} url={}",
+                    channel_name,
+                    url
+                );
                 c.connect_timeout(Duration::from_secs(2))
             }
             Err(err) => {
@@ -68,10 +72,11 @@ pub async fn create_channel_with_retry(
 
                 if retries >= MAX_RETRIES {
                     log::error!(
-                        "Reached max retries channel={} url={} max_retries={}",
+                        "Sagittarius connection retries exhausted channel={} url={} attempts={} last_error={:?}",
                         channel_name,
                         url,
-                        MAX_RETRIES
+                        MAX_RETRIES,
+                        err
                     );
                     panic!("Reached max retries to url {}", url)
                 }
