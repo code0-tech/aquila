@@ -289,16 +289,24 @@ impl SagittariusTestExecutionServiceClient {
                     Some(flow)
                 }
                 Err(err) => {
-                    log::error!("Cannot decode ValidationFlow for {}: {:?}", flow_id, err);
+                    log::error!(
+                        "Failed to decode validation flow flow_id={} error={:?}",
+                        flow_id,
+                        err
+                    );
                     None
                 }
             },
             Ok(None) => {
-                log::error!("No flow found with id: {}", flow_id);
+                log::error!("Validation flow was not found flow_id={}", flow_id);
                 None
             }
             Err(err) => {
-                log::error!("Error fetching flow {}: {:?}", flow_id, err);
+                log::error!(
+                    "Failed to fetch validation flow flow_id={} error={:?}",
+                    flow_id,
+                    err
+                );
                 None
             }
         }
@@ -314,7 +322,10 @@ impl SagittariusTestExecutionServiceClient {
 
         log::debug!("Queueing Sagittarius execution stream logon before opening stream");
         if let Err(err) = tx.send(logon).await {
-            log::error!("Failed to queue test execution logon: {:?}", err);
+            log::error!(
+                "Failed to queue Sagittarius execution stream logon reason=channel_closed error={:?}",
+                err
+            );
             self.response_sender.clear().await;
             return;
         }
@@ -335,8 +346,9 @@ impl SagittariusTestExecutionServiceClient {
             }
             Err(error) => {
                 log::error!(
-                    "Failed to establish Sagittarius execution stream: {:?}",
-                    error
+                    "Failed to establish Sagittarius execution stream code={} message={}",
+                    error.code(),
+                    error.message()
                 );
                 self.response_sender.clear().await;
                 return;

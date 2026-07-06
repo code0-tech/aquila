@@ -60,8 +60,11 @@ impl SagittariusModuleServiceClient {
             }
             Err(err) => {
                 log::error!(
-                    "Failed to update Modules via Sagittarius RPC transport: {:?}",
-                    err
+                    "Sagittarius module update RPC failed module_count={} code={} message={} timeout_ms={}",
+                    module_count,
+                    err.code(),
+                    err.message(),
+                    self.unary_rpc_timeout.as_millis()
                 );
                 tucana::aquila::ModuleUpdateResponse { success: false }
             }

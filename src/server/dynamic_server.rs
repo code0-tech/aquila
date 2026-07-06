@@ -54,7 +54,7 @@ impl AquilaDynamicServer {
         action_config_tx: tokio::sync::broadcast::Sender<tucana::shared::ModuleConfigurations>,
         execution_response_sender: SagittariusExecutionResponseSender,
     ) -> Self {
-        let address = match format!("{}:{}", config.grpc_host, config.grpc_port).parse() {
+        let address = match format!("{}:{}", config.grpc.host, config.grpc.port).parse() {
             Ok(addr) => {
                 info!("Listening on {:?}", &addr);
                 addr
@@ -63,9 +63,9 @@ impl AquilaDynamicServer {
         };
 
         AquilaDynamicServer {
-            token: config.runtime_token.clone(),
-            nats_url: config.nats_url.clone(),
-            with_health_service: config.with_health_service,
+            token: config.dynamic_config.backend_token.clone(),
+            nats_url: config.nats.url.clone(),
+            with_health_service: config.grpc.health_service,
             address,
             app_readiness,
             channel,
@@ -75,17 +75,15 @@ impl AquilaDynamicServer {
             action_config_tx,
             execution_response_sender,
             runtime_status_not_responding_after_secs: config
-                .runtime_status_not_responding_after_secs
-                .clone(),
+                .runtime_status
+                .not_responding_after_secs,
 
             runtime_status_stopped_after_not_responding_secs: config
-                .runtime_status_stopped_after_not_responding_secs
-                .clone(),
-            runtime_status_monitor_interval_secs: config
-                .runtime_status_monitor_interval_secs
-                .clone(),
+                .runtime_status
+                .stopped_after_not_responding_secs,
+            runtime_status_monitor_interval_secs: config.runtime_status.monitor_interval_secs,
             sagittarius_unary_rpc_timeout: Duration::from_secs(
-                config.sagittarius_unary_rpc_timeout_secs,
+                config.dynamic_config.backend_unary_timeout_secs,
             ),
         }
     }

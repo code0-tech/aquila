@@ -56,6 +56,7 @@ impl AquilaActionTransferServiceServer {
     }
 }
 
+#[derive(Debug)]
 enum FlowIdentificationError {
     KVError,
 }
@@ -258,15 +259,15 @@ async fn handle_logon(
     pending_replies: PendingReplies,
     cfg_forwarder_started: &mut bool,
 ) -> Result<ActionLogon, Status> {
-    log::info!("Action logon attempt payload={:?}", action_logon);
-
     let module = match action_logon.module.as_mut() {
         Some(m) => m,
         None => {
+            log::warn!("Rejected action logon reason=missing_module");
             return Err(Status::aborted("Please provide a module configuration."));
         }
     };
     let identifier = module.identifier.clone();
+    log::info!("Action logon attempt identifier={}", identifier);
 
     {
         let lock = actions.lock().await;
@@ -308,7 +309,8 @@ async fn handle_logon(
         Ok(s) => s,
         Err(err) => {
             log::error!(
-                "Could not subscribe to action: {}. Reason: {:?}",
+                "Failed to subscribe to action execution subject identifier={} subject=action.{}.* error={:?}",
+                identifier,
                 identifier,
                 err
             );
@@ -320,7 +322,7 @@ async fn handle_logon(
 
     if let Err(err) = client.flush().await {
         log::error!(
-            "Could not flush action subscription: {}. Reason: {:?}",
+            "Failed to flush action execution subscription identifier={} error={:?}",
             identifier,
             err
         );
@@ -388,19 +390,32 @@ async fn handle_event(
 ) {
     let pattern = format!("{}.*.{}.*", event.event_type, event.project_id);
     log::debug!(
-        "Handling event type {} for project {}",
+        "Handling action event event_type={} project_id={}",
         event.event_type,
         event.project_id
     );
 
-    let flows = match get_flows(pattern, kv).await {
+    let flows = match get_flows(pattern.clone(), kv).await {
         Ok(f) => f,
-        Err(_) => {
-            log::error!("Cound not find any flows");
+        Err(err) => {
+            log::error!(
+                "Failed to find flows for action event event_type={} project_id={} pattern={} error={:?}",
+                event.event_type,
+                event.project_id,
+                pattern,
+                err
+            );
             return;
         }
     };
 
+    let matched_count = flows.flows.len();
+    log::info!(
+        "Matched flows for action event event_type={} project_id={} flow_count={}",
+        event.event_type,
+        event.project_id,
+        matched_count
+    );
     for flow in flows.flows {
         let uuid = uuid::Uuid::new_v4().to_string();
         let flow_id = flow.flow_id;
@@ -408,18 +423,20 @@ async fn handle_event(
         let bytes = execution_flow.encode_to_vec();
         let topic = format!("execution.{}", uuid);
 
-        log::info!("{:#?}", execution_flow);
-
         log::info!(
-            "Requesting execution flow_id={} execution_id={}",
+            "Requesting execution flow_id={} execution_id={} event_type={} project_id={}",
             flow_id,
-            uuid
+            uuid,
+            event.event_type,
+            event.project_id
         );
 
-        if let Err(err) = client.request(topic, bytes.into()).await {
+        if let Err(err) = client.request(topic.clone(), bytes.into()).await {
             log::error!(
-                "Failed to request execution for flow {}: {:?}",
+                "Failed to request execution flow_id={} execution_id={} topic={} error={:?}",
                 flow_id,
+                uuid,
+                topic,
                 err
             );
         }
@@ -448,19 +465,20 @@ async fn handle_result(
     };
 
     log::debug!(
-        "Publishing execution result for {} to reply subject {}",
+        "Publishing execution result execution_id={} reply_subject={}",
         execution_id,
         pending_reply.reply_subject
     );
 
     let payload = execution_result.encode_to_vec();
     if let Err(err) = client
-        .publish(pending_reply.reply_subject, payload.into())
+        .publish(pending_reply.reply_subject.clone(), payload.into())
         .await
     {
         log::error!(
-            "Failed to publish action result for execution {}: {:?}",
+            "Failed to publish action result execution_id={} reply_subject={} error={:?}",
             execution_id,
+            pending_reply.reply_subject,
             err
         );
         return;
@@ -468,7 +486,7 @@ async fn handle_result(
 
     if let Err(err) = client.flush().await {
         log::error!(
-            "Failed to flush action result for execution {}: {:?}",
+            "Failed to flush action result execution_id={} error={:?}",
             execution_id,
             err
         );
@@ -510,7 +528,7 @@ impl ActionTransferService for AquilaActionTransferServiceServer {
                 let transfer_request = match next {
                     Ok(tr) => tr,
                     Err(status) => {
-                        log::error!("Action transfer stream closed status={:?}", status);
+                        log::warn!("Action transfer input stream failed status={:?}", status);
                         break;
                     }
                 };
@@ -531,7 +549,7 @@ impl ActionTransferService for AquilaActionTransferServiceServer {
                             let identifier = match action_logon.module {
                                 Some(ref m) => m.identifier.clone(),
                                 None => {
-                                    log::error!("Logon failed (no module present)");
+                                    log::warn!("Rejected action logon reason=missing_module");
                                     break;
                                 }
                             };
@@ -553,7 +571,12 @@ impl ActionTransferService for AquilaActionTransferServiceServer {
                             {
                                 Ok(v) => v,
                                 Err(status) => {
-                                    log::error!("Action logon failed status={:?}", status);
+                                    log::warn!(
+                                        "Action logon failed identifier={} code={:?} message={}",
+                                        identifier,
+                                        status.code(),
+                                        status.message()
+                                    );
                                     break;
                                 }
                             };
@@ -597,7 +620,10 @@ impl ActionTransferService for AquilaActionTransferServiceServer {
 
                 match data {
                     tucana::aquila::action_transfer_request::Data::Logon(_) => {
-                        log::error!("Received duplicate logon");
+                        log::warn!(
+                            "Action stream protocol violation identifier={} reason=duplicate_logon",
+                            identifier
+                        );
                         break;
                     }
                     tucana::aquila::action_transfer_request::Data::Event(event) => {
@@ -633,12 +659,15 @@ async fn forward_nats_to_action(
     log::debug!("Waiting for incoming action execution request");
 
     while let Some(msg) = sub.next().await {
-        log::debug!("Received RemoteRuntime execution request");
-
         let mut execution = match ActionExecutionRequest::decode(msg.payload.as_ref()) {
             Ok(req) => req,
             Err(err) => {
-                log::error!("Invalid execution request payload: {:?}", err);
+                log::error!(
+                    "Invalid action execution request payload subject={} payload_bytes={} error={:?}",
+                    msg.subject,
+                    msg.payload.len(),
+                    err
+                );
                 continue;
             }
         };
@@ -688,9 +717,9 @@ async fn forward_nats_to_action(
         );
 
         log::debug!(
-            "Forwarding execution request to action execution_id={} request={:#?}",
+            "Forwarding execution request to action execution_id={} subject={}",
             execution_id,
-            execution
+            msg.subject
         );
 
         let resp = ActionTransferResponse {

@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 use serde_json::from_str;
-use std::{fs::File, io::Read};
+use std::{fs::File, io::Read, path::Path};
 use tucana::shared::{ModuleConfigurations, helper::value::from_json_value};
 
 #[derive(Serialize, Deserialize, Clone)]
@@ -151,7 +151,7 @@ impl ServiceConfiguration {
         }
     }
 
-    pub fn from_path(path: &String) -> Self {
+    pub fn from_path(path: impl AsRef<Path>) -> Self {
         let mut data = String::new();
 
         let mut file = match File::open(path) {
@@ -231,10 +231,7 @@ mod tests {
             &String::from("taurus-token"),
             &String::from("taurus-runtime-01")
         ));
-        assert!(config.has_runtime(
-            &String::from("taurus-token"),
-            &String::from("taurus")
-        ));
+        assert!(config.has_runtime(&String::from("taurus-token"), &String::from("taurus")));
         assert!(config.has_runtime(
             &String::from("draco-rest-token"),
             &String::from("draco-rest")
@@ -243,14 +240,8 @@ mod tests {
             &String::from("draco-cron-token"),
             &String::from("draco-cron")
         ));
-        assert!(!config.has_runtime(
-            &String::from("taurus-token"),
-            &String::from("draco-rest")
-        ));
-        assert!(!config.has_runtime(
-            &String::from("draco-rest-token"),
-            &String::from("taurus-x")
-        ));
+        assert!(!config.has_runtime(&String::from("taurus-token"), &String::from("draco-rest")));
+        assert!(!config.has_runtime(&String::from("draco-rest-token"), &String::from("taurus-x")));
         assert!(!config.has_runtime(
             &String::from("taurus-token"),
             &String::from("unknown-runtime")
@@ -269,20 +260,14 @@ mod tests {
             &String::from("taurus-token"),
             &String::from("action-identifier")
         ));
-        assert!(!config.has_action(
-            &String::from("action-token"),
-            &String::from("action-other")
-        ));
+        assert!(!config.has_action(&String::from("action-token"), &String::from("action-other")));
     }
 
     #[test]
     fn has_service_returns_true_for_valid_runtime_or_action_pairings() {
         let config = fixture();
 
-        assert!(config.has_service(
-            &String::from("taurus-token"),
-            &String::from("taurus-x")
-        ));
+        assert!(config.has_service(&String::from("taurus-token"), &String::from("taurus-x")));
         assert!(config.has_service(
             &String::from("draco-rest-token"),
             &String::from("draco-rest")
@@ -295,9 +280,6 @@ mod tests {
             &String::from("draco-rest-token"),
             &String::from("action-identifier")
         ));
-        assert!(!config.has_service(
-            &String::from("action-token"),
-            &String::from("taurus-x")
-        ));
+        assert!(!config.has_service(&String::from("action-token"), &String::from("taurus-x")));
     }
 }

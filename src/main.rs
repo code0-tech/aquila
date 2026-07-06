@@ -10,26 +10,57 @@ pub mod sagittarius;
 pub mod server;
 pub mod startup;
 
+const CONFIG_PATH_ENV: &str = "AQUILA_CONFIG_PATH";
+const SERVICE_CONFIG_PATH_ENV: &str = "AQUILA_SERVICE_CONFIG_PATH";
+
 #[tokio::main]
 async fn main() {
-    env_logger::Builder::from_default_env()
-        .filter_level(log::LevelFilter::Debug)
-        .init();
+    // Load .env before config-rs applies environment overrides.
+    load_env_file();
+    let config_result = match std::env::var(CONFIG_PATH_ENV) {
+        Ok(path) => AquilaConfig::try_from_path(path),
+        Err(_) => AquilaConfig::try_new(),
+    };
+
+    let log_level = config_result
+        .as_ref()
+        .map(|config| config.log_level.as_str())
+        .unwrap_or("debug");
+    env_logger::Builder::from_env(env_logger::Env::default().default_filter_or(log_level)).init();
+    install_panic_logging();
+
+    let config = config_result
+        .unwrap_or_else(|error| panic!("failed to load Aquila configuration: {error}"));
     log::info!("Starting Aquila");
 
-    // Load environment variables from .env file
-    load_env_file();
-    let config = AquilaConfig::new();
     let app_readiness = AppReadiness::new();
-    let service_config = ServiceConfiguration::from_path(&config.service_config_path);
-    log::debug!(
-        "Configuration loaded mode={:?} environment={:?} grpc={}:{} health_service={}",
-        config.mode,
-        config.environment,
-        config.grpc_host,
-        config.grpc_port,
-        config.with_health_service
-    );
+    let service_config = std::env::var_os(SERVICE_CONFIG_PATH_ENV)
+        .map(ServiceConfiguration::from_path)
+        .unwrap_or_default();
+    log::debug!("{config}");
 
     startup::run(config, app_readiness, service_config).await;
+}
+
+fn install_panic_logging() {
+    std::panic::set_hook(Box::new(move |panic_info| {
+        let message = if let Some(message) = panic_info.payload().downcast_ref::<&str>() {
+            *message
+        } else if let Some(message) = panic_info.payload().downcast_ref::<String>() {
+            message.as_str()
+        } else {
+            "<non-string panic payload>"
+        };
+
+        match panic_info.location() {
+            Some(location) => log::error!(
+                "Process panic message={} file={} line={} column={}",
+                message,
+                location.file(),
+                location.line(),
+                location.column()
+            ),
+            None => log::error!("Process panic message={} location=unknown", message),
+        }
+    }));
 }
