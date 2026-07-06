@@ -1,0 +1,51 @@
+# Deployment environment sent to connected services.
+# Valid values: development, staging, production.
+environment: development
+
+# Startup mode. Static loads flows from a local file; dynamic synchronizes with Sagittarius.
+# Valid values: static, dynamic.
+mode: static
+
+# Default env_logger filter. RUST_LOG takes precedence when it is set.
+log_level: debug
+
+# NATS server and JetStream key-value bucket used for flow storage.
+nats:
+  url: nats://localhost:4222
+  bucket: flow_store
+
+# Settings used only in static mode.
+static_config:
+  # JSON flow export loaded during startup.
+  flow_path: ./flowExport.json
+
+# Settings used only in dynamic mode.
+dynamic_config:
+  # Sagittarius gRPC endpoint.
+  backend_url: http://localhost:50051
+
+  # Authentication token for Sagittarius.
+  # AQUILA_BACKEND_TOKEN overrides this value and should be used for deployed secrets.
+  backend_token: default_session_token
+
+  # Timeout for unary Sagittarius RPCs, in seconds.
+  backend_unary_timeout_secs: 5
+
+# Aquila gRPC server bind settings.
+grpc:
+  host: 127.0.0.1
+  port: 8081
+
+  # Expose the standard gRPC health service.
+  health_service: false
+
+# Runtime heartbeat state-transition timing, in seconds.
+runtime_status:
+  # Time without a heartbeat before a runtime becomes NOT_RESPONDING.
+  not_responding_after_secs: 90
+
+  # Additional time in NOT_RESPONDING before a runtime becomes STOPPED.
+  stopped_after_not_responding_secs: 180
+
+  # Frequency of runtime heartbeat checks.
+  monitor_interval_secs: 30
