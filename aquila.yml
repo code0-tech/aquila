@@ -10,9 +10,12 @@ mode: static
 log_level: debug
 
 # OTLP export for logs, traces, and the deliberately small metric set.
-telemetry:
+opentelemetry:
   enabled: false
-  endpoint: http://localhost:4317
+  service_name: aquila
+  logs_endpoint:
+  metrics_endpoint:
+  traces_endpoint:
 
 # NATS server and JetStream key-value bucket used for flow storage.
 nats:

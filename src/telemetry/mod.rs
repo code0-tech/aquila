@@ -17,7 +17,7 @@ use tracing_subscriber::{
     EnvFilter, Layer, filter::filter_fn, layer::SubscriberExt, util::SubscriberInitExt,
 };
 
-use crate::configuration::config::Telemetry as TelemetryConfig;
+use crate::configuration::config::OpenTelemetry as TelemetryConfig;
 
 pub struct Telemetry {
     logger_provider: Option<SdkLoggerProvider>,
@@ -40,7 +40,7 @@ impl Telemetry {
                 metadata.target() != errors::EXCEPTION_TARGET
             }));
 
-        if !config.enabled {
+        if !config.enabled || !config.has_enabled_exporter() {
             tracing_subscriber::registry()
                 .with(filter)
                 .with(fmt_layer)
@@ -52,59 +52,79 @@ impl Telemetry {
             });
         }
 
-        errors::enable_backtraces();
         let resource = Resource::builder()
-            .with_service_name(env!("CARGO_PKG_NAME"))
+            .with_service_name(config.service_name.clone())
             .with_attributes([
                 KeyValue::new("service.version", env!("CARGO_PKG_VERSION")),
                 KeyValue::new("deployment.environment.name", environment.to_owned()),
             ])
             .build();
 
-        let span_exporter = opentelemetry_otlp::SpanExporter::builder()
-            .with_tonic()
-            .with_endpoint(config.endpoint.clone())
-            .build()?;
-        let tracer_provider = SdkTracerProvider::builder()
-            .with_resource(resource.clone())
-            .with_batch_exporter(span_exporter)
-            .build();
-        let tracer = tracer_provider.tracer(env!("CARGO_PKG_NAME"));
+        let tracer_provider = if let Some(endpoint) = config.traces_endpoint() {
+            let exporter = opentelemetry_otlp::SpanExporter::builder()
+                .with_tonic()
+                .with_endpoint(endpoint.to_owned())
+                .build()?;
+            let provider = SdkTracerProvider::builder()
+                .with_resource(resource.clone())
+                .with_batch_exporter(exporter)
+                .build();
+            global::set_text_map_propagator(TraceContextPropagator::new());
+            Some(provider)
+        } else {
+            None
+        };
 
-        let log_exporter = opentelemetry_otlp::LogExporter::builder()
-            .with_tonic()
-            .with_endpoint(config.endpoint.clone())
-            .build()?;
-        let logger_provider = SdkLoggerProvider::builder()
-            .with_resource(resource.clone())
-            .with_batch_exporter(log_exporter)
-            .build();
+        let logger_provider = if let Some(endpoint) = config.logs_endpoint() {
+            let exporter = opentelemetry_otlp::LogExporter::builder()
+                .with_tonic()
+                .with_endpoint(endpoint.to_owned())
+                .build()?;
+            Some(
+                SdkLoggerProvider::builder()
+                    .with_resource(resource.clone())
+                    .with_batch_exporter(exporter)
+                    .build(),
+            )
+        } else {
+            None
+        };
 
-        let metric_exporter = opentelemetry_otlp::MetricExporter::builder()
-            .with_tonic()
-            .with_endpoint(config.endpoint.clone())
-            .build()?;
-        let metric_reader = PeriodicReader::builder(metric_exporter).build();
-        let meter_provider = SdkMeterProvider::builder()
-            .with_resource(resource)
-            .with_reader(metric_reader)
-            .build();
+        let meter_provider = if let Some(endpoint) = config.metrics_endpoint() {
+            let exporter = opentelemetry_otlp::MetricExporter::builder()
+                .with_tonic()
+                .with_endpoint(endpoint.to_owned())
+                .build()?;
+            let reader = PeriodicReader::builder(exporter).build();
+            let provider = SdkMeterProvider::builder()
+                .with_resource(resource)
+                .with_reader(reader)
+                .build();
+            global::set_meter_provider(provider.clone());
+            metrics::initialize();
+            Some(provider)
+        } else {
+            None
+        };
 
-        global::set_text_map_propagator(TraceContextPropagator::new());
-        global::set_meter_provider(meter_provider.clone());
-        metrics::initialize();
+        if config.logs_endpoint().is_some() || config.traces_endpoint().is_some() {
+            errors::enable_backtraces();
+        }
 
-        let trace_layer = tracing_opentelemetry::layer()
-            .with_tracer(tracer)
-            .with_error_records_to_exceptions(true)
-            .with_error_events_to_status(true)
-            .with_filter(filter_fn(|metadata| {
+        let trace_layer = tracer_provider.as_ref().map(|provider| {
+            tracing_opentelemetry::layer()
+                .with_tracer(provider.tracer(env!("CARGO_PKG_NAME")))
+                .with_error_records_to_exceptions(true)
+                .with_error_events_to_status(true)
+                .with_filter(filter_fn(|metadata| {
+                    metadata.target() != errors::SUMMARY_TARGET
+                }))
+        });
+        let log_layer = logger_provider.as_ref().map(|provider| {
+            OpenTelemetryTracingBridge::new(provider).with_filter(filter_fn(|metadata| {
                 metadata.target() != errors::SUMMARY_TARGET
-            }));
-        let log_layer =
-            OpenTelemetryTracingBridge::new(&logger_provider).with_filter(filter_fn(|metadata| {
-                metadata.target() != errors::SUMMARY_TARGET
-            }));
+            }))
+        });
 
         tracing_subscriber::registry()
             .with(filter)
@@ -114,9 +134,9 @@ impl Telemetry {
             .init();
 
         Ok(Self {
-            logger_provider: Some(logger_provider),
-            meter_provider: Some(meter_provider),
-            tracer_provider: Some(tracer_provider),
+            logger_provider,
+            meter_provider,
+            tracer_provider,
         })
     }
 

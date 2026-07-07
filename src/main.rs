@@ -29,7 +29,7 @@ async fn main() {
         .unwrap_or("debug");
     let telemetry_config = config_result
         .as_ref()
-        .map(|config| config.telemetry.clone())
+        .map(|config| config.opentelemetry.clone())
         .unwrap_or_default();
     let environment = config_result
         .as_ref()
