@@ -33,6 +33,11 @@ fn execution_result_status(execution_result: &ExecutionResult) -> &'static str {
 
 #[tonic::async_trait]
 impl ExecutionService for AquilaExecutionServiceServer {
+    #[tracing::instrument(
+        name = "aquila.execution.update",
+        skip_all,
+        fields(rpc.system = "grpc", rpc.service = "ExecutionService", rpc.method = "Update")
+    )]
     async fn update(
         &self,
         request: tonic::Request<tucana::aquila::ExecutionRequest>,

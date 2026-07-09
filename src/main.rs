@@ -9,6 +9,7 @@ pub mod flow;
 pub mod sagittarius;
 pub mod server;
 pub mod startup;
+pub mod telemetry;
 
 const CONFIG_PATH_ENV: &str = "AQUILA_CONFIG_PATH";
 const SERVICE_CONFIG_PATH_ENV: &str = "AQUILA_SERVICE_CONFIG_PATH";
@@ -26,12 +27,30 @@ async fn main() {
         .as_ref()
         .map(|config| config.log_level.as_str())
         .unwrap_or("debug");
-    env_logger::Builder::from_env(env_logger::Env::default().default_filter_or(log_level)).init();
+    let telemetry_config = config_result
+        .as_ref()
+        .map(|config| config.opentelemetry.clone())
+        .unwrap_or_default();
+    let environment = config_result
+        .as_ref()
+        .map(|config| config.environment.to_string())
+        .unwrap_or_else(|_| "unknown".into());
+    let telemetry = telemetry::Telemetry::initialize(
+        &telemetry_config,
+        telemetry::TelemetrySettings {
+            environment: &environment,
+            default_log_level: log_level,
+            service_version: env!("CARGO_PKG_VERSION"),
+            instrumentation_name: env!("CARGO_PKG_NAME"),
+            initialize_metrics: Some(telemetry::metrics::initialize),
+        },
+    )
+    .unwrap_or_else(|error| panic!("failed to initialize telemetry: {error}"));
     install_panic_logging();
 
     let config = config_result
         .unwrap_or_else(|error| panic!("failed to load Aquila configuration: {error}"));
-    log::info!("Starting Aquila");
+    log::info!("Starting Aquila runtime gateway");
 
     let app_readiness = AppReadiness::new();
     let service_config = std::env::var_os(SERVICE_CONFIG_PATH_ENV)
@@ -40,6 +59,7 @@ async fn main() {
     log::debug!("{config}");
 
     startup::run(config, app_readiness, service_config).await;
+    telemetry.shutdown();
 }
 
 fn install_panic_logging() {
@@ -52,15 +72,17 @@ fn install_panic_logging() {
             "<non-string panic payload>"
         };
 
-        match panic_info.location() {
-            Some(location) => log::error!(
-                "Process panic message={} file={} line={} column={}",
-                message,
-                location.file(),
-                location.line(),
-                location.column()
-            ),
-            None => log::error!("Process panic message={} location=unknown", message),
-        }
+        let location = panic_info
+            .location()
+            .map(|location| {
+                format!(
+                    "{}:{}:{}",
+                    location.file(),
+                    location.line(),
+                    location.column()
+                )
+            })
+            .unwrap_or_else(|| "unknown".into());
+        telemetry::errors::panic(message, &location);
     }));
 }

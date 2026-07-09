@@ -117,12 +117,9 @@ impl AquilaDynamicServer {
         let runtime_status_server = AquilaRuntimeStatusServiceServer::new(
             runtime_status_service.clone(),
             self.service_configuration.clone(),
-            Duration::from_secs(self.runtime_status_not_responding_after_secs.clone()),
-            Duration::from_secs(
-                self.runtime_status_stopped_after_not_responding_secs
-                    .clone(),
-            ),
-            Duration::from_secs(self.runtime_status_monitor_interval_secs.clone()),
+            Duration::from_secs(self.runtime_status_not_responding_after_secs),
+            Duration::from_secs(self.runtime_status_stopped_after_not_responding_secs),
+            Duration::from_secs(self.runtime_status_monitor_interval_secs),
         );
 
         let action_transfer_server = AquilaActionTransferServiceServer::new(

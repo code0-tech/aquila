@@ -26,7 +26,10 @@ pub async fn run(
     // Create connection to JetStream
     let client = match async_nats::connect(config.nats.url.clone()).await {
         Ok(client) => {
-            log::info!("Connected to NATS");
+            log::info!(
+                "Aquila messaging dependency is ready dependency=nats url={}",
+                config.nats.url
+            );
             client
         }
         Err(err) => {
@@ -56,7 +59,10 @@ pub async fn run(
 
     let kv_store = match jet_stream.get_key_value(config.nats.bucket.clone()).await {
         Ok(kv) => {
-            log::info!("Opened NATS key-value store bucket={}", config.nats.bucket);
+            log::info!(
+                "Aquila flow store is ready backend=nats_jetstream bucket={}",
+                config.nats.bucket
+            );
             Arc::new(kv)
         }
         Err(err) => {
@@ -68,11 +74,11 @@ pub async fn run(
     };
 
     if config.is_static() {
-        log::info!("Starting with static configuration");
+        log::info!("Selected Aquila startup mode mode=static source=local_flow_export");
         static_mode::run(config, app_readiness, service_config, client, kv_store).await;
         return;
     }
 
-    log::info!("Starting with dynamic configuration");
+    log::info!("Selected Aquila startup mode mode=dynamic source=sagittarius");
     dynamic_mode::run(config, app_readiness, service_config, client, kv_store).await;
 }

@@ -236,6 +236,11 @@ fn epoch_seconds_now() -> i64 {
 
 #[tonic::async_trait]
 impl RuntimeStatusService for AquilaRuntimeStatusServiceServer {
+    #[tracing::instrument(
+        name = "aquila.runtime_status.update",
+        skip_all,
+        fields(rpc.system = "grpc", rpc.service = "RuntimeStatusService", rpc.method = "Update")
+    )]
     async fn update(
         &self,
         request: tonic::Request<tucana::aquila::RuntimeStatusUpdateRequest>,

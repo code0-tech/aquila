@@ -1,5 +1,6 @@
 use std::{fmt, path::Path};
 
+use code0_flow::flow_telemetry::OpenTelemetry;
 use config::{Config as ConfigLoader, ConfigError, File};
 use serde::{Deserialize, Serialize};
 
@@ -14,6 +15,9 @@ pub struct Config {
     pub environment: Environment,
     pub mode: Mode,
     pub log_level: String,
+    #[serde(alias = "telemetry")]
+    #[serde(default = "default_opentelemetry")]
+    pub opentelemetry: OpenTelemetry,
     pub nats: Nats,
     pub static_config: StaticConfig,
     pub dynamic_config: DynamicConfig,
@@ -78,12 +82,20 @@ impl Default for Config {
             environment: Environment::Development,
             mode: Mode::Static,
             log_level: "debug".into(),
+            opentelemetry: default_opentelemetry(),
             nats: Nats::default(),
             static_config: StaticConfig::default(),
             dynamic_config: DynamicConfig::default(),
             grpc: Grpc::default(),
             runtime_status: RuntimeStatus::default(),
         }
+    }
+}
+
+fn default_opentelemetry() -> OpenTelemetry {
+    OpenTelemetry {
+        service_name: env!("CARGO_PKG_NAME").into(),
+        ..OpenTelemetry::default()
     }
 }
 
@@ -175,6 +187,28 @@ impl fmt::Display for Config {
         writeln!(formatter, "  Environment: {}", self.environment)?;
         writeln!(formatter, "  Mode:        {}", self.mode)?;
         writeln!(formatter, "  Log level:   {}", self.log_level)?;
+        writeln!(formatter, "  OpenTelemetry")?;
+        writeln!(formatter, "    Enabled:   {}", self.opentelemetry.enabled)?;
+        writeln!(
+            formatter,
+            "    Service:   {}",
+            self.opentelemetry.service_name
+        )?;
+        writeln!(
+            formatter,
+            "    Logs:      {}",
+            display_optional_url(&self.opentelemetry.logs_endpoint)
+        )?;
+        writeln!(
+            formatter,
+            "    Metrics:   {}",
+            display_optional_url(&self.opentelemetry.metrics_endpoint)
+        )?;
+        writeln!(
+            formatter,
+            "    Traces:    {}",
+            display_optional_url(&self.opentelemetry.traces_endpoint)
+        )?;
         writeln!(formatter, "  NATS")?;
         writeln!(formatter, "    URL:       {}", self.nats.url)?;
         writeln!(formatter, "    Bucket:    {}", self.nats.bucket)?;
@@ -222,11 +256,21 @@ impl fmt::Display for Config {
     }
 }
 
+fn display_optional_url(url: &Option<String>) -> &str {
+    url.as_deref()
+        .filter(|value| !value.trim().is_empty())
+        .unwrap_or("<disabled>")
+}
+
 #[cfg(test)]
 mod tests {
     use std::sync::Mutex;
 
-    use super::Config;
+    use config::Config as ConfigLoader;
+
+    use code0_flow::flow_telemetry::OpenTelemetry;
+
+    use super::{Config, default_opentelemetry};
 
     static ENV_LOCK: Mutex<()> = Mutex::new(());
 
@@ -274,5 +318,40 @@ mod tests {
         assert!(output.contains("    Backend token:   [FILTERED]"));
         assert!(!output.contains("super-secret"));
         assert!(!output.contains("Config {"));
+    }
+
+    #[test]
+    fn opentelemetry_endpoints_are_enabled_by_presence() {
+        let config: OpenTelemetry = ConfigLoader::builder()
+            .add_source(
+                ConfigLoader::try_from(&default_opentelemetry())
+                    .expect("default telemetry config should serialize"),
+            )
+            .set_override("enabled", true)
+            .expect("enabled override should apply")
+            .set_override("service_name", "sagittarius")
+            .expect("service name override should apply")
+            .set_override("logs_endpoint", "")
+            .expect("logs override should apply")
+            .set_override("metrics_endpoint", "  ")
+            .expect("metrics override should apply")
+            .set_override("traces_endpoint", "http://localhost:4317")
+            .expect("traces override should apply")
+            .build()
+            .expect("telemetry config should build")
+            .try_deserialize()
+            .expect("telemetry config should deserialize");
+
+        assert!(config.enabled);
+        assert_eq!(config.service_name, "sagittarius");
+        assert_eq!(config.logs_endpoint(), None);
+        assert_eq!(config.metrics_endpoint(), None);
+        assert_eq!(config.traces_endpoint(), Some("http://localhost:4317"));
+        assert!(config.has_enabled_exporter());
+    }
+
+    #[test]
+    fn opentelemetry_default_service_name_is_aquila() {
+        assert_eq!(Config::default().opentelemetry.service_name, "aquila");
     }
 }

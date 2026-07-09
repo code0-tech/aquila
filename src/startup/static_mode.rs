@@ -2,6 +2,7 @@ use crate::{
     configuration::{config::Config, service::ServiceConfiguration, state::AppReadiness},
     flow::get_flow_identifier,
     server::static_server::AquilaStaticServer,
+    telemetry::{errors, metrics},
 };
 use async_nats::Client;
 use prost::Message;
@@ -47,7 +48,7 @@ pub async fn run(
 
     let mut server_task = tokio::spawn(async move {
         if let Err(err) = server.start().await {
-            log::error!("gRPC server error: {:?}", err);
+            errors::record("server", "grpc.serve", &err, "mode=static");
         } else {
             log::info!("gRPC server stopped gracefully");
         }
@@ -69,7 +70,7 @@ pub async fn run(
             match result {
                 Ok(()) => log::warn!("gRPC server task exited unexpectedly; shutting down"),
                 Err(err) if err.is_panic() => {}
-                Err(err) => log::error!("gRPC server task failed; shutting down error={:?}", err),
+                Err(err) => errors::record("task", "grpc.task", &err, "mode=static"),
             }
         }
         _ = tokio::signal::ctrl_c() => {
@@ -133,9 +134,13 @@ async fn init_flows_from_json(
         match flow_store_client.put(key.clone(), bytes.into()).await {
             Ok(_) => {
                 stored_count += 1;
+                metrics::flow_operation("load", "success", 1);
                 log::debug!("Stored fallback flow key={}", key);
             }
-            Err(err) => log::error!("Failed to store fallback flow key={} error={:?}", key, err),
+            Err(err) => {
+                metrics::flow_operation("load", "failure", 1);
+                log::error!("Failed to store fallback flow key={} error={:?}", key, err)
+            }
         };
     }
 

@@ -1,4 +1,4 @@
-use crate::authorization::authorization::get_authorization_metadata;
+use crate::{authorization::authorization::get_authorization_metadata, telemetry::errors};
 use std::time::Duration;
 use tonic::transport::Channel;
 use tonic::{Extensions, Request};
@@ -20,6 +20,11 @@ impl SagittariusModuleServiceClient {
         }
     }
 
+    #[tracing::instrument(
+        name = "sagittarius.module.update",
+        skip_all,
+        fields(rpc.system = "grpc", rpc.service = "ModuleService", rpc.method = "Update")
+    )]
     pub async fn update_modules(
         &mut self,
         modules_update_request: tucana::aquila::ModuleUpdateRequest,
@@ -59,12 +64,16 @@ impl SagittariusModuleServiceClient {
                 }
             }
             Err(err) => {
-                log::error!(
-                    "Sagittarius module update RPC failed module_count={} code={} message={} timeout_ms={}",
-                    module_count,
-                    err.code(),
-                    err.message(),
-                    self.unary_rpc_timeout.as_millis()
+                errors::record(
+                    "dependency",
+                    "sagittarius.module.update",
+                    &err,
+                    format!(
+                        "module_count={} code={} timeout_ms={}",
+                        module_count,
+                        err.code(),
+                        self.unary_rpc_timeout.as_millis()
+                    ),
                 );
                 tucana::aquila::ModuleUpdateResponse { success: false }
             }

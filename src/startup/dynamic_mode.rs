@@ -12,6 +12,7 @@ use crate::{
         },
     },
     server::dynamic_server::AquilaDynamicServer,
+    telemetry::errors,
 };
 use std::{sync::Arc, time::Duration};
 
@@ -54,7 +55,7 @@ pub async fn run(
 
     let mut server_task = tokio::spawn(async move {
         if let Err(err) = server.start().await {
-            log::error!("gRPC server error: {:?}", err);
+            errors::record("server", "grpc.serve", &err, "mode=dynamic");
         } else {
             log::info!("gRPC server stopped gracefully");
         }
@@ -139,10 +140,15 @@ pub async fn run(
 
             match flow_client.init_flow_stream().await {
                 Ok(_) => {
-                    log::warn!("Flow stream ended cleanly. Reconnecting...");
+                    log::warn!(
+                        "Sagittarius flow synchronization stream ended normally; reconnecting"
+                    );
                 }
                 Err(e) => {
-                    log::warn!("Flow stream dropped: {:?}. Reconnecting...", e);
+                    log::warn!(
+                        "Sagittarius flow synchronization stream dropped; reconnecting error={:?}",
+                        e
+                    );
                 }
             }
 
@@ -171,7 +177,7 @@ pub async fn run(
             match result {
                 Ok(()) => log::warn!("gRPC server task exited unexpectedly; shutting down"),
                 Err(err) if err.is_panic() => {}
-                Err(err) => log::error!("gRPC server task failed; shutting down error={:?}", err),
+                Err(err) => errors::record("task", "grpc.task", &err, "mode=dynamic"),
             }
             flow_task.abort();
             test_execution_task.abort();
@@ -180,7 +186,7 @@ pub async fn run(
             match result {
                 Ok(()) => log::warn!("Test execution stream task exited unexpectedly; shutting down"),
                 Err(err) if err.is_panic() => {}
-                Err(err) => log::error!("Test execution stream task failed; shutting down error={:?}", err),
+                Err(err) => errors::record("task", "execution_stream.task", &err, "mode=dynamic"),
             }
             server_task.abort();
             flow_task.abort();
@@ -189,7 +195,7 @@ pub async fn run(
             match result {
                 Ok(()) => log::warn!("Flow stream task exited unexpectedly; shutting down"),
                 Err(err) if err.is_panic() => {}
-                Err(err) => log::error!("Flow stream task failed; shutting down error={:?}", err),
+                Err(err) => errors::record("task", "flow_stream.task", &err, "mode=dynamic"),
             }
             server_task.abort();
             test_execution_task.abort();
