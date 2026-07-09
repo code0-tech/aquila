@@ -219,11 +219,10 @@ fn pending_reply_keys(
         keys.push(request_execution_id.to_string());
     }
 
-    if let Some(subject_execution_id) = subject_execution_id {
-        if !subject_execution_id.is_empty() && !keys.iter().any(|key| key == subject_execution_id) {
+    if let Some(subject_execution_id) = subject_execution_id
+        && !subject_execution_id.is_empty() && !keys.iter().any(|key| key == subject_execution_id) {
             keys.push(subject_execution_id.to_string());
         }
-    }
 
     keys
 }
@@ -564,7 +563,6 @@ async fn handle_result(
             &err,
             format!("action.identifier={action_identifier} execution_id={execution_id}"),
         );
-        return;
     }
 }
 
@@ -790,8 +788,8 @@ async fn forward_nats_to_action(
         };
 
         let subject_execution_id = subject_execution_identifier(&msg.subject);
-        if execution.execution_identifier.is_empty() {
-            if let Some(subject_execution_id) = subject_execution_id.as_ref() {
+        if execution.execution_identifier.is_empty()
+            && let Some(subject_execution_id) = subject_execution_id.as_ref() {
                 log::warn!(
                     "Filled missing action execution identifier from NATS subject subject={} execution_id={}",
                     msg.subject,
@@ -799,7 +797,6 @@ async fn forward_nats_to_action(
                 );
                 execution.execution_identifier = subject_execution_id.clone();
             }
-        }
 
         let execution_id = execution.execution_identifier.clone();
 

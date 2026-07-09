@@ -88,7 +88,7 @@ impl From<SerializableServiceConfiguration> for ServiceConfiguration {
     fn from(value: SerializableServiceConfiguration) -> Self {
         Self {
             actions: value.actions.into_iter().map(Into::into).collect(),
-            runtimes: value.runtimes.into_iter().map(Into::into).collect(),
+            runtimes: value.runtimes.into_iter().collect(),
         }
     }
 }
@@ -116,25 +116,17 @@ impl ServiceConfiguration {
             None => return false,
         };
 
-        match self
+        self
             .runtimes
             .iter()
-            .find(|x| &x.token == token && x.identifier == name)
-        {
-            Some(_) => true,
-            None => false,
-        }
+            .find(|x| &x.token == token && x.identifier == name).is_some()
     }
 
     pub fn has_action(&self, token: &String, action_name: &String) -> bool {
-        match self
+        self
             .actions
             .iter()
-            .find(|x| &x.token == token && &x.service_name == action_name)
-        {
-            Some(_) => true,
-            None => false,
-        }
+            .find(|x| &x.token == token && &x.service_name == action_name).is_some()
     }
 
     pub fn get_action_configuration(
@@ -185,9 +177,9 @@ impl ServiceConfiguration {
                     "Couldn't parse service configuration file, Reason: {}. Starting with empty service configuration",
                     error
                 );
-                return ServiceConfiguration::default();
+                ServiceConfiguration::default()
             }
-        };
+        }
     }
 }
 

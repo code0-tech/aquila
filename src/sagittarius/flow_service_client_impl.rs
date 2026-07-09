@@ -197,7 +197,7 @@ impl SagittariusFlowClient {
             }
             Data::UpdatedFlow(flow) => {
                 let key = get_flow_identifier(&flow);
-                let flow_id = flow.flow_id.clone();
+                let flow_id = flow.flow_id;
                 let bytes = flow.encode_to_vec();
                 match self.store.put(key.clone(), bytes.into()).await {
                     Ok(_) => {
