@@ -35,8 +35,24 @@ async fn main() {
         .as_ref()
         .map(|config| config.environment.to_string())
         .unwrap_or_else(|_| "unknown".into());
-    let telemetry = telemetry::Telemetry::initialize(&telemetry_config, &environment, log_level)
-        .unwrap_or_else(|error| panic!("failed to initialize telemetry: {error}"));
+    let telemetry_config = telemetry::OpenTelemetry {
+        enabled: telemetry_config.enabled,
+        service_name: telemetry_config.service_name,
+        logs_endpoint: telemetry_config.logs_endpoint,
+        metrics_endpoint: telemetry_config.metrics_endpoint,
+        traces_endpoint: telemetry_config.traces_endpoint,
+    };
+    let telemetry = telemetry::Telemetry::initialize(
+        &telemetry_config,
+        telemetry::TelemetrySettings {
+            environment: &environment,
+            default_log_level: log_level,
+            service_version: env!("CARGO_PKG_VERSION"),
+            instrumentation_name: env!("CARGO_PKG_NAME"),
+            initialize_metrics: Some(telemetry::metrics::initialize),
+        },
+    )
+    .unwrap_or_else(|error| panic!("failed to initialize telemetry: {error}"));
     install_panic_logging();
 
     let config = config_result
