@@ -131,12 +131,13 @@ impl ServiceConfiguration {
 
     pub fn get_action_configuration(
         &self,
+        token: &String,
         action_identifier: &String,
     ) -> Vec<ModuleConfigurations> {
         match self
             .actions
             .iter()
-            .find(|x| &x.service_name == action_identifier)
+            .find(|x| &x.token == token && &x.service_name == action_identifier)
         {
             Some(a) => a.config.clone(),
             None => vec![],
@@ -187,6 +188,7 @@ impl ServiceConfiguration {
 mod tests {
     use super::{
         RuntimeServiceConfiguration, SerializableActionServiceConfiguration,
+        SerializableModuleConfiguration, SerializableModuleProjectConfiguration,
         SerializableServiceConfiguration, ServiceConfiguration,
     };
 
@@ -253,6 +255,7 @@ mod tests {
             &String::from("action-identifier")
         ));
         assert!(!config.has_action(&String::from("action-token"), &String::from("action-other")));
+        assert!(!config.has_action(&String::from("example"), &String::from("example")));
     }
 
     #[test]
@@ -273,5 +276,58 @@ mod tests {
             &String::from("action-identifier")
         ));
         assert!(!config.has_service(&String::from("action-token"), &String::from("taurus-x")));
+    }
+
+    #[test]
+    fn get_action_configuration_requires_matching_token_and_identifier() {
+        let config: ServiceConfiguration = SerializableServiceConfiguration {
+            actions: vec![
+                SerializableActionServiceConfiguration {
+                    token: String::from("old-token"),
+                    identifier: String::from("shared-action"),
+                    configs: vec![SerializableModuleProjectConfiguration {
+                        project_id: 1,
+                        configs: vec![SerializableModuleConfiguration {
+                            identifier: String::from("endpoint"),
+                            value: serde_json::json!("old.example"),
+                        }],
+                    }],
+                },
+                SerializableActionServiceConfiguration {
+                    token: String::from("new-token"),
+                    identifier: String::from("shared-action"),
+                    configs: vec![SerializableModuleProjectConfiguration {
+                        project_id: 2,
+                        configs: vec![SerializableModuleConfiguration {
+                            identifier: String::from("endpoint"),
+                            value: serde_json::json!("new.example"),
+                        }],
+                    }],
+                },
+            ],
+            runtimes: vec![],
+        }
+        .into();
+
+        let configs = config
+            .get_action_configuration(&String::from("new-token"), &String::from("shared-action"));
+
+        assert_eq!(configs.len(), 1);
+        assert_eq!(configs[0].module_identifier, "shared-action");
+        assert_eq!(configs[0].module_configurations[0].project_id, 2);
+    }
+
+    #[test]
+    fn get_action_configuration_returns_empty_for_identifier_with_wrong_token() {
+        let config = fixture();
+
+        assert!(
+            config
+                .get_action_configuration(
+                    &String::from("wrong-token"),
+                    &String::from("action-identifier")
+                )
+                .is_empty()
+        );
     }
 }
