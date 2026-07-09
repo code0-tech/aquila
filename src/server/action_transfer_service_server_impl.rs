@@ -229,6 +229,15 @@ fn pending_reply_keys(
     keys
 }
 
+async fn send_stream_error(
+    tx: &tokio::sync::mpsc::Sender<Result<ActionTransferResponse, tonic::Status>>,
+    status: tonic::Status,
+) {
+    if tx.send(Err(status)).await.is_err() {
+        log::debug!("Action transfer response stream closed before error could be sent");
+    }
+}
+
 fn insert_pending_reply(
     pending: &mut HashMap<String, PendingReply>,
     reply_subject: Subject,
@@ -636,6 +645,11 @@ impl ActionTransferService for AquilaActionTransferServiceServer {
                                 Some(ref m) => m.identifier.clone(),
                                 None => {
                                     log::warn!("Rejected action logon reason=missing_module");
+                                    send_stream_error(
+                                        &tx,
+                                        Status::aborted("Please provide a module configuration."),
+                                    )
+                                    .await;
                                     break;
                                 }
                             };
@@ -663,6 +677,7 @@ impl ActionTransferService for AquilaActionTransferServiceServer {
                                         status.code(),
                                         status.message()
                                     );
+                                    send_stream_error(&tx, status).await;
                                     break;
                                 }
                             };
@@ -677,6 +692,11 @@ impl ActionTransferService for AquilaActionTransferServiceServer {
                         }
                         _ => {
                             log::error!("Action stream protocol violation expected=logon");
+                            send_stream_error(
+                                &tx,
+                                Status::failed_precondition("first action stream message must be logon"),
+                            )
+                            .await;
                             break;
                         }
                     }
@@ -702,7 +722,7 @@ impl ActionTransferService for AquilaActionTransferServiceServer {
 
                 if is_static {
                     let lock = actions.lock().await;
-                    let configs = lock.get_action_configuration(&identifier);
+                    let configs = lock.get_action_configuration(&token, &identifier);
                     for conf in configs {
                         if let Err(err) = cfg_tx.send(conf) {
                             log::warn!("No action configuration receivers available: {:?}", err);
@@ -716,6 +736,11 @@ impl ActionTransferService for AquilaActionTransferServiceServer {
                             "Action stream protocol violation identifier={} reason=duplicate_logon",
                             identifier
                         );
+                        send_stream_error(
+                            &tx,
+                            Status::failed_precondition("action stream logon was already accepted"),
+                        )
+                        .await;
                         break;
                     }
                     tucana::aquila::action_transfer_request::Data::Event(event) => {
