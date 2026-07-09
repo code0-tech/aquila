@@ -220,9 +220,11 @@ fn pending_reply_keys(
     }
 
     if let Some(subject_execution_id) = subject_execution_id
-        && !subject_execution_id.is_empty() && !keys.iter().any(|key| key == subject_execution_id) {
-            keys.push(subject_execution_id.to_string());
-        }
+        && !subject_execution_id.is_empty()
+        && !keys.iter().any(|key| key == subject_execution_id)
+    {
+        keys.push(subject_execution_id.to_string());
+    }
 
     keys
 }
@@ -789,14 +791,15 @@ async fn forward_nats_to_action(
 
         let subject_execution_id = subject_execution_identifier(&msg.subject);
         if execution.execution_identifier.is_empty()
-            && let Some(subject_execution_id) = subject_execution_id.as_ref() {
-                log::warn!(
-                    "Filled missing action execution identifier from NATS subject subject={} execution_id={}",
-                    msg.subject,
-                    subject_execution_id
-                );
-                execution.execution_identifier = subject_execution_id.clone();
-            }
+            && let Some(subject_execution_id) = subject_execution_id.as_ref()
+        {
+            log::warn!(
+                "Filled missing action execution identifier from NATS subject subject={} execution_id={}",
+                msg.subject,
+                subject_execution_id
+            );
+            execution.execution_identifier = subject_execution_id.clone();
+        }
 
         let execution_id = execution.execution_identifier.clone();
 

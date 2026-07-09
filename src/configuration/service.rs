@@ -116,17 +116,17 @@ impl ServiceConfiguration {
             None => return false,
         };
 
-        self
-            .runtimes
+        self.runtimes
             .iter()
-            .find(|x| &x.token == token && x.identifier == name).is_some()
+            .find(|x| &x.token == token && x.identifier == name)
+            .is_some()
     }
 
     pub fn has_action(&self, token: &String, action_name: &String) -> bool {
-        self
-            .actions
+        self.actions
             .iter()
-            .find(|x| &x.token == token && &x.service_name == action_name).is_some()
+            .find(|x| &x.token == token && &x.service_name == action_name)
+            .is_some()
     }
 
     pub fn get_action_configuration(

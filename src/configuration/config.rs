@@ -1,5 +1,6 @@
 use std::{fmt, path::Path};
 
+use code0_flow::flow_telemetry::OpenTelemetry;
 use config::{Config as ConfigLoader, ConfigError, File};
 use serde::{Deserialize, Serialize};
 
@@ -15,6 +16,7 @@ pub struct Config {
     pub mode: Mode,
     pub log_level: String,
     #[serde(alias = "telemetry")]
+    #[serde(default = "default_opentelemetry")]
     pub opentelemetry: OpenTelemetry,
     pub nats: Nats,
     pub static_config: StaticConfig,
@@ -28,16 +30,6 @@ pub struct Config {
 pub struct Nats {
     pub url: String,
     pub bucket: String,
-}
-
-#[derive(Clone, Debug, Deserialize, Serialize)]
-#[serde(default)]
-pub struct OpenTelemetry {
-    pub enabled: bool,
-    pub service_name: String,
-    pub logs_endpoint: Option<String>,
-    pub metrics_endpoint: Option<String>,
-    pub traces_endpoint: Option<String>,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -90,7 +82,7 @@ impl Default for Config {
             environment: Environment::Development,
             mode: Mode::Static,
             log_level: "debug".into(),
-            opentelemetry: OpenTelemetry::default(),
+            opentelemetry: default_opentelemetry(),
             nats: Nats::default(),
             static_config: StaticConfig::default(),
             dynamic_config: DynamicConfig::default(),
@@ -100,40 +92,11 @@ impl Default for Config {
     }
 }
 
-impl Default for OpenTelemetry {
-    fn default() -> Self {
-        Self {
-            enabled: false,
-            service_name: env!("CARGO_PKG_NAME").into(),
-            logs_endpoint: None,
-            metrics_endpoint: None,
-            traces_endpoint: None,
-        }
+fn default_opentelemetry() -> OpenTelemetry {
+    OpenTelemetry {
+        service_name: env!("CARGO_PKG_NAME").into(),
+        ..OpenTelemetry::default()
     }
-}
-
-impl OpenTelemetry {
-    pub fn logs_endpoint(&self) -> Option<&str> {
-        non_empty_url(&self.logs_endpoint)
-    }
-
-    pub fn metrics_endpoint(&self) -> Option<&str> {
-        non_empty_url(&self.metrics_endpoint)
-    }
-
-    pub fn traces_endpoint(&self) -> Option<&str> {
-        non_empty_url(&self.traces_endpoint)
-    }
-
-    pub fn has_enabled_exporter(&self) -> bool {
-        self.logs_endpoint().is_some()
-            || self.metrics_endpoint().is_some()
-            || self.traces_endpoint().is_some()
-    }
-}
-
-fn non_empty_url(url: &Option<String>) -> Option<&str> {
-    url.as_deref().filter(|value| !value.trim().is_empty())
 }
 
 impl Default for Nats {
@@ -294,7 +257,9 @@ impl fmt::Display for Config {
 }
 
 fn display_optional_url(url: &Option<String>) -> &str {
-    non_empty_url(url).unwrap_or("<disabled>")
+    url.as_deref()
+        .filter(|value| !value.trim().is_empty())
+        .unwrap_or("<disabled>")
 }
 
 #[cfg(test)]
@@ -303,7 +268,9 @@ mod tests {
 
     use config::Config as ConfigLoader;
 
-    use super::{Config, OpenTelemetry};
+    use code0_flow::flow_telemetry::OpenTelemetry;
+
+    use super::{Config, default_opentelemetry};
 
     static ENV_LOCK: Mutex<()> = Mutex::new(());
 
@@ -357,7 +324,7 @@ mod tests {
     fn opentelemetry_endpoints_are_enabled_by_presence() {
         let config: OpenTelemetry = ConfigLoader::builder()
             .add_source(
-                ConfigLoader::try_from(&OpenTelemetry::default())
+                ConfigLoader::try_from(&default_opentelemetry())
                     .expect("default telemetry config should serialize"),
             )
             .set_override("enabled", true)
@@ -381,5 +348,10 @@ mod tests {
         assert_eq!(config.metrics_endpoint(), None);
         assert_eq!(config.traces_endpoint(), Some("http://localhost:4317"));
         assert!(config.has_enabled_exporter());
+    }
+
+    #[test]
+    fn opentelemetry_default_service_name_is_aquila() {
+        assert_eq!(Config::default().opentelemetry.service_name, "aquila");
     }
 }
