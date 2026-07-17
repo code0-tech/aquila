@@ -276,7 +276,7 @@ impl SagittariusTestExecutionServiceClient {
     }
 
     async fn load_validation_flow(&self, flow_id: i64) -> Option<ValidationFlow> {
-        match self.store.get(format!("{}.*", flow_id)).await {
+        match self.store.get(format!("*.*.*.{}", flow_id)).await {
             Ok(Some(bytes)) => match ValidationFlow::decode(bytes) {
                 Ok(flow) => {
                     log::debug!(
