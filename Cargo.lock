@@ -231,9 +231,9 @@ dependencies = [
 
 [[package]]
 name = "code0-flow"
-version = "0.0.40"
+version = "0.0.41"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f6bac81931da426429ac4ca93b80ff246900d64e8190ec2c4e0382ff35157857"
+checksum = "a5373ac809b37ed939f2fd9094d20cc8534a87d18ac5551ee7dfc69c6a7596ea"
 dependencies = [
  "async-nats",
  "dotenv",
