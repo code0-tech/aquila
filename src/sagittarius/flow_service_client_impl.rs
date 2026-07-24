@@ -1,5 +1,6 @@
 use crate::{
-    authorization::authorization::get_authorization_metadata, flow::get_flow_identifier,
+    authorization::authorization::get_authorization_metadata,
+    flow::{get_flow_identifier, key_has_flow_id},
     telemetry::metrics,
 };
 use futures::{StreamExt, TryStreamExt};
@@ -26,12 +27,6 @@ fn module_config_stats(configs: &tucana::shared::ModuleConfigurations) -> (usize
         .sum();
 
     (project_count, config_count)
-}
-
-fn key_has_flow_id(key: &str, flow_id: i64) -> bool {
-    key.rsplit_once('.')
-        .and_then(|(_, id)| id.parse::<i64>().ok())
-        == Some(flow_id)
 }
 
 #[derive(Clone)]

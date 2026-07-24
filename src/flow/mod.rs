@@ -8,3 +8,27 @@ pub fn get_flow_identifier(flow: &ValidationFlow) -> String {
         flow.r#type, flow.project_slug, flow.project_id, flow.flow_id
     )
 }
+
+pub fn key_has_flow_id(key: &str, flow_id: i64) -> bool {
+    key.rsplit_once('.')
+        .and_then(|(_, id)| id.parse::<i64>().ok())
+        == Some(flow_id)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::key_has_flow_id;
+
+    #[test]
+    fn matches_flow_id_in_final_key_segment() {
+        assert!(key_has_flow_id("CRON.test.1.1", 1));
+        assert!(key_has_flow_id("REST.project.42.123", 123));
+    }
+
+    #[test]
+    fn rejects_partial_or_non_final_flow_id_matches() {
+        assert!(!key_has_flow_id("CRON.test.1.11", 1));
+        assert!(!key_has_flow_id("CRON.test.1.1.extra", 1));
+        assert!(!key_has_flow_id("CRON.test.1.invalid", 1));
+    }
+}
