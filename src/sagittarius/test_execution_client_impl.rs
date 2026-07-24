@@ -4,7 +4,7 @@
    In some conditions Sagittarius can't connect to Aquila
    Thus Aquila sends a `Logon` request to connect to Sagittarius establishing the connection
 */
-use futures::StreamExt;
+use futures::{StreamExt, TryStreamExt};
 use prost::Message;
 use std::{
     collections::HashMap,
@@ -20,7 +20,7 @@ use tucana::sagittarius::execution_service_client::ExecutionServiceClient;
 use tucana::sagittarius::{ExecutionLogonRequest, Logon};
 use tucana::shared::{ExecutionFlow, ExecutionResult, ValidationFlow};
 
-use crate::authorization::authorization::get_authorization_metadata;
+use crate::{authorization::authorization::get_authorization_metadata, flow::key_has_flow_id};
 
 const EXECUTION_FLOW_ID_TTL: Duration = Duration::from_secs(30 * 60);
 const MAX_EXECUTION_FLOW_IDS: usize = 10_000;
@@ -276,7 +276,44 @@ impl SagittariusTestExecutionServiceClient {
     }
 
     async fn load_validation_flow(&self, flow_id: i64) -> Option<ValidationFlow> {
-        match self.store.get(format!("*.*.*.{}", flow_id)).await {
+        let mut keys = match self.store.keys().await {
+            Ok(keys) => keys,
+            Err(err) => {
+                log::error!(
+                    "Failed to list validation flow keys flow_id={} error={:?}",
+                    flow_id,
+                    err
+                );
+                return None;
+            }
+        };
+
+        let key = loop {
+            match keys.try_next().await {
+                Ok(Some(key)) if key_has_flow_id(&key, flow_id) => break key,
+                Ok(Some(_)) => {}
+                Ok(None) => {
+                    log::error!("Validation flow was not found flow_id={}", flow_id);
+                    return None;
+                }
+                Err(err) => {
+                    log::error!(
+                        "Failed while scanning validation flow keys flow_id={} error={:?}",
+                        flow_id,
+                        err
+                    );
+                    return None;
+                }
+            }
+        };
+
+        log::debug!(
+            "Resolved validation flow key flow_id={} key={}",
+            flow_id,
+            key
+        );
+
+        match self.store.get(&key).await {
             Ok(Some(bytes)) => match ValidationFlow::decode(bytes) {
                 Ok(flow) => {
                     log::debug!(
@@ -298,13 +335,18 @@ impl SagittariusTestExecutionServiceClient {
                 }
             },
             Ok(None) => {
-                log::error!("Validation flow was not found flow_id={}", flow_id);
+                log::error!(
+                    "Validation flow disappeared after key resolution flow_id={} key={}",
+                    flow_id,
+                    key
+                );
                 None
             }
             Err(err) => {
                 log::error!(
-                    "Failed to fetch validation flow flow_id={} error={:?}",
+                    "Failed to fetch validation flow flow_id={} key={} error={:?}",
                     flow_id,
+                    key,
                     err
                 );
                 None
