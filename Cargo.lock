@@ -231,9 +231,9 @@ dependencies = [
 
 [[package]]
 name = "code0-flow"
-version = "0.0.40"
+version = "0.0.41"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f6bac81931da426429ac4ca93b80ff246900d64e8190ec2c4e0382ff35157857"
+checksum = "a5373ac809b37ed939f2fd9094d20cc8534a87d18ac5551ee7dfc69c6a7596ea"
 dependencies = [
  "async-nats",
  "dotenv",
@@ -506,7 +506,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "39cab71617ae0d63f51a36d69f866391735b51691dbda63cf6f96d042b63efeb"
 dependencies = [
  "libc",
- "windows-sys 0.52.0",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -1743,7 +1743,7 @@ dependencies = [
  "errno",
  "libc",
  "linux-raw-sys",
- "windows-sys 0.52.0",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -2060,10 +2060,10 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "32497e9a4c7b38532efcdebeef879707aa9f794296a4f0244f6f69e9bc8574bd"
 dependencies = [
  "fastrand",
- "getrandom 0.3.4",
+ "getrandom 0.4.2",
  "once_cell",
  "rustix",
- "windows-sys 0.52.0",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -2496,9 +2496,9 @@ dependencies = [
 
 [[package]]
 name = "tucana"
-version = "0.0.75"
+version = "0.0.76"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b6a58d33f2013edc52c4d782b3bdcdccff2b6b7f2233b91fc833e2f69df2277b"
+checksum = "473db4c6dff2f83d8275b92abe90873a5e68b5ca5cf02e2aa0154fdd69bc925a"
 dependencies = [
  "pbjson",
  "pbjson-build",

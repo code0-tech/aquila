@@ -93,6 +93,7 @@ impl AquilaDynamicServer {
             self.channel.clone(),
             self.token.clone(),
             self.sagittarius_unary_rpc_timeout,
+            self.service_configuration.clone(),
         )));
 
         info!("ModuleService started");
