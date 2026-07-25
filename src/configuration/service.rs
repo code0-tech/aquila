@@ -147,13 +147,19 @@ impl ServiceConfiguration {
     }
 
     pub fn collect_modules(&self) -> Vec<String> {
-        let actions: Vec<String> = self.actions.iter().map(|x| x.service_name.clone()).collect();
-        let runtime: Vec<String> = self.runtimes.iter().flat_map(|x| {
-            match x.resolved_modules.is_empty() {
+        let actions: Vec<String> = self
+            .actions
+            .iter()
+            .map(|x| format!("action.{}", x.service_name))
+            .collect();
+        let runtime: Vec<String> = self
+            .runtimes
+            .iter()
+            .flat_map(|x| match x.resolved_modules.is_empty() {
                 true => vec![x.identifier.clone()],
                 false => x.resolved_modules.clone(),
-            }
-        }).collect();
+            })
+            .collect();
 
         vec![actions, runtime].concat()
     }
@@ -217,7 +223,10 @@ mod tests {
                 RuntimeServiceConfiguration {
                     token: String::from("taurus-token"),
                     identifier: String::from("taurus"),
-                    resolved_modules: vec![String::from("taurus-boolean"), String::from("taurus-number")],
+                    resolved_modules: vec![
+                        String::from("taurus-boolean"),
+                        String::from("taurus-number"),
+                    ],
                 },
                 RuntimeServiceConfiguration {
                     token: String::from("draco-rest-token"),
@@ -293,6 +302,22 @@ mod tests {
             &String::from("action-identifier")
         ));
         assert!(!config.has_service(&String::from("action-token"), &String::from("taurus-x")));
+    }
+
+    #[test]
+    fn collect_modules_uses_definition_source_identifiers() {
+        let config = fixture();
+
+        assert_eq!(
+            config.collect_modules(),
+            vec![
+                String::from("action.action-identifier"),
+                String::from("taurus-boolean"),
+                String::from("taurus-number"),
+                String::from("draco-rest"),
+                String::from("draco-cron"),
+            ]
+        );
     }
 
     #[test]
