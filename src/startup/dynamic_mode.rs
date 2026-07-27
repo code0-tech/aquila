@@ -80,6 +80,7 @@ pub async fn run(
 
     let backend_url_for_flow = config.dynamic_config.backend_url.clone();
     let runtime_token_for_flow = config.dynamic_config.backend_token.clone();
+    let flow_export_path_for_flow = config.static_config.flow_path.clone();
     let sagittarius_ready_for_flow = app_readiness.sagittarius_ready.clone();
 
     let env = match config.environment {
@@ -146,6 +147,7 @@ pub async fn run(
                 kv_for_flow.clone(),
                 env.clone(),
                 runtime_token_for_flow.clone(),
+                flow_export_path_for_flow.clone(),
                 ch,
                 sagittarius_ready_for_flow.clone(),
                 action_config_tx.clone(),
