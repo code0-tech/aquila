@@ -1,3 +1,12 @@
+//! Aquila is the runtime gateway that sits between Sagittarius and the
+//! actions/runtimes that execute flows: it authenticates them, relays
+//! execution requests and results over NATS, and keeps a local flow store in
+//! sync (or, in static mode, serves a fixed export with no Sagittarius at all).
+//!
+//! See [`startup`] for the static vs. dynamic mode split, [`server`] for the
+//! gRPC surface actions/runtimes talk to, and [`sagittarius`] for the
+//! clients that talk back to Sagittarius.
+
 use crate::configuration::{
     config::Config as AquilaConfig, service::ServiceConfiguration, state::AppReadiness,
 };
@@ -62,6 +71,9 @@ async fn main() {
     telemetry.shutdown();
 }
 
+/// Routes panic messages through the telemetry error pipeline in addition to
+/// the default stderr output, so a panic in a spawned task still shows up
+/// wherever Aquila's other errors are reported.
 fn install_panic_logging() {
     std::panic::set_hook(Box::new(move |panic_info| {
         let message = if let Some(message) = panic_info.payload().downcast_ref::<&str>() {

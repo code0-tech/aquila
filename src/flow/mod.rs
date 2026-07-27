@@ -1,7 +1,12 @@
+//! The key scheme Aquila's flow KV store uses, and the two operations built
+//! on it: computing a flow's key and checking whether a key belongs to a
+//! given flow id. There is no secondary index, so every "find by flow id"
+//! lookup elsewhere in the codebase is a scan using [`key_has_flow_id`].
+
 use tucana::shared::ValidationFlow;
 
 /// Every flow identifier has this key
-/// <type>.<project_slug>.<project_id>.<flow_id>
+/// `<type>.<project_slug>.<project_id>.<flow_id>`
 pub fn get_flow_identifier(flow: &ValidationFlow) -> String {
     format!(
         "{}.{}.{}.{}",

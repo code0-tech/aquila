@@ -1,3 +1,8 @@
+//! Bearer-token helpers shared by every gRPC client and server in Aquila:
+//! [`authorization::get_authorization_metadata`] to attach a token to an
+//! outgoing request, [`authorization::extract_token`] to read one back off
+//! an incoming request.
+
 pub mod authorization {
     use std::str::FromStr;
     use tonic::{
@@ -32,6 +37,9 @@ pub mod authorization {
         map
     }
 
+    /// Reads and validates the bearer token off an incoming request's
+    /// `authorization` header. Generic over the request body type so it
+    /// works for both unary and streaming gRPC requests.
     pub fn extract_token<T>(request: &Request<T>) -> Result<&str, Status> {
         let header = request.metadata().get("authorization").ok_or_else(|| {
             log::warn!("Missing authorization header");

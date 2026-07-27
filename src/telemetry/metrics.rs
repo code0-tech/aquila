@@ -1,3 +1,8 @@
+//! Aquila's OpenTelemetry metric instruments. Every recording function here
+//! is a no-op until [`initialize`] has run (guarded by [`METRICS`] being
+//! unset), so callers never need to check whether telemetry is enabled —
+//! this module absorbs that instead of every call site doing so.
+
 use std::sync::OnceLock;
 
 use opentelemetry::{
@@ -20,6 +25,10 @@ struct Metrics {
     action_failures: Counter<u64>,
 }
 
+/// Registers every metric instrument against the global meter. Must be
+/// called once during startup before any of the recording functions below
+/// will actually emit anything; safe to call at most once (a second call is
+/// silently dropped by [`OnceLock`]).
 pub fn initialize() {
     let meter = opentelemetry::global::meter(env!("CARGO_PKG_NAME"));
     let _ = METRICS.set(Metrics {

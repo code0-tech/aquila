@@ -1,3 +1,7 @@
+//! Client for forwarding module registrations (from connected actions and
+//! runtimes) to Sagittarius, so Sagittarius knows what's available to
+//! reference from a flow.
+
 use crate::configuration::service::ServiceConfiguration;
 use crate::{authorization::authorization::get_authorization_metadata, telemetry::errors};
 use std::time::Duration;
@@ -33,6 +37,9 @@ impl SagittariusModuleServiceClient {
         skip_all,
         fields(rpc.system = "grpc", rpc.service = "ModuleService", rpc.method = "Update")
     )]
+    /// Forwards a module update to Sagittarius, alongside the full list of
+    /// definition sources this Aquila instance currently has available —
+    /// Sagittarius needs that list to validate references in flows.
     pub async fn update_modules(
         &mut self,
         modules_update_request: tucana::aquila::ModuleUpdateRequest,

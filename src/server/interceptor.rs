@@ -1,7 +1,14 @@
+//! A tonic interceptor that rejects requests up front while a named
+//! dependency isn't ready yet, instead of letting them into a handler that
+//! would just fail partway through.
+
 use crate::configuration::state::AppReadiness;
 use std::sync::Arc;
 use tonic::{Request, Status};
 
+/// Builds an interceptor that rejects every request with `Unavailable`
+/// until `readiness` reports ready. `dependency_name` is only used for the
+/// log line and error message.
 pub fn create_readiness_interceptor(
     readiness: Arc<AppReadiness>,
     dependency_name: &'static str,

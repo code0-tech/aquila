@@ -1,3 +1,9 @@
+//! Dynamic mode wiring: the gRPC server and two independent, self-healing
+//! Sagittarius streams (flow sync, test execution) all run as separate
+//! tasks supervised by a single `select!` — if any one of them exits or
+//! panics, the others are aborted and Aquila shuts down rather than
+//! continuing in a partially working state.
+
 use async_nats::Client;
 
 use crate::{
@@ -16,6 +22,9 @@ use crate::{
 };
 use std::{sync::Arc, time::Duration};
 
+/// Starts the gRPC server plus the flow-sync and test-execution stream
+/// tasks, and blocks until one of them exits, panics, or a shutdown signal
+/// arrives.
 pub async fn run(
     config: AquilaConfig,
     app_readiness: AppReadiness,
@@ -79,6 +88,10 @@ pub async fn run(
         crate::configuration::env::Environment::Production => String::from("PRODUCTION"),
     };
 
+    // Both stream tasks below share the same shape: connect, run the stream
+    // until it ends (which `logon`/`init_flow_stream` always eventually do,
+    // since Sagittarius connections aren't permanent), then reconnect with
+    // growing backoff. The task itself never exits on its own.
     let mut test_execution_task = tokio::spawn(async move {
         let mut backoff = Duration::from_millis(200);
         let max_backoff = Duration::from_secs(10);

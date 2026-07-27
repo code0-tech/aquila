@@ -1,3 +1,7 @@
+//! Assembles and serves the full gRPC service set used in dynamic mode:
+//! action transfer, module registration, runtime execution results, and
+//! runtime status, all gated behind the Sagittarius readiness interceptor.
+
 use crate::{
     configuration::{config::Config, service::ServiceConfiguration, state::AppReadiness},
     sagittarius::{
@@ -6,7 +10,7 @@ use crate::{
         test_execution_client_impl::SagittariusExecutionResponseSender,
     },
     server::{
-        action_transfer_service_server_impl::AquilaActionTransferServiceServer,
+        action_transfer::AquilaActionTransferServiceServer,
         create_readiness_interceptor, module_service_server_impl::AquilaModuleServiceServer,
         runtime_execution_service_server_impl::AquilaExecutionServiceServer,
         runtime_status_service_server_impl::AquilaRuntimeStatusServiceServer,
@@ -88,6 +92,10 @@ impl AquilaDynamicServer {
         }
     }
 
+    /// Builds every service and blocks serving them until the listener
+    /// shuts down. Each service gets its own Sagittarius-backed client
+    /// (module updates, runtime status) so a slow or failing call on one
+    /// service can't stall another.
     pub async fn start(&self) -> Result<(), tonic::transport::Error> {
         let module_service = Arc::new(Mutex::new(SagittariusModuleServiceClient::new(
             self.channel.clone(),
