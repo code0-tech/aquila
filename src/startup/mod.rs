@@ -1,3 +1,7 @@
+//! Bootstraps the NATS/JetStream connection shared by both run modes, then
+//! hands off to [`static_mode`] or [`dynamic_mode`] depending on
+//! [`AquilaConfig::is_static`].
+
 pub mod dynamic_mode;
 pub mod static_mode;
 
@@ -7,6 +11,10 @@ use crate::configuration::{
 use async_nats::jetstream::kv::Config;
 use std::sync::Arc;
 
+/// Connects to NATS, ensures the flow KV bucket exists, and starts the
+/// appropriate mode. Panics on any of those failures — none of them are
+/// recoverable without operator intervention, so there's no useful degraded
+/// mode to fall back to.
 pub async fn run(
     config: AquilaConfig,
     app_readiness: AppReadiness,

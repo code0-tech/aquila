@@ -1,3 +1,8 @@
+//! Static mode wiring: load a fixed flow export from disk into the KV
+//! store once at startup, then serve the gRPC server with no ongoing
+//! Sagittarius dependency. Readiness is set unconditionally since there's
+//! nothing external left to wait on.
+
 use crate::{
     configuration::{config::Config, service::ServiceConfiguration, state::AppReadiness},
     flow::get_flow_identifier,
@@ -10,6 +15,8 @@ use serde_json::from_str;
 use std::{fs::File, io::Read, sync::Arc, sync::atomic::Ordering};
 use tucana::shared::Flows;
 
+/// Loads the fallback flow export and serves the static gRPC server until a
+/// shutdown signal arrives.
 pub async fn run(
     config: Config,
     app_readiness: AppReadiness,
@@ -86,6 +93,10 @@ pub async fn run(
     log::info!("Aquila shutdown complete");
 }
 
+/// Reads `path` as a JSON [`Flows`] export and stores each flow in the KV
+/// store. Panics on any read/parse failure, since static mode has no flows
+/// to serve without this file and continuing would just push the failure
+/// downstream to the first action/runtime request.
 async fn init_flows_from_json(
     path: String,
     flow_store_client: Arc<async_nats::jetstream::kv::Store>,

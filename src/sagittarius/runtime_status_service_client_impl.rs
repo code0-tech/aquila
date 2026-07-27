@@ -1,3 +1,8 @@
+//! Client for forwarding a runtime's status heartbeats to Sagittarius.
+//! Currently unused end-to-end — see the disabled forwarding call in
+//! `server::runtime_status_service_server_impl`, tracked in #360 — but kept
+//! ready for when that's re-enabled.
+
 use crate::{authorization::authorization::get_authorization_metadata, telemetry::errors};
 use std::time::Duration;
 use tonic::{Extensions, Request, transport::Channel};

@@ -1,3 +1,7 @@
+//! gRPC server for `ModuleService.Update`: authenticates the caller against
+//! the first module's identifier, then relays the update to Sagittarius
+//! unchanged.
+
 use crate::{
     authorization::authorization::extract_token, configuration::service::ServiceConfiguration,
     sagittarius::module_service_client_impl::SagittariusModuleServiceClient,
@@ -44,6 +48,8 @@ impl ModuleService for AquilaModuleServiceServer {
         };
 
         let modules_update_request = request.into_inner();
+        // Every caller only ever sends modules for its own identifier, so
+        // authenticating against the first one covers the whole batch.
         let first_module_identifier = modules_update_request.modules.first();
 
         let module_name = match first_module_identifier {

@@ -1,3 +1,8 @@
+//! Shared connection logic for every long-lived Sagittarius client: dial
+//! with exponential backoff, and flip a shared readiness flag as the
+//! connection comes up or drops so [`crate::server::create_readiness_interceptor`]
+//! can reject gRPC traffic while Sagittarius is unreachable.
+
 use std::sync::{
     Arc,
     atomic::{AtomicBool, Ordering},
@@ -9,7 +14,14 @@ use tonic::transport::{Channel, Endpoint};
 const MAX_BACKOFF: u64 = 2000 * 60;
 const MAX_RETRIES: i8 = 10;
 
-// Will create a channel and retry if its not possible
+/// Connects to `url`, retrying with exponential backoff (capped at
+/// [`MAX_BACKOFF`] ms) up to [`MAX_RETRIES`] times before giving up.
+/// `ready` is cleared before each attempt and set once connected, so callers
+/// can gate readiness on it without polling the channel state directly.
+///
+/// Panics rather than returning an error on exhaustion or a malformed URL,
+/// since none of Aquila's callers have a meaningful way to run without a
+/// Sagittarius connection.
 pub async fn create_channel_with_retry(
     channel_name: &str,
     url: String,

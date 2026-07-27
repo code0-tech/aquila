@@ -1,3 +1,7 @@
+//! gRPC server for `ExecutionService.Update`: the endpoint the Taurus
+//! runtime posts execution results to, which are then relayed onto the
+//! Sagittarius execution stream via [`SagittariusExecutionResponseSender`].
+
 use crate::{
     authorization::authorization::extract_token, configuration::service::ServiceConfiguration,
     sagittarius::test_execution_client_impl::SagittariusExecutionResponseSender,
@@ -50,6 +54,9 @@ impl ExecutionService for AquilaExecutionServiceServer {
             }
         };
 
+        // This endpoint is only ever called by the Taurus runtime, so the
+        // token is checked against that fixed identifier rather than one
+        // read from the request.
         if !self
             .service_configuration
             .has_runtime(&token, &String::from("taurus"))

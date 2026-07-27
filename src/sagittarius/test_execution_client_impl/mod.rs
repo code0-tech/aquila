@@ -1,253 +1,34 @@
-/*
-   Why is Aquila a client when Sagittarius wants a result of Aquila?
+//! Client for Sagittarius' `test` execution stream.
+//!
+//! Why is Aquila a client here when Sagittarius wants a result *from*
+//! Aquila? In some deployments Sagittarius can't open a connection to
+//! Aquila, so Aquila dials out and sends a `Logon` request first —
+//! establishing the connection from Aquila's side even though Sagittarius
+//! is the one issuing execution requests on it.
+//!
+//! - [`response_sender`] owns the outgoing half of the stream and is shared
+//!   with every task that needs to report an execution result.
+//! - [`flow_id_cache`] backs the piece of that sender that recovers a
+//!   result's `flow_id` when a runtime doesn't echo it.
 
-   In some conditions Sagittarius can't connect to Aquila
-   Thus Aquila sends a `Logon` request to connect to Sagittarius establishing the connection
-*/
+mod flow_id_cache;
+mod response_sender;
+
+pub use response_sender::SagittariusExecutionResponseSender;
+
+use std::sync::Arc;
+
 use futures::{StreamExt, TryStreamExt};
 use prost::Message;
-use std::{
-    collections::HashMap,
-    sync::Arc,
-    time::{Duration, Instant},
-};
-use tokio::sync::Mutex;
 use tokio_stream::wrappers::ReceiverStream;
 use tonic::transport::Channel;
-use tonic::{Extensions, Request, Status};
+use tonic::{Extensions, Request};
 use tucana::sagittarius::execution_logon_request::Data;
 use tucana::sagittarius::execution_service_client::ExecutionServiceClient;
 use tucana::sagittarius::{ExecutionLogonRequest, Logon};
-use tucana::shared::{ExecutionFlow, ExecutionResult, ValidationFlow};
+use tucana::shared::{ExecutionFlow, ValidationFlow};
 
 use crate::{authorization::authorization::get_authorization_metadata, flow::key_has_flow_id};
-
-const EXECUTION_FLOW_ID_TTL: Duration = Duration::from_secs(30 * 60);
-const MAX_EXECUTION_FLOW_IDS: usize = 10_000;
-
-struct ExecutionFlowIdMapping {
-    flow_id: i64,
-    expires_at: Instant,
-}
-
-#[derive(Clone, Default)]
-pub struct SagittariusExecutionResponseSender {
-    sender: Arc<Mutex<Option<tokio::sync::mpsc::Sender<ExecutionLogonRequest>>>>,
-    execution_flow_ids: Arc<Mutex<HashMap<String, ExecutionFlowIdMapping>>>,
-}
-
-impl SagittariusExecutionResponseSender {
-    pub fn new() -> Self {
-        Self::default()
-    }
-
-    async fn attach(&self, sender: tokio::sync::mpsc::Sender<ExecutionLogonRequest>) {
-        let mut current = self.sender.lock().await;
-        let replacing_existing = current.is_some();
-        *current = Some(sender);
-        log::debug!(
-            "Attached Sagittarius execution response sender replacing_existing={}",
-            replacing_existing
-        );
-    }
-
-    async fn clear(&self) {
-        let mut current = self.sender.lock().await;
-        let had_sender = current.is_some();
-        *current = None;
-        log::debug!(
-            "Cleared Sagittarius execution response sender had_sender={}",
-            had_sender
-        );
-    }
-
-    async fn remember_execution_flow(&self, execution_id: &str, flow_id: i64) {
-        if execution_id.is_empty() {
-            log::warn!("Cannot remember execution flow_id because execution_id is empty");
-            return;
-        }
-
-        let mut execution_flow_ids = self.execution_flow_ids.lock().await;
-        let now = Instant::now();
-        let expired_count = prune_expired_execution_flow_ids(&mut execution_flow_ids, now);
-        let replacing_existing = execution_flow_ids.contains_key(execution_id);
-        let evicted_execution_id =
-            if !replacing_existing && execution_flow_ids.len() >= MAX_EXECUTION_FLOW_IDS {
-                remove_oldest_execution_flow_id(&mut execution_flow_ids)
-            } else {
-                None
-            };
-
-        execution_flow_ids.insert(
-            execution_id.to_string(),
-            ExecutionFlowIdMapping {
-                flow_id,
-                expires_at: now + EXECUTION_FLOW_ID_TTL,
-            },
-        );
-
-        if let Some(evicted_execution_id) = evicted_execution_id {
-            log::warn!(
-                "Evicted execution flow mapping because cache is full evicted_execution_id={} max_entries={}",
-                evicted_execution_id,
-                MAX_EXECUTION_FLOW_IDS
-            );
-        }
-        log::debug!(
-            "Remembered execution flow mapping execution_id={} flow_id={} cached_entries={} expired_entries={}",
-            execution_id,
-            flow_id,
-            execution_flow_ids.len(),
-            expired_count
-        );
-    }
-
-    async fn forget_execution_flow(&self, execution_id: &str) {
-        if execution_id.is_empty() {
-            return;
-        }
-
-        let mut execution_flow_ids = self.execution_flow_ids.lock().await;
-        let removed = execution_flow_ids.remove(execution_id).is_some();
-        log::debug!(
-            "Forgot execution flow mapping execution_id={} removed={}",
-            execution_id,
-            removed
-        );
-    }
-
-    async fn take_execution_flow_id(&self, execution_id: &str) -> Option<i64> {
-        if execution_id.is_empty() {
-            return None;
-        }
-
-        let mut execution_flow_ids = self.execution_flow_ids.lock().await;
-        let mapping = execution_flow_ids.remove(execution_id)?;
-        if mapping.expires_at > Instant::now() {
-            Some(mapping.flow_id)
-        } else {
-            log::debug!(
-                "Dropped expired execution flow mapping execution_id={}",
-                execution_id
-            );
-            None
-        }
-    }
-
-    pub async fn send_execution_result(
-        &self,
-        mut execution_result: ExecutionResult,
-    ) -> Result<i64, Status> {
-        let execution_id = execution_result.execution_identifier.clone();
-
-        if execution_result.flow_id == 0 {
-            match self.take_execution_flow_id(&execution_id).await {
-                Some(flow_id) if flow_id != 0 => {
-                    log::warn!(
-                        "Filled missing execution result flow_id from Aquila mapping execution_id={} flow_id={}",
-                        execution_id,
-                        flow_id
-                    );
-                    execution_result.flow_id = flow_id;
-                }
-                _ => {
-                    log::warn!(
-                        "Execution result has flow_id=0 and no Aquila mapping execution_id={}",
-                        execution_id
-                    );
-                }
-            }
-        } else {
-            self.forget_execution_flow(&execution_id).await;
-        }
-
-        let flow_id = execution_result.flow_id;
-        let node_result_count = execution_result.node_execution_results.len();
-        let result_status = execution_result_status(&execution_result);
-
-        log::debug!(
-            "Queueing execution result for Sagittarius stream execution_id={} flow_id={} result_status={} node_results={}",
-            execution_id,
-            flow_id,
-            result_status,
-            node_result_count
-        );
-
-        let sender = {
-            let current = self.sender.lock().await;
-            current.clone()
-        };
-
-        let Some(sender) = sender else {
-            log::error!(
-                "Cannot queue execution result for Sagittarius stream reason=stream_not_connected execution_id={} flow_id={} result_status={}",
-                execution_id,
-                flow_id,
-                result_status
-            );
-            return Err(Status::unavailable(
-                "sagittarius execution stream is not connected",
-            ));
-        };
-
-        let remaining_capacity = sender.capacity();
-        match sender
-            .send(ExecutionLogonRequest {
-                data: Some(Data::Response(execution_result)),
-            })
-            .await
-        {
-            Ok(()) => {
-                log::debug!(
-                    "Queued execution result for Sagittarius stream execution_id={} flow_id={} remaining_capacity_before_send={}",
-                    execution_id,
-                    flow_id,
-                    remaining_capacity
-                );
-                Ok(flow_id)
-            }
-            Err(_) => {
-                log::error!(
-                    "Cannot queue execution result for Sagittarius stream reason=stream_closed execution_id={} flow_id={}",
-                    execution_id,
-                    flow_id
-                );
-                Err(Status::unavailable(
-                    "sagittarius execution stream is closed",
-                ))
-            }
-        }
-    }
-}
-
-fn prune_expired_execution_flow_ids(
-    execution_flow_ids: &mut HashMap<String, ExecutionFlowIdMapping>,
-    now: Instant,
-) -> usize {
-    let initial_len = execution_flow_ids.len();
-    execution_flow_ids.retain(|_, mapping| mapping.expires_at > now);
-    initial_len - execution_flow_ids.len()
-}
-
-fn remove_oldest_execution_flow_id(
-    execution_flow_ids: &mut HashMap<String, ExecutionFlowIdMapping>,
-) -> Option<String> {
-    let oldest_execution_id = execution_flow_ids
-        .iter()
-        .min_by_key(|(_, mapping)| mapping.expires_at)
-        .map(|(execution_id, _)| execution_id.clone())?;
-
-    execution_flow_ids.remove(&oldest_execution_id);
-    Some(oldest_execution_id)
-}
-
-fn execution_result_status(execution_result: &ExecutionResult) -> &'static str {
-    match execution_result.result.as_ref() {
-        Some(tucana::shared::execution_result::Result::Success(_)) => "success",
-        Some(tucana::shared::execution_result::Result::Error(_)) => "error",
-        None => "missing",
-    }
-}
 
 pub struct SagittariusTestExecutionServiceClient {
     nats_client: async_nats::Client,
@@ -275,6 +56,9 @@ impl SagittariusTestExecutionServiceClient {
         }
     }
 
+    /// Scans the flow KV bucket for the entry whose key encodes `flow_id`.
+    /// There is no secondary index from flow id to key, so this is a linear
+    /// scan of every stored flow.
     async fn load_validation_flow(&self, flow_id: i64) -> Option<ValidationFlow> {
         let mut keys = match self.store.keys().await {
             Ok(keys) => keys,
@@ -354,6 +138,12 @@ impl SagittariusTestExecutionServiceClient {
         }
     }
 
+    /// Opens the Sagittarius execution stream and services it until it ends.
+    ///
+    /// The stream's outgoing half is driven by an mpsc channel rather than a
+    /// plain async generator so that [`SagittariusExecutionResponseSender`]
+    /// can push execution results onto it from other tasks while this loop
+    /// is busy reading incoming requests.
     pub async fn logon(&mut self) {
         let (tx, rx) = tokio::sync::mpsc::channel::<ExecutionLogonRequest>(10000);
         let logon = ExecutionLogonRequest {

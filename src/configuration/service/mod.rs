@@ -1,101 +1,40 @@
-use serde::{Deserialize, Serialize};
-use serde_json::from_str;
+//! Domain model for Aquila's local service configuration file
+//! (`AQUILA_SERVICE_CONFIG_PATH`): which action and runtime tokens are
+//! pre-provisioned, and what configuration each action should receive.
+//!
+//! This is a static, file-backed allowlist — separate from the dynamic
+//! module configuration Sagittarius pushes at runtime. See [`dto`] for the
+//! on-disk format and how it's expanded into these types.
+
+mod dto;
+
+pub use dto::RuntimeServiceConfiguration;
+
 use std::{fs::File, io::Read, path::Path};
-use tucana::shared::{ModuleConfigurations, helper::value::from_json_value};
 
-#[derive(Serialize, Deserialize, Clone)]
-struct SerializableModuleConfiguration {
-    identifier: String,
-    value: serde_json::Value,
-}
+use serde_json::from_str;
+use tucana::shared::ModuleConfigurations;
 
-#[derive(Serialize, Deserialize, Clone)]
-struct SerializableModuleProjectConfiguration {
-    project_id: i64,
-    #[serde(default)]
-    configs: Vec<SerializableModuleConfiguration>,
-}
+use dto::SerializableServiceConfiguration;
 
-#[derive(Serialize, Deserialize, Clone)]
-pub struct SerializableActionServiceConfiguration {
-    token: String,
-    identifier: String,
-    #[serde(default)]
-    configs: Vec<SerializableModuleProjectConfiguration>,
-}
-
-#[derive(Serialize, Deserialize, Clone, Default)]
-pub struct SerializableServiceConfiguration {
-    #[serde(default)]
-    actions: Vec<SerializableActionServiceConfiguration>,
-    #[serde(default)]
-    runtimes: Vec<RuntimeServiceConfiguration>,
-}
-
-#[derive(Serialize, Deserialize, Clone)]
+#[derive(Clone)]
 pub struct ActionServiceConfiguration {
     token: String,
     service_name: String,
     config: Vec<ModuleConfigurations>,
 }
 
-#[derive(Serialize, Deserialize, Clone)]
-pub struct RuntimeServiceConfiguration {
-    token: String,
-    identifier: String,
-    #[serde(default)]
-    resolved_modules: Vec<String>,
-}
-
-#[derive(Serialize, Deserialize, Clone, Default)]
+#[derive(Clone, Default)]
 pub struct ServiceConfiguration {
     actions: Vec<ActionServiceConfiguration>,
     runtimes: Vec<RuntimeServiceConfiguration>,
 }
 
-impl From<SerializableModuleConfiguration> for tucana::shared::ModuleConfiguration {
-    fn from(value: SerializableModuleConfiguration) -> Self {
-        Self {
-            identifier: value.identifier,
-            value: Some(from_json_value(value.value)),
-        }
-    }
-}
-
-impl From<SerializableModuleProjectConfiguration> for tucana::shared::ModuleProjectConfigurations {
-    fn from(value: SerializableModuleProjectConfiguration) -> Self {
-        Self {
-            project_id: value.project_id,
-            module_configurations: value.configs.into_iter().map(Into::into).collect(),
-        }
-    }
-}
-
-impl From<SerializableActionServiceConfiguration> for ActionServiceConfiguration {
-    fn from(value: SerializableActionServiceConfiguration) -> Self {
-        let module_identifier = value.identifier.clone();
-
-        Self {
-            token: value.token,
-            service_name: value.identifier,
-            config: vec![ModuleConfigurations {
-                module_identifier,
-                module_configurations: value.configs.into_iter().map(Into::into).collect(),
-            }],
-        }
-    }
-}
-
-impl From<SerializableServiceConfiguration> for ServiceConfiguration {
-    fn from(value: SerializableServiceConfiguration) -> Self {
-        Self {
-            actions: value.actions.into_iter().map(Into::into).collect(),
-            runtimes: value.runtimes.into_iter().collect(),
-        }
-    }
-}
 impl ServiceConfiguration {
-    // This function is used to extract the real service name via modules
+    /// Maps a runtime's advertised identifier to the family it belongs to,
+    /// since individual `taurus-*` runtime instances all share one
+    /// provisioned token under the `taurus` identifier while `draco-*`
+    /// runtimes are provisioned individually.
     pub fn extract_service_name(name: &String) -> Option<String> {
         if name.starts_with("draco") {
             return Some(name.clone());
@@ -146,6 +85,9 @@ impl ServiceConfiguration {
         }
     }
 
+    /// Every module identifier Aquila should advertise as available,
+    /// combining each action's own identifier with each runtime's resolved
+    /// module list (or its own identifier, if it hasn't resolved any yet).
     pub fn collect_modules(&self) -> Vec<String> {
         let actions: Vec<String> = self
             .actions
@@ -164,6 +106,9 @@ impl ServiceConfiguration {
         vec![actions, runtime].concat()
     }
 
+    /// Loads the service configuration file at `path`, falling back to an
+    /// empty configuration (rather than failing startup) if the file is
+    /// missing, unreadable, or malformed — this file is optional.
     pub fn from_path(path: impl AsRef<Path>) -> Self {
         let mut data = String::new();
 
@@ -207,9 +152,11 @@ impl ServiceConfiguration {
 #[cfg(test)]
 mod tests {
     use super::{
-        RuntimeServiceConfiguration, SerializableActionServiceConfiguration,
-        SerializableModuleConfiguration, SerializableModuleProjectConfiguration,
-        SerializableServiceConfiguration, ServiceConfiguration,
+        RuntimeServiceConfiguration, ServiceConfiguration,
+        dto::{
+            SerializableActionServiceConfiguration, SerializableModuleConfiguration,
+            SerializableModuleProjectConfiguration, SerializableServiceConfiguration,
+        },
     };
 
     fn fixture() -> ServiceConfiguration {

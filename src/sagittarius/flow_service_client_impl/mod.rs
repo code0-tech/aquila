@@ -1,22 +1,25 @@
-use crate::{
-    authorization::authorization::get_authorization_metadata,
-    flow::{get_flow_identifier, key_has_flow_id},
-    telemetry::metrics,
-};
-use futures::{StreamExt, TryStreamExt};
-use prost::Message;
-use std::{path::Path, sync::Arc};
-use tokio::fs;
+//! Client for Sagittarius' flow synchronization stream: keeps Aquila's local
+//! flow KV store in sync with whatever Sagittarius considers the current
+//! set, and rebroadcasts action module configuration updates it receives
+//! along the way.
+//!
+//! - [`flow_store`] applies the sync operations (delete/replace/update) to the KV store.
+//! - [`dev_export`] mirrors the synced flows to a local JSON file, development only.
+
+mod dev_export;
+mod flow_store;
+
+use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
+
+use futures::StreamExt;
 use tokio::sync::broadcast;
 use tonic::{Extensions, Request, transport::Channel};
-use tucana::{
-    sagittarius::{
-        FlowLogonRequest, FlowResponse, flow_response::Data, flow_service_client::FlowServiceClient,
-    },
-    shared::Flows,
+use tucana::sagittarius::{
+    FlowLogonRequest, FlowResponse, flow_response::Data, flow_service_client::FlowServiceClient,
 };
 
-use std::sync::atomic::{AtomicBool, Ordering};
+use crate::{authorization::authorization::get_authorization_metadata, telemetry::metrics};
 
 fn module_config_stats(configs: &tucana::shared::ModuleConfigurations) -> (usize, usize) {
     let project_count = configs.module_configurations.len();
@@ -35,6 +38,9 @@ pub struct SagittariusFlowClient {
     client: FlowServiceClient<Channel>,
     env: String,
     token: String,
+    /// Flipped to `true` once the sync stream is established, so other
+    /// components can hold off on work that depends on Sagittarius state
+    /// actually being loaded.
     sagittarius_ready: Arc<AtomicBool>,
     action_config_tx: broadcast::Sender<tucana::shared::ModuleConfigurations>,
 }
@@ -64,79 +70,7 @@ impl SagittariusFlowClient {
         self.env == "DEVELOPMENT"
     }
 
-    async fn export_flows_json_overwrite(&self, flows: Flows) {
-        if !self.is_development() {
-            return;
-        }
-
-        let json = match serde_json::to_vec_pretty(&flows) {
-            Ok(b) => b,
-            Err(e) => {
-                log::error!(
-                    "Failed to serialize development flow export flow_count={} error={:?}",
-                    flows.flows.len(),
-                    e
-                );
-                return;
-            }
-        };
-
-        let final_path = Path::new("flowExport.json");
-        let tmp_path = Path::new("flowExport.json.tmp");
-
-        if let Err(e) = fs::write(tmp_path, &json).await {
-            log::error!(
-                "Failed to write development flow export path={} error={}",
-                tmp_path.display(),
-                e
-            );
-            return;
-        }
-
-        if let Err(e) = fs::rename(tmp_path, final_path).await {
-            log::warn!(
-                "Could not atomically replace development flow export path={} error={}; retrying after removing destination",
-                final_path.display(),
-                e
-            );
-            match fs::remove_file(final_path).await {
-                Ok(()) => log::debug!(
-                    "Removed previous development flow export path={}",
-                    final_path.display()
-                ),
-                Err(remove_error) if remove_error.kind() == std::io::ErrorKind::NotFound => {}
-                Err(remove_error) => log::warn!(
-                    "Failed to remove previous development flow export path={} error={}",
-                    final_path.display(),
-                    remove_error
-                ),
-            }
-            if let Err(e2) = fs::rename(tmp_path, final_path).await {
-                log::error!(
-                    "Failed to replace development flow export source_path={} destination_path={} initial_rename_error={} retry_error={}",
-                    tmp_path.display(),
-                    final_path.display(),
-                    e,
-                    e2
-                );
-                if let Err(cleanup_error) = fs::remove_file(tmp_path).await {
-                    log::warn!(
-                        "Failed to clean up temporary development flow export path={} error={}",
-                        tmp_path.display(),
-                        cleanup_error
-                    );
-                }
-                return;
-            }
-        }
-
-        log::info!(
-            "Exported {} flows to {}",
-            flows.flows.len(),
-            final_path.display()
-        );
-    }
-
+    /// Applies one message from the flow sync stream to local state.
     async fn handle_response(&mut self, response: FlowResponse) {
         let data = match response.data {
             Some(data) => data,
@@ -149,34 +83,7 @@ impl SagittariusFlowClient {
         match data {
             Data::DeletedFlowId(id) => {
                 log::debug!("Applying flow deletion flow_id={}", id);
-                let mut keys = match self.store.keys().await {
-                    Ok(keys) => keys.boxed(),
-                    Err(err) => {
-                        log::error!(
-                            "Failed to list stored flows for deletion flow_id={} error={:?}",
-                            id,
-                            err
-                        );
-                        return;
-                    }
-                };
-
-                let mut deleted_count = 0;
-                while let Ok(Some(key)) = keys.try_next().await {
-                    if !key_has_flow_id(&key, id) {
-                        continue;
-                    }
-
-                    match self.store.delete(&key).await {
-                        Ok(_) => deleted_count += 1,
-                        Err(err) => log::error!(
-                            "Failed to delete stored flow flow_id={} key={} error={:?}",
-                            id,
-                            key,
-                            err
-                        ),
-                    }
-                }
+                let deleted_count = flow_store::delete_flow(&self.store, id).await;
 
                 if deleted_count == 0 {
                     metrics::flow_operation("delete", "not_found", 1);
@@ -191,11 +98,10 @@ impl SagittariusFlowClient {
                 }
             }
             Data::UpdatedFlow(flow) => {
-                let key = get_flow_identifier(&flow);
                 let flow_id = flow.flow_id;
-                let bytes = flow.encode_to_vec();
-                match self.store.put(key.clone(), bytes.into()).await {
-                    Ok(_) => {
+                let (key, result) = flow_store::store_flow(&self.store, &flow).await;
+                match result {
+                    Ok(()) => {
                         metrics::flow_operation("update", "success", 1);
                         log::info!("Stored flow update flow_id={} key={}", flow_id, key)
                     }
@@ -217,45 +123,11 @@ impl SagittariusFlowClient {
                     received_count
                 );
 
-                self.export_flows_json_overwrite(flows.clone()).await;
-
-                let mut keys = match self.store.keys().await {
-                    Ok(keys) => keys.boxed(),
-                    Err(err) => {
-                        log::error!(
-                            "Failed to list stored flows before replacement error={:?}",
-                            err
-                        );
-                        return;
-                    }
-                };
-
-                let mut purged_count = 0;
-                while let Ok(Some(key)) = keys.try_next().await {
-                    match self.store.purge(&key).await {
-                        Ok(_) => purged_count += 1,
-                        Err(e) => {
-                            log::error!("Failed to purge stored flow key={} error={}", key, e)
-                        }
-                    }
+                if self.is_development() {
+                    dev_export::overwrite(flows.clone()).await;
                 }
 
-                let mut stored_count = 0;
-                for flow in flows.flows {
-                    let key = get_flow_identifier(&flow);
-                    let bytes = flow.encode_to_vec();
-                    match self.store.put(key.clone(), bytes.into()).await {
-                        Ok(_) => {
-                            stored_count += 1;
-                            log::debug!("Stored replacement flow key={}", key);
-                        }
-                        Err(err) => log::error!(
-                            "Failed to store replacement flow key={} error={:?}",
-                            key,
-                            err
-                        ),
-                    };
-                }
+                let (purged_count, stored_count) = flow_store::replace_all(&self.store, flows).await;
                 log::info!(
                     "Finished replacing stored flows received_count={} purged_count={} stored_count={}",
                     received_count,
@@ -291,6 +163,8 @@ impl SagittariusFlowClient {
         }
     }
 
+    /// Opens the flow sync stream and services it until it ends or errors,
+    /// at which point the caller is expected to reconnect.
     pub async fn init_flow_stream(&mut self) -> Result<(), tonic::Status> {
         self.sagittarius_ready.store(false, Ordering::SeqCst);
 

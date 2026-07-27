@@ -1,7 +1,11 @@
+//! Assembles and serves the gRPC service set used in static mode: only
+//! action transfer, since there's no Sagittarius to register modules with
+//! or report runtime status to.
+
 use crate::{
     configuration::{config::Config, service::ServiceConfiguration, state::AppReadiness},
     server::{
-        action_transfer_service_server_impl::AquilaActionTransferServiceServer,
+        action_transfer::AquilaActionTransferServiceServer,
         create_readiness_interceptor,
     },
 };

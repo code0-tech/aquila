@@ -1,3 +1,8 @@
+//! Aquila's two run modes: [`Mode::Static`] serves a fixed local flow export
+//! with no Sagittarius dependency, [`Mode::Dynamic`] syncs flows and module
+//! state live over gRPC. See [`crate::startup::static_mode`] and
+//! [`crate::startup::dynamic_mode`] for what each mode actually wires up.
+
 use std::fmt;
 
 use serde::{Deserialize, Serialize};
