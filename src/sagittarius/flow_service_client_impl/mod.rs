@@ -4,7 +4,8 @@
 //! along the way.
 //!
 //! - [`flow_store`] applies the sync operations (delete/replace/update) to the KV store.
-//! - [`dev_export`] mirrors the synced flows to a local JSON file, development only.
+//! - [`dev_export`] mirrors the synced flows to a local JSON file, development only,
+//!   updating it incrementally for single-flow updates/deletes and wholesale on replace.
 
 mod dev_export;
 mod flow_store;
@@ -38,6 +39,9 @@ pub struct SagittariusFlowClient {
     client: FlowServiceClient<Channel>,
     env: String,
     token: String,
+    /// Path to mirror synced flows to when running in development, same
+    /// path static mode loads its fallback export from.
+    flow_export_path: String,
     /// Flipped to `true` once the sync stream is established, so other
     /// components can hold off on work that depends on Sagittarius state
     /// actually being loaded.
@@ -50,6 +54,7 @@ impl SagittariusFlowClient {
         store: Arc<async_nats::jetstream::kv::Store>,
         env: String,
         token: String,
+        flow_export_path: String,
         channel: Channel,
         sagittarius_ready: Arc<AtomicBool>,
         action_config_tx: broadcast::Sender<tucana::shared::ModuleConfigurations>,
@@ -61,6 +66,7 @@ impl SagittariusFlowClient {
             client,
             env,
             token,
+            flow_export_path,
             sagittarius_ready,
             action_config_tx,
         }
@@ -83,6 +89,11 @@ impl SagittariusFlowClient {
         match data {
             Data::DeletedFlowId(id) => {
                 log::debug!("Applying flow deletion flow_id={}", id);
+
+                if self.is_development() {
+                    dev_export::remove_flow(&self.flow_export_path, id).await;
+                }
+
                 let deleted_count = flow_store::delete_flow(&self.store, id).await;
 
                 if deleted_count == 0 {
@@ -99,6 +110,11 @@ impl SagittariusFlowClient {
             }
             Data::UpdatedFlow(flow) => {
                 let flow_id = flow.flow_id;
+
+                if self.is_development() {
+                    dev_export::upsert_flow(&self.flow_export_path, flow.clone()).await;
+                }
+
                 let (key, result) = flow_store::store_flow(&self.store, &flow).await;
                 match result {
                     Ok(()) => {
@@ -124,7 +140,7 @@ impl SagittariusFlowClient {
                 );
 
                 if self.is_development() {
-                    dev_export::overwrite(flows.clone()).await;
+                    dev_export::overwrite(&self.flow_export_path, flows.clone()).await;
                 }
 
                 let (purged_count, stored_count) = flow_store::replace_all(&self.store, flows).await;
