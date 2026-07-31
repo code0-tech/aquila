@@ -23,12 +23,12 @@ use prost::Message;
 use tokio_stream::wrappers::ReceiverStream;
 use tonic::transport::Channel;
 use tonic::{Extensions, Request};
-use tucana::sagittarius::execution_logon_request::Data;
-use tucana::sagittarius::execution_service_client::ExecutionServiceClient;
-use tucana::sagittarius::{ExecutionLogonRequest, Logon};
+use tucana::sagittarius_gateway::execution_logon_request::Data;
+use tucana::sagittarius_gateway::execution_service_client::ExecutionServiceClient;
+use tucana::sagittarius_gateway::{ExecutionLogonRequest, Logon};
 use tucana::shared::{ExecutionFlow, ValidationFlow};
 
-use crate::{authorization::authorization::get_authorization_metadata, flow::key_has_flow_id};
+use crate::{authorization::authorization::get_authentication_metadata, flow::key_has_flow_id};
 
 pub struct SagittariusTestExecutionServiceClient {
     nats_client: async_nats::Client,
@@ -165,13 +165,13 @@ impl SagittariusTestExecutionServiceClient {
 
         let ack = ReceiverStream::new(rx);
         let request = Request::from_parts(
-            get_authorization_metadata(&self.token),
+            get_authentication_metadata(&self.token),
             Extensions::new(),
             ack,
         );
 
         log::debug!("Opening Sagittarius execution stream");
-        let mut test_execution_stream = match self.client.test(request).await {
+        let mut test_execution_stream = match self.client.update(request).await {
             Ok(response) => {
                 log::info!("Sagittarius execution stream established");
                 response.into_inner()

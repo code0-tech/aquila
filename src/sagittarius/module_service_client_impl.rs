@@ -2,33 +2,26 @@
 //! runtimes) to Sagittarius, so Sagittarius knows what's available to
 //! reference from a flow.
 
-use crate::configuration::service::ServiceConfiguration;
-use crate::{authorization::authorization::get_authorization_metadata, telemetry::errors};
+use crate::{authorization::authorization::get_authentication_metadata, telemetry::errors};
 use std::time::Duration;
 use tonic::transport::Channel;
 use tonic::{Extensions, Request};
 
 pub struct SagittariusModuleServiceClient {
-    service: ServiceConfiguration,
-    client: tucana::sagittarius::module_service_client::ModuleServiceClient<Channel>,
+    client: tucana::sagittarius_gateway::module_service_client::ModuleServiceClient<Channel>,
     token: String,
     unary_rpc_timeout: Duration,
 }
 
 impl SagittariusModuleServiceClient {
-    pub fn new(
-        channel: Channel,
-        token: String,
-        unary_rpc_timeout: Duration,
-        service_configuration: ServiceConfiguration,
-    ) -> Self {
-        let client = tucana::sagittarius::module_service_client::ModuleServiceClient::new(channel);
+    pub fn new(channel: Channel, token: String, unary_rpc_timeout: Duration) -> Self {
+        let client =
+            tucana::sagittarius_gateway::module_service_client::ModuleServiceClient::new(channel);
 
         Self {
             client,
             token,
             unary_rpc_timeout,
-            service: service_configuration,
         }
     }
 
@@ -37,9 +30,7 @@ impl SagittariusModuleServiceClient {
         skip_all,
         fields(rpc.system = "grpc", rpc.service = "ModuleService", rpc.method = "Update")
     )]
-    /// Forwards a module update to Sagittarius, alongside the full list of
-    /// definition sources this Aquila instance currently has available —
-    /// Sagittarius needs that list to validate references in flows.
+    /// Forwards a module update to Sagittarius.
     pub async fn update_modules(
         &mut self,
         modules_update_request: tucana::aquila::ModuleUpdateRequest,
@@ -51,11 +42,10 @@ impl SagittariusModuleServiceClient {
         );
 
         let mut request = Request::from_parts(
-            get_authorization_metadata(&self.token),
+            get_authentication_metadata(&self.token),
             Extensions::new(),
-            tucana::sagittarius::ModuleUpdateRequest {
+            tucana::sagittarius_gateway::ModuleUpdateRequest {
                 modules: modules_update_request.modules,
-                available_defintition_soruces: self.service.collect_modules(),
             },
         );
         request.set_timeout(self.unary_rpc_timeout);

@@ -1,7 +1,7 @@
 //! Client for Sagittarius' flow synchronization stream: keeps Aquila's local
 //! flow KV store in sync with whatever Sagittarius considers the current
-//! set, and rebroadcasts action module configuration updates it receives
-//! along the way.
+//! set. Module configuration updates arrive over their own stream now — see
+//! [`super::module_configuration_client_impl`].
 //!
 //! - [`flow_store`] applies the sync operations (delete/replace/update) to the KV store.
 //! - [`dev_export`] mirrors the synced flows to a local JSON file, development only,
@@ -14,24 +14,12 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 
 use futures::StreamExt;
-use tokio::sync::broadcast;
 use tonic::{Extensions, Request, transport::Channel};
-use tucana::sagittarius::{
+use tucana::sagittarius_gateway::{
     FlowLogonRequest, FlowResponse, flow_response::Data, flow_service_client::FlowServiceClient,
 };
 
-use crate::{authorization::authorization::get_authorization_metadata, telemetry::metrics};
-
-fn module_config_stats(configs: &tucana::shared::ModuleConfigurations) -> (usize, usize) {
-    let project_count = configs.module_configurations.len();
-    let config_count = configs
-        .module_configurations
-        .iter()
-        .map(|project_cfg| project_cfg.module_configurations.len())
-        .sum();
-
-    (project_count, config_count)
-}
+use crate::{authorization::authorization::get_authentication_metadata, telemetry::metrics};
 
 #[derive(Clone)]
 pub struct SagittariusFlowClient {
@@ -46,7 +34,6 @@ pub struct SagittariusFlowClient {
     /// components can hold off on work that depends on Sagittarius state
     /// actually being loaded.
     sagittarius_ready: Arc<AtomicBool>,
-    action_config_tx: broadcast::Sender<tucana::shared::ModuleConfigurations>,
 }
 
 impl SagittariusFlowClient {
@@ -57,7 +44,6 @@ impl SagittariusFlowClient {
         flow_export_path: String,
         channel: Channel,
         sagittarius_ready: Arc<AtomicBool>,
-        action_config_tx: broadcast::Sender<tucana::shared::ModuleConfigurations>,
     ) -> SagittariusFlowClient {
         let client = FlowServiceClient::new(channel);
 
@@ -68,7 +54,6 @@ impl SagittariusFlowClient {
             token,
             flow_export_path,
             sagittarius_ready,
-            action_config_tx,
         }
     }
 
@@ -157,25 +142,6 @@ impl SagittariusFlowClient {
                     received_count.saturating_sub(stored_count) as u64,
                 );
             }
-            Data::ModuleConfigurations(action_configurations) => {
-                let (project_count, config_count) = module_config_stats(&action_configurations);
-                log::debug!(
-                    "Received module configurations from flow stream module_identifier={} project_count={} config_count={}",
-                    action_configurations.module_identifier,
-                    project_count,
-                    config_count
-                );
-
-                match self.action_config_tx.send(action_configurations) {
-                    Ok(receiver_count) => log::debug!(
-                        "Broadcasted module configurations to action forwarders receiver_count={}",
-                        receiver_count
-                    ),
-                    Err(err) => {
-                        log::warn!("No action configuration receivers available: {:?}", err);
-                    }
-                }
-            }
         }
     }
 
@@ -185,7 +151,7 @@ impl SagittariusFlowClient {
         self.sagittarius_ready.store(false, Ordering::SeqCst);
 
         let request = Request::from_parts(
-            get_authorization_metadata(&self.token),
+            get_authentication_metadata(&self.token),
             Extensions::new(),
             FlowLogonRequest {},
         );
