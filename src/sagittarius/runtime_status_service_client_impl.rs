@@ -3,10 +3,10 @@
 //! `server::runtime_status_service_server_impl`, tracked in #360 — but kept
 //! ready for when that's re-enabled.
 
-use crate::{authorization::authorization::get_authorization_metadata, telemetry::errors};
+use crate::{authorization::authorization::get_authentication_metadata, telemetry::errors};
 use std::time::Duration;
 use tonic::{Extensions, Request, transport::Channel};
-use tucana::sagittarius::runtime_status_service_client::RuntimeStatusServiceClient;
+use tucana::sagittarius_gateway::runtime_status_service_client::RuntimeStatusServiceClient;
 
 pub struct SagittariusRuntimeStatusServiceClient {
     client: RuntimeStatusServiceClient<Channel>,
@@ -30,9 +30,9 @@ impl SagittariusRuntimeStatusServiceClient {
     ) -> tucana::aquila::RuntimeStatusUpdateResponse {
         log::debug!("Forwarding runtime status update to Sagittarius");
         let mut request = Request::from_parts(
-            get_authorization_metadata(&self.token),
+            get_authentication_metadata(&self.token),
             Extensions::new(),
-            tucana::sagittarius::RuntimeStatusUpdateRequest {
+            tucana::sagittarius_gateway::RuntimeStatusUpdateRequest {
                 status: runtime_status_request.status,
             },
         );

@@ -1,8 +1,8 @@
-//! Dynamic mode wiring: the gRPC server and two independent, self-healing
-//! Sagittarius streams (flow sync, test execution) all run as separate
-//! tasks supervised by a single `select!` — if any one of them exits or
-//! panics, the others are aborted and Aquila shuts down rather than
-//! continuing in a partially working state.
+//! Dynamic mode wiring: the gRPC server and three independent, self-healing
+//! Sagittarius streams (flow sync, module configuration sync, test
+//! execution) all run as separate tasks supervised by a single `select!` —
+//! if any one of them exits or panics, the others are aborted and Aquila
+//! shuts down rather than continuing in a partially working state.
 
 use async_nats::Client;
 
@@ -12,6 +12,7 @@ use crate::{
     },
     sagittarius::{
         flow_service_client_impl::SagittariusFlowClient,
+        module_configuration_client_impl::SagittariusModuleConfigurationClient,
         retry::create_channel_with_retry,
         test_execution_client_impl::{
             SagittariusExecutionResponseSender, SagittariusTestExecutionServiceClient,
@@ -83,6 +84,11 @@ pub async fn run(
     let flow_export_path_for_flow = config.static_config.flow_path.clone();
     let sagittarius_ready_for_flow = app_readiness.sagittarius_ready.clone();
 
+    let backend_url_for_module_configuration = config.dynamic_config.backend_url.clone();
+    let runtime_token_for_module_configuration = config.dynamic_config.backend_token.clone();
+    let sagittarius_ready_for_module_configuration = app_readiness.sagittarius_ready.clone();
+    let action_config_tx_for_module_configuration = action_config_tx.clone();
+
     let env = match config.environment {
         crate::configuration::env::Environment::Development => String::from("DEVELOPMENT"),
         crate::configuration::env::Environment::Staging => String::from("STAGING"),
@@ -150,7 +156,6 @@ pub async fn run(
                 flow_export_path_for_flow.clone(),
                 ch,
                 sagittarius_ready_for_flow.clone(),
-                action_config_tx.clone(),
             );
 
             match flow_client.init_flow_stream().await {
@@ -176,6 +181,51 @@ pub async fn run(
         }
     });
 
+    let mut module_configuration_task = tokio::spawn(async move {
+        let mut backoff = Duration::from_millis(200);
+        let max_backoff = Duration::from_secs(10);
+
+        loop {
+            log::debug!(
+                "Attempting to initialize Sagittarius module configuration stream backoff_ms={}",
+                backoff.as_millis()
+            );
+            let ch = create_channel_with_retry(
+                "Sagittarius Module Configuration Stream",
+                backend_url_for_module_configuration.clone(),
+                sagittarius_ready_for_module_configuration.clone(),
+            )
+            .await;
+
+            let mut module_configuration_client = SagittariusModuleConfigurationClient::new(
+                ch,
+                runtime_token_for_module_configuration.clone(),
+                action_config_tx_for_module_configuration.clone(),
+            );
+
+            match module_configuration_client.init_configuration_stream().await {
+                Ok(_) => {
+                    log::warn!(
+                        "Sagittarius module configuration stream ended normally; reconnecting"
+                    );
+                }
+                Err(e) => {
+                    log::warn!(
+                        "Sagittarius module configuration stream dropped; reconnecting error={:?}",
+                        e
+                    );
+                }
+            }
+
+            tokio::time::sleep(backoff).await;
+            backoff = std::cmp::min(backoff * 2, max_backoff);
+            log::debug!(
+                "Next module configuration stream reconnect backoff_ms={}",
+                backoff.as_millis()
+            );
+        }
+    });
+
     #[cfg(unix)]
     let sigterm = async {
         use tokio::signal::unix::{SignalKind, signal};
@@ -195,6 +245,7 @@ pub async fn run(
                 Err(err) => errors::record("task", "grpc.task", &err, "mode=dynamic"),
             }
             flow_task.abort();
+            module_configuration_task.abort();
             test_execution_task.abort();
         }
         result = &mut test_execution_task => {
@@ -205,6 +256,7 @@ pub async fn run(
             }
             server_task.abort();
             flow_task.abort();
+            module_configuration_task.abort();
         }
         result = &mut flow_task => {
             match result {
@@ -213,18 +265,31 @@ pub async fn run(
                 Err(err) => errors::record("task", "flow_stream.task", &err, "mode=dynamic"),
             }
             server_task.abort();
+            module_configuration_task.abort();
+            test_execution_task.abort();
+        }
+        result = &mut module_configuration_task => {
+            match result {
+                Ok(()) => log::warn!("Module configuration stream task exited unexpectedly; shutting down"),
+                Err(err) if err.is_panic() => {}
+                Err(err) => errors::record("task", "module_configuration_stream.task", &err, "mode=dynamic"),
+            }
+            server_task.abort();
+            flow_task.abort();
             test_execution_task.abort();
         }
         _ = tokio::signal::ctrl_c() => {
             log::info!("Ctrl+C/Exit signal received, shutting down");
             server_task.abort();
             flow_task.abort();
+            module_configuration_task.abort();
             test_execution_task.abort();
         }
         _ = sigterm => {
             log::info!("SIGTERM received, shutting down");
             server_task.abort();
             flow_task.abort();
+            module_configuration_task.abort();
             test_execution_task.abort();
         }
     }

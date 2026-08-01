@@ -6,8 +6,8 @@ use std::sync::Arc;
 
 use tokio::sync::Mutex;
 use tonic::Status;
-use tucana::sagittarius::execution_logon_request::Data;
-use tucana::sagittarius::ExecutionLogonRequest;
+use tucana::sagittarius_gateway::execution_logon_request::Data;
+use tucana::sagittarius_gateway::ExecutionLogonRequest;
 use tucana::shared::ExecutionResult;
 
 use super::flow_id_cache::ExecutionFlowIdCache;
