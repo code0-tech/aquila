@@ -19,6 +19,7 @@ pub mod sagittarius;
 pub mod server;
 pub mod startup;
 pub mod telemetry;
+pub mod version;
 
 const CONFIG_PATH_ENV: &str = "AQUILA_CONFIG_PATH";
 const SERVICE_CONFIG_PATH_ENV: &str = "AQUILA_SERVICE_CONFIG_PATH";
@@ -49,7 +50,7 @@ async fn main() {
         telemetry::TelemetrySettings {
             environment: &environment,
             default_log_level: log_level,
-            service_version: env!("CARGO_PKG_VERSION"),
+            service_version: crate::version::runtime_version(),
             instrumentation_name: env!("CARGO_PKG_NAME"),
             initialize_metrics: Some(telemetry::metrics::initialize),
         },
