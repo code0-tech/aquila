@@ -123,7 +123,9 @@ fn prune_expired(entries: &mut HashMap<String, ExecutionFlowIdMapping>, now: Ins
 
 /// Evicts whichever entry is closest to expiring, since that's the best
 /// approximation of "oldest" without tracking insertion order separately.
-fn remove_soonest_to_expire(entries: &mut HashMap<String, ExecutionFlowIdMapping>) -> Option<String> {
+fn remove_soonest_to_expire(
+    entries: &mut HashMap<String, ExecutionFlowIdMapping>,
+) -> Option<String> {
     let soonest_execution_id = entries
         .iter()
         .min_by_key(|(_, mapping)| mapping.expires_at)

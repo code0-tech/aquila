@@ -33,7 +33,11 @@ pub(super) fn spawn(
             interval.tick().await;
 
             let timeout_updates = registry
-                .collect_timeout_updates(Instant::now(), not_responding_after, stopped_after_not_responding)
+                .collect_timeout_updates(
+                    Instant::now(),
+                    not_responding_after,
+                    stopped_after_not_responding,
+                )
                 .await;
 
             if timeout_updates.is_empty() {

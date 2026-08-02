@@ -203,7 +203,10 @@ pub async fn run(
                 action_config_tx_for_module_configuration.clone(),
             );
 
-            match module_configuration_client.init_configuration_stream().await {
+            match module_configuration_client
+                .init_configuration_stream()
+                .await
+            {
                 Ok(_) => {
                     log::warn!(
                         "Sagittarius module configuration stream ended normally; reconnecting"

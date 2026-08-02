@@ -133,7 +133,12 @@ impl TrackedRuntimeRegistry {
         stopped_after_not_responding: Duration,
     ) -> Vec<RuntimeStatusUpdateRequest> {
         let mut tracked = self.tracked.lock().await;
-        collect_timeout_updates(&mut tracked, now, not_responding_after, stopped_after_not_responding)
+        collect_timeout_updates(
+            &mut tracked,
+            now,
+            not_responding_after,
+            stopped_after_not_responding,
+        )
     }
 }
 

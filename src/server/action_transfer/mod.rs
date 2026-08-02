@@ -21,13 +21,13 @@ use tokio_stream::wrappers::ReceiverStream;
 use tonic::Status;
 use tracing::Instrument;
 use tucana::aquila::{
-    ActionTransferRequest, ActionTransferResponse, action_transfer_service_server::ActionTransferService,
+    ActionTransferRequest, ActionTransferResponse,
+    action_transfer_service_server::ActionTransferService,
 };
 
 use crate::{
     configuration::service::ServiceConfiguration,
-    sagittarius::module_service_client_impl::SagittariusModuleServiceClient,
-    telemetry::metrics,
+    sagittarius::module_service_client_impl::SagittariusModuleServiceClient, telemetry::metrics,
 };
 
 use logon::{extract_token, handle_logon};

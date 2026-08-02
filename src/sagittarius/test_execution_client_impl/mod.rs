@@ -28,7 +28,9 @@ use tucana::sagittarius_gateway::execution_service_client::ExecutionServiceClien
 use tucana::sagittarius_gateway::{ExecutionLogonRequest, Logon};
 use tucana::shared::{ExecutionFlow, ValidationFlow};
 
-use crate::{authorization::authorization::get_authentication_metadata, flow::key_has_flow_id};
+use crate::{
+    authorization::authorization::get_authentication_metadata, flow::key_has_flow_id, validation,
+};
 
 pub struct SagittariusTestExecutionServiceClient {
     nats_client: async_nats::Client,
@@ -205,8 +207,44 @@ impl SagittariusTestExecutionServiceClient {
                             }
                         };
 
-                        // TODO: When the new validator is ready, the body needs to be validated at this
-                        // point.
+                        if validation::is_rest_flow(&validation_flow) {
+                            let input_schema = validation::extract_input_schema(&validation_flow);
+                            if let Err(err) = validation::validate_body_against_schema(
+                                input_schema,
+                                request.body.as_ref(),
+                            ) {
+                                log::warn!(
+                                    "Rejecting Sagittarius execution request due to input schema validation failure requested_execution_id={} flow_id={} error={}",
+                                    request.execution_identifier,
+                                    request.flow_id,
+                                    err
+                                );
+
+                                let execution_id = if request.execution_identifier.is_empty() {
+                                    uuid::Uuid::new_v4().to_string()
+                                } else {
+                                    request.execution_identifier.clone()
+                                };
+
+                                let rejection = validation::rejection_result(
+                                    execution_id,
+                                    request.flow_id,
+                                    &err,
+                                );
+
+                                if let Err(status) =
+                                    self.response_sender.send_execution_result(rejection).await
+                                {
+                                    log::error!(
+                                        "Failed to send input schema validation rejection result flow_id={} error={:?}",
+                                        request.flow_id,
+                                        status
+                                    );
+                                }
+
+                                continue;
+                            }
+                        }
 
                         let execution_id = if request.execution_identifier.is_empty() {
                             uuid::Uuid::new_v4().to_string()

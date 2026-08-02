@@ -46,7 +46,10 @@ pub(super) fn extract_token(
 /// Whether a broadcasted config update is meant for `action_identifier`, since
 /// [`spawn_cfg_forwarder`] subscribes to a single broadcast channel shared by
 /// every connected action.
-fn applies_to_action(configs: &tucana::shared::ModuleConfigurations, action_identifier: &str) -> bool {
+fn applies_to_action(
+    configs: &tucana::shared::ModuleConfigurations,
+    action_identifier: &str,
+) -> bool {
     configs.module_identifier == action_identifier
 }
 
@@ -54,7 +57,10 @@ fn applies_to_action(configs: &tucana::shared::ModuleConfigurations, action_iden
 /// logs on with, so downstream consumers can tell it came from this action
 /// rather than from whatever source the action's module definition was
 /// authored against.
-fn overwrite_module_definition_sources(module: &mut tucana::shared::Module, action_identifier: &str) {
+fn overwrite_module_definition_sources(
+    module: &mut tucana::shared::Module,
+    action_identifier: &str,
+) {
     let source = format!("action.{}", action_identifier);
 
     for flow_type in &mut module.flow_types {

@@ -10,8 +10,8 @@ use crate::{
         test_execution_client_impl::SagittariusExecutionResponseSender,
     },
     server::{
-        action_transfer::AquilaActionTransferServiceServer,
-        create_readiness_interceptor, module_service_server_impl::AquilaModuleServiceServer,
+        action_transfer::AquilaActionTransferServiceServer, create_readiness_interceptor,
+        module_service_server_impl::AquilaModuleServiceServer,
         runtime_execution_service_server_impl::AquilaExecutionServiceServer,
         runtime_status_service_server_impl::AquilaRuntimeStatusServiceServer,
     },
