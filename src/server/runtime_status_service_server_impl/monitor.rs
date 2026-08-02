@@ -40,10 +40,9 @@ pub(super) fn spawn(
                 continue;
             }
 
-            // Uncomment in #360
-            // let mut client = _client.lock().await;
-            for _timeout_update in timeout_updates {
-                // let _ = client.update_runtime_status(timeout_update).await;
+            let mut client = _client.lock().await;
+            for timeout_update in timeout_updates {
+                let _ = client.update_runtime_status(timeout_update).await;
             }
         }
     });

@@ -106,13 +106,10 @@ impl RuntimeStatusService for AquilaRuntimeStatusServiceServer {
             runtime_identifier
         );
 
-        // Temporarily disabled: do not forward runtime status updates to Sagittarius.
-        // Re-enable with the timeout updates above when runtime usage reporting is restored.
-        // let mut client = self.client.lock().await;
-        // let response = client
-        //     .update_runtime_status(runtime_status_update_request)
-        //     .await;
-        let response = tucana::aquila::RuntimeStatusUpdateResponse { success: true };
+        let mut client = self.client.lock().await;
+        let response = client
+            .update_runtime_status(runtime_status_update_request)
+            .await;
 
         log::debug!(
             "Completed runtime status update success={}",
