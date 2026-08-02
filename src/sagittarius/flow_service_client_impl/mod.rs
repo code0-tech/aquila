@@ -128,7 +128,8 @@ impl SagittariusFlowClient {
                     dev_export::overwrite(&self.flow_export_path, flows.clone()).await;
                 }
 
-                let (purged_count, stored_count) = flow_store::replace_all(&self.store, flows).await;
+                let (purged_count, stored_count) =
+                    flow_store::replace_all(&self.store, flows).await;
                 log::info!(
                     "Finished replacing stored flows received_count={} purged_count={} stored_count={}",
                     received_count,

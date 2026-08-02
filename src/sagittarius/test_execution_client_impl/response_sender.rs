@@ -6,8 +6,8 @@ use std::sync::Arc;
 
 use tokio::sync::Mutex;
 use tonic::Status;
-use tucana::sagittarius_gateway::execution_logon_request::Data;
 use tucana::sagittarius_gateway::ExecutionLogonRequest;
+use tucana::sagittarius_gateway::execution_logon_request::Data;
 use tucana::shared::ExecutionResult;
 
 use super::flow_id_cache::ExecutionFlowIdCache;
@@ -50,7 +50,9 @@ impl SagittariusExecutionResponseSender {
     }
 
     pub(super) async fn remember_execution_flow(&self, execution_id: &str, flow_id: i64) {
-        self.execution_flow_ids.remember(execution_id, flow_id).await;
+        self.execution_flow_ids
+            .remember(execution_id, flow_id)
+            .await;
     }
 
     pub(super) async fn forget_execution_flow(&self, execution_id: &str) {

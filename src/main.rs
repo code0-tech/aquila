@@ -19,6 +19,7 @@ pub mod sagittarius;
 pub mod server;
 pub mod startup;
 pub mod telemetry;
+pub mod validation;
 pub mod version;
 
 const CONFIG_PATH_ENV: &str = "AQUILA_CONFIG_PATH";

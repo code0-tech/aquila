@@ -6,7 +6,9 @@ use async_nats::{Subject, Subscriber};
 use futures::StreamExt;
 use prost::Message;
 use tucana::{
-    aquila::{ActionEvent, ActionExecutionRequest, ActionExecutionResponse, ActionTransferResponse},
+    aquila::{
+        ActionEvent, ActionExecutionRequest, ActionExecutionResponse, ActionTransferResponse,
+    },
     shared::{ExecutionFlow, Flows, ValidationFlow, Value},
 };
 

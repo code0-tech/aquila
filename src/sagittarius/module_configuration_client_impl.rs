@@ -109,6 +109,8 @@ impl SagittariusModuleConfigurationClient {
         }
 
         log::warn!("Sagittarius closed the module configuration stream; reconnecting");
-        Err(tonic::Status::unavailable("module configuration stream ended"))
+        Err(tonic::Status::unavailable(
+            "module configuration stream ended",
+        ))
     }
 }
