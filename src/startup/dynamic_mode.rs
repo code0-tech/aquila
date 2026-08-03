@@ -18,7 +18,7 @@ use crate::{
             SagittariusExecutionResponseSender, SagittariusTestExecutionServiceClient,
         },
     },
-    server::dynamic_server::AquilaDynamicServer,
+    server::dynamic_server::{AquilaDynamicServer, DynamicServerDependencies},
     telemetry::errors,
 };
 use std::{sync::Arc, time::Duration};
@@ -55,14 +55,16 @@ pub async fn run(
 
     let server = AquilaDynamicServer::new(
         &config,
-        app_readiness.clone(),
-        sagittarius_channel.clone(),
-        service_config,
-        client.clone(),
-        kv_store.clone(),
-        action_config_tx.clone(),
-        action_flow_tx.clone(),
-        execution_response_sender.clone(),
+        DynamicServerDependencies {
+            app_readiness: app_readiness.clone(),
+            channel: sagittarius_channel.clone(),
+            service_configuration: service_config,
+            nats_client: client.clone(),
+            kv_store: kv_store.clone(),
+            action_config_tx: action_config_tx.clone(),
+            action_flow_tx: action_flow_tx.clone(),
+            execution_response_sender: execution_response_sender.clone(),
+        },
     );
 
     let mut server_task = tokio::spawn(async move {

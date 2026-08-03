@@ -10,7 +10,10 @@ use crate::{
         test_execution_client_impl::SagittariusExecutionResponseSender,
     },
     server::{
-        action_transfer::AquilaActionTransferServiceServer, create_readiness_interceptor,
+        action_transfer::{
+            ActionFlowExecutionRegistry, ActionTransferContext, AquilaActionTransferServiceServer,
+        },
+        create_readiness_interceptor,
         module_service_server_impl::AquilaModuleServiceServer,
         runtime_execution_service_server_impl::AquilaExecutionServiceServer,
         runtime_status_service_server_impl::AquilaRuntimeStatusServiceServer,
@@ -27,6 +30,20 @@ use tucana::aquila::{
     runtime_status_service_server::RuntimeStatusServiceServer,
 };
 
+/// Every collaborator `AquilaDynamicServer` needs that isn't derived from
+/// [`Config`] itself, bundled into one value so adding a new one is a field
+/// here instead of another constructor parameter.
+pub struct DynamicServerDependencies {
+    pub app_readiness: AppReadiness,
+    pub channel: Channel,
+    pub service_configuration: ServiceConfiguration,
+    pub nats_client: async_nats::Client,
+    pub kv_store: Arc<Store>,
+    pub action_config_tx: tokio::sync::broadcast::Sender<tucana::shared::ModuleConfigurations>,
+    pub action_flow_tx: tokio::sync::broadcast::Sender<crate::flow::FlowChange>,
+    pub execution_response_sender: SagittariusExecutionResponseSender,
+}
+
 pub struct AquilaDynamicServer {
     // Token of Sagittarius
     token: String,
@@ -40,6 +57,7 @@ pub struct AquilaDynamicServer {
     kv_store: Arc<Store>,
     action_config_tx: tokio::sync::broadcast::Sender<tucana::shared::ModuleConfigurations>,
     action_flow_tx: tokio::sync::broadcast::Sender<crate::flow::FlowChange>,
+    flow_execution_registry: ActionFlowExecutionRegistry,
     execution_response_sender: SagittariusExecutionResponseSender,
 
     runtime_status_not_responding_after_secs: u64,
@@ -49,17 +67,18 @@ pub struct AquilaDynamicServer {
 }
 
 impl AquilaDynamicServer {
-    pub fn new(
-        config: &Config,
-        app_readiness: AppReadiness,
-        channel: Channel,
-        service_configuration: ServiceConfiguration,
-        nats_client: async_nats::Client,
-        kv_store: Arc<Store>,
-        action_config_tx: tokio::sync::broadcast::Sender<tucana::shared::ModuleConfigurations>,
-        action_flow_tx: tokio::sync::broadcast::Sender<crate::flow::FlowChange>,
-        execution_response_sender: SagittariusExecutionResponseSender,
-    ) -> Self {
+    pub fn new(config: &Config, deps: DynamicServerDependencies) -> Self {
+        let DynamicServerDependencies {
+            app_readiness,
+            channel,
+            service_configuration,
+            nats_client,
+            kv_store,
+            action_config_tx,
+            action_flow_tx,
+            execution_response_sender,
+        } = deps;
+
         let address = match format!("{}:{}", config.grpc.host, config.grpc.port).parse() {
             Ok(addr) => {
                 info!("Listening on {:?}", &addr);
@@ -80,6 +99,7 @@ impl AquilaDynamicServer {
             kv_store,
             action_config_tx,
             action_flow_tx,
+            flow_execution_registry: ActionFlowExecutionRegistry::new(),
             execution_response_sender,
             runtime_status_not_responding_after_secs: config
                 .runtime_status
@@ -120,6 +140,7 @@ impl AquilaDynamicServer {
         let execution_server = AquilaExecutionServiceServer::new(
             self.service_configuration.clone(),
             self.execution_response_sender.clone(),
+            self.flow_execution_registry.clone(),
         );
         let module_server = AquilaModuleServiceServer::new(
             module_service.clone(),
@@ -133,15 +154,17 @@ impl AquilaDynamicServer {
             Duration::from_secs(self.runtime_status_monitor_interval_secs),
         );
 
-        let action_transfer_server = AquilaActionTransferServiceServer::new(
-            self.nats_client.clone(),
-            self.kv_store.as_ref().clone(),
-            self.service_configuration.clone(),
-            Some(module_service.clone()),
-            self.action_config_tx.clone(),
-            self.action_flow_tx.clone(),
-            false,
-        );
+        let action_transfer_server =
+            AquilaActionTransferServiceServer::new(ActionTransferContext {
+                client: self.nats_client.clone(),
+                kv: self.kv_store.as_ref().clone(),
+                actions: self.service_configuration.clone(),
+                module_service: Some(module_service.clone()),
+                action_config_tx: self.action_config_tx.clone(),
+                action_flow_tx: self.action_flow_tx.clone(),
+                flow_execution_registry: self.flow_execution_registry.clone(),
+                is_static: false,
+            });
 
         info!("Starting dynamic gRPC Server...");
 

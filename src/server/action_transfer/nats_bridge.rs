@@ -7,13 +7,19 @@ use futures::StreamExt;
 use prost::Message;
 use tucana::{
     aquila::{
-        ActionEvent, ActionExecutionRequest, ActionExecutionResponse, ActionTransferResponse,
+        ActionEvent, ActionExecutionRequest, ActionExecutionResponse, ActionFlowExecutionRequest,
+        ActionFlowExecutionResponse, ActionTransferResponse, action_flow_execution_response,
     },
-    shared::{ExecutionFlow, Flows, ValidationFlow, Value},
+    shared::{Error, ExecutionFlow, Flows, ValidationFlow, Value},
 };
 
-use crate::telemetry::{errors, metrics};
+use crate::{
+    flow,
+    telemetry::{errors, metrics},
+    validation,
+};
 
+use super::flow_execution_registry::ActionFlowExecutionRegistry;
 use super::pending_replies::{PendingReplyStore, pending_reply_keys};
 
 /// Wraps the underlying NATS/KV error from a failed flow lookup so callers
@@ -231,6 +237,133 @@ pub(super) async fn handle_event(
                 ),
             );
         }
+    }
+}
+
+/// Validates and dispatches a flow execution an action asked Aquila to run
+/// onto the NATS execution bus, registering `tx` under the execution id so
+/// the result (delivered separately once a runtime reports it, see
+/// `runtime_execution_service_server_impl`) can be routed back to this
+/// action's stream.
+pub(super) async fn handle_flow_execution(
+    action_identifier: &str,
+    request: ActionFlowExecutionRequest,
+    kv: async_nats::jetstream::kv::Store,
+    nats_client: async_nats::Client,
+    registry: ActionFlowExecutionRegistry,
+    tx: tokio::sync::mpsc::Sender<Result<ActionTransferResponse, tonic::Status>>,
+) {
+    let execution_id = if request.execution_identifier.is_empty() {
+        uuid::Uuid::new_v4().to_string()
+    } else {
+        request.execution_identifier.clone()
+    };
+
+    let flow_id = match request.flow_id.parse::<i64>() {
+        Ok(flow_id) => flow_id,
+        Err(err) => {
+            log::warn!(
+                "Rejected action flow execution request due to invalid flow_id action={} flow_id={} error={}",
+                action_identifier,
+                request.flow_id,
+                err
+            );
+            send_flow_execution_failure(&tx, execution_id, format!("invalid flow_id: {}", err))
+                .await;
+            return;
+        }
+    };
+
+    let Some(validation_flow) = flow::load_validation_flow_by_id(&kv, flow_id).await else {
+        send_flow_execution_failure(&tx, execution_id, format!("flow {} was not found", flow_id))
+            .await;
+        return;
+    };
+
+    if validation::is_rest_flow(&validation_flow) {
+        let input_schema = validation::extract_input_schema(&validation_flow);
+        if let Err(err) =
+            validation::validate_body_against_schema(input_schema, request.payload.as_ref())
+        {
+            log::warn!(
+                "Rejecting action flow execution request due to input schema validation failure action={} flow_id={} execution_id={} error={}",
+                action_identifier,
+                flow_id,
+                execution_id,
+                err
+            );
+            send_flow_execution_failure(&tx, execution_id, err.to_string()).await;
+            return;
+        }
+    }
+
+    let execution_flow = ExecutionFlow {
+        flow_id,
+        input_value: request.payload,
+        starting_node_id: validation_flow.starting_node_id,
+        node_functions: validation_flow.node_functions,
+        project_id: validation_flow.project_id,
+    };
+
+    registry.insert(execution_id.clone(), tx.clone()).await;
+
+    log::debug!(
+        "Publishing action flow execution request to NATS action={} execution_id={} flow_id={}",
+        action_identifier,
+        execution_id,
+        flow_id
+    );
+
+    if let Err(err) = flow::dispatch_execution(&nats_client, &execution_id, &execution_flow).await {
+        errors::record(
+            "messaging",
+            "action.flow_execution.dispatch",
+            &err,
+            format!(
+                "action.identifier={} execution_id={} flow_id={}",
+                action_identifier, execution_id, flow_id
+            ),
+        );
+        registry.take(&execution_id).await;
+        send_flow_execution_failure(
+            &tx,
+            execution_id,
+            "failed to dispatch execution".to_string(),
+        )
+        .await;
+    }
+}
+
+/// Sends an immediate `ActionFlowExecutionResponse` failure without ever
+/// dispatching to the execution bus - used for validation/lookup errors that
+/// happen before dispatch.
+async fn send_flow_execution_failure(
+    tx: &tokio::sync::mpsc::Sender<Result<ActionTransferResponse, tonic::Status>>,
+    execution_identifier: String,
+    message: String,
+) {
+    let resp = ActionTransferResponse {
+        data: Some(
+            tucana::aquila::action_transfer_response::Data::FlowExecutionResponse(
+                ActionFlowExecutionResponse {
+                    execution_identifier,
+                    result: Some(action_flow_execution_response::Result::Failure(Error {
+                        code: "A-FLOW-EXECUTION-000001".to_string(),
+                        category: "InvalidArgument".to_string(),
+                        message,
+                        timestamp: validation::epoch_millis_now(),
+                        version: crate::version::runtime_version().to_string(),
+                        ..Default::default()
+                    })),
+                },
+            ),
+        ),
+    };
+
+    if tx.send(Ok(resp)).await.is_err() {
+        log::debug!(
+            "Action transfer response stream closed before flow execution failure could be sent"
+        );
     }
 }
 

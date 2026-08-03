@@ -2,20 +2,16 @@
 //! the token, registering the action's module with Sagittarius, and wiring
 //! up the NATS subscriptions that feed the rest of the stream.
 
-use std::sync::Arc;
-
-use tokio::sync::Mutex;
 use tonic::Status;
 use tucana::aquila::{ActionFlowUpdate, ActionLogon, ActionTransferResponse};
 
 use crate::{
-    configuration::service::ServiceConfiguration,
     flow::{FlowChange, flow_belongs_to_action, to_action_flow},
-    sagittarius::module_service_client_impl::SagittariusModuleServiceClient,
     telemetry::{errors, metrics},
 };
 
 use super::{
+    ActionTransferContext,
     nats_bridge::{forward_nats_to_action, get_flows},
     pending_replies::PendingReplyStore,
 };
@@ -85,16 +81,10 @@ fn overwrite_module_definition_sources(
 }
 
 /// Validates the logon request, starts NATS + config/flow forwarders, and returns the accepted logon.
-#[allow(clippy::too_many_arguments)]
 pub(super) async fn handle_logon(
     token: &str,
     mut action_logon: ActionLogon,
-    actions: Arc<Mutex<ServiceConfiguration>>,
-    module_service: Option<Arc<Mutex<SagittariusModuleServiceClient>>>,
-    client: async_nats::Client,
-    kv: async_nats::jetstream::kv::Store,
-    cfg_tx: tokio::sync::broadcast::Sender<tucana::shared::ModuleConfigurations>,
-    flow_tx: tokio::sync::broadcast::Sender<FlowChange>,
+    context: ActionTransferContext,
     tx: tokio::sync::mpsc::Sender<Result<ActionTransferResponse, tonic::Status>>,
     pending_replies: PendingReplyStore,
     cfg_forwarder_started: &mut bool,
@@ -110,25 +100,22 @@ pub(super) async fn handle_logon(
     let identifier = module.identifier.clone();
     log::info!("Action logon attempt identifier={}", identifier);
 
-    {
-        let lock = actions.lock().await;
-        if !lock.has_action(&token.to_string(), &identifier) {
-            metrics::action_connection(&identifier, "rejected");
-            metrics::action_failure(&identifier, "authentication");
-            log::warn!(
-                "Rejected action logon identifier={} reason=token_not_registered",
-                identifier
-            );
-            return Err(Status::unauthenticated(
-                "token not matching to action identifier",
-            ));
-        }
+    if !context.actions.has_action(&token.to_string(), &identifier) {
+        metrics::action_connection(&identifier, "rejected");
+        metrics::action_failure(&identifier, "authentication");
+        log::warn!(
+            "Rejected action logon identifier={} reason=token_not_registered",
+            identifier
+        );
+        return Err(Status::unauthenticated(
+            "token not matching to action identifier",
+        ));
     }
 
     overwrite_module_definition_sources(module, &identifier);
 
-    if let Some(module_service) = module_service {
-        let available_definition_sources = { actions.lock().await.collect_modules() };
+    if let Some(module_service) = &context.module_service {
+        let available_definition_sources = context.actions.collect_modules();
         let mut client = module_service.lock().await;
         let response = client
             .update_modules(
@@ -156,7 +143,11 @@ pub(super) async fn handle_logon(
 
     log::debug!("Action connected identifier={}", identifier);
 
-    let sub = match client.subscribe(format!("action.{}.*", identifier)).await {
+    let sub = match context
+        .client
+        .subscribe(format!("action.{}.*", identifier))
+        .await
+    {
         Ok(s) => s,
         Err(err) => {
             metrics::action_connection(&identifier, "rejected");
@@ -173,7 +164,7 @@ pub(super) async fn handle_logon(
         }
     };
 
-    if let Err(err) = client.flush().await {
+    if let Err(err) = context.client.flush().await {
         metrics::action_connection(&identifier, "rejected");
         metrics::action_failure(&identifier, "subscription_flush");
         errors::record(
@@ -202,14 +193,22 @@ pub(super) async fn handle_logon(
     if !*cfg_forwarder_started {
         *cfg_forwarder_started = true;
         log::debug!("Starting config forwarder action={}", identifier);
-        spawn_cfg_forwarder(identifier.clone(), cfg_tx, tx.clone());
+        spawn_cfg_forwarder(
+            identifier.clone(),
+            context.action_config_tx.clone(),
+            tx.clone(),
+        );
     }
 
     if !*flow_forwarder_started {
         *flow_forwarder_started = true;
-        send_known_flows(&identifier, kv, tx.clone()).await;
+        send_known_flows(&identifier, context.kv.clone(), tx.clone()).await;
         log::debug!("Starting flow forwarder action={}", identifier);
-        spawn_flow_forwarder(identifier.clone(), flow_tx, tx.clone());
+        spawn_flow_forwarder(
+            identifier.clone(),
+            context.action_flow_tx.clone(),
+            tx.clone(),
+        );
     }
 
     Ok(action_logon)

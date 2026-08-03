@@ -7,10 +7,15 @@
 //! - [`logon`] validates the initial logon message and registers the action.
 //! - [`nats_bridge`] moves execution requests/results between NATS and gRPC.
 //! - [`pending_replies`] tracks which NATS reply subject an execution result belongs to.
+//! - [`flow_execution_registry`] tracks which action stream an action-triggered
+//!   flow execution's result belongs to.
 
+mod flow_execution_registry;
 mod logon;
 mod nats_bridge;
 mod pending_replies;
+
+pub use flow_execution_registry::ActionFlowExecutionRegistry;
 
 use std::{pin::Pin, sync::Arc};
 
@@ -31,8 +36,34 @@ use crate::{
 };
 
 use logon::{extract_token, handle_logon};
-use nats_bridge::{handle_event, handle_result, send_stream_error};
+use nats_bridge::{handle_event, handle_flow_execution, handle_result, send_stream_error};
 use pending_replies::PendingReplyStore;
+
+/// Every dependency an action's connection needs, bundled into one
+/// `Clone`-able value instead of threaded individually through every layer
+/// (`transfer` -> `handle_logon` -> the NATS bridge handlers). Adding a new
+/// shared dependency means adding a field here, not a parameter everywhere
+/// it's needed.
+#[derive(Clone)]
+pub(super) struct ActionTransferContext {
+    pub(super) client: async_nats::Client,
+    pub(super) kv: async_nats::jetstream::kv::Store,
+    /// Static, pre-provisioned action tokens/configuration loaded at startup.
+    /// Read-only after startup, so it's shared directly rather than behind a lock.
+    pub(super) actions: ServiceConfiguration,
+    /// Present only in dynamic mode, where module updates must be relayed to Sagittarius.
+    pub(super) module_service: Option<Arc<Mutex<SagittariusModuleServiceClient>>>,
+    /// Broadcasts module configuration updates to every connected action's config forwarder.
+    pub(super) action_config_tx:
+        tokio::sync::broadcast::Sender<tucana::shared::ModuleConfigurations>,
+    /// Broadcasts flow store changes to every connected action's flow forwarder.
+    pub(super) action_flow_tx: tokio::sync::broadcast::Sender<FlowChange>,
+    /// Correlates action-triggered flow executions with the action stream to
+    /// deliver their result to, once a runtime reports it.
+    pub(super) flow_execution_registry: ActionFlowExecutionRegistry,
+    /// Whether Aquila is running in static mode, which changes how config updates are sourced.
+    pub(super) is_static: bool,
+}
 
 /// Implements the `ActionTransfer` gRPC service that a connected action
 /// speaks to for the lifetime of its bidirectional stream.
@@ -41,39 +72,12 @@ use pending_replies::PendingReplyStore;
 /// (pending replies, logon status, ...) lives inside the `transfer` task
 /// spawned for each stream instead of on `self`.
 pub struct AquilaActionTransferServiceServer {
-    client: async_nats::Client,
-    kv: async_nats::jetstream::kv::Store,
-    /// Static, pre-provisioned action tokens/configuration loaded at startup.
-    actions: ServiceConfiguration,
-    /// Present only in dynamic mode, where module updates must be relayed to Sagittarius.
-    module_service: Option<Arc<Mutex<SagittariusModuleServiceClient>>>,
-    /// Broadcasts module configuration updates to every connected action's config forwarder.
-    action_config_tx: tokio::sync::broadcast::Sender<tucana::shared::ModuleConfigurations>,
-    /// Broadcasts flow store changes to every connected action's flow forwarder.
-    action_flow_tx: tokio::sync::broadcast::Sender<FlowChange>,
-    /// Whether Aquila is running in static mode, which changes how config updates are sourced.
-    is_static: bool,
+    context: ActionTransferContext,
 }
 
 impl AquilaActionTransferServiceServer {
-    pub fn new(
-        client: async_nats::Client,
-        kv: async_nats::jetstream::kv::Store,
-        actions: ServiceConfiguration,
-        module_service: Option<Arc<Mutex<SagittariusModuleServiceClient>>>,
-        action_config_tx: tokio::sync::broadcast::Sender<tucana::shared::ModuleConfigurations>,
-        action_flow_tx: tokio::sync::broadcast::Sender<FlowChange>,
-        is_static: bool,
-    ) -> Self {
-        Self {
-            client,
-            kv,
-            actions,
-            module_service,
-            action_config_tx,
-            action_flow_tx,
-            is_static,
-        }
+    pub(super) fn new(context: ActionTransferContext) -> Self {
+        Self { context }
     }
 }
 
@@ -105,13 +109,7 @@ impl ActionTransferService for AquilaActionTransferServiceServer {
         let mut action_props: Option<tucana::aquila::ActionLogon> = None;
         let mut stream = request.into_inner();
 
-        let actions = Arc::new(Mutex::new(self.actions.clone()));
-        let kv = self.kv.clone();
-        let client = self.client.clone();
-        let module_service = self.module_service.clone();
-        let cfg_tx = self.action_config_tx.clone();
-        let flow_tx = self.action_flow_tx.clone();
-        let is_static = self.is_static;
+        let context = self.context.clone();
         let pending_replies = PendingReplyStore::new();
 
         let (tx, rx) =
@@ -168,12 +166,7 @@ impl ActionTransferService for AquilaActionTransferServiceServer {
                             let accepted = match handle_logon(
                                 &token,
                                 action_logon,
-                                actions.clone(),
-                                module_service.clone(),
-                                client.clone(),
-                                kv.clone(),
-                                cfg_tx.clone(),
-                                flow_tx.clone(),
+                                context.clone(),
                                 tx.clone(),
                                 pending_replies.clone(),
                                 &mut cfg_forwarder_started,
@@ -235,11 +228,10 @@ impl ActionTransferService for AquilaActionTransferServiceServer {
                 // Static mode has no Sagittarius to push config updates from, so
                 // re-broadcast the action's configured values on every message it
                 // sends instead of relying on a one-shot delivery at logon time.
-                if is_static {
-                    let lock = actions.lock().await;
-                    let configs = lock.get_action_configuration(&token, &identifier);
+                if context.is_static {
+                    let configs = context.actions.get_action_configuration(&token, &identifier);
                     for conf in configs {
-                        if let Err(err) = cfg_tx.send(conf) {
+                        if let Err(err) = context.action_config_tx.send(conf) {
                             log::warn!("No action configuration receivers available: {:?}", err);
                         }
                     }
@@ -261,7 +253,13 @@ impl ActionTransferService for AquilaActionTransferServiceServer {
                     tucana::aquila::action_transfer_request::Data::Event(event) => {
                         log::debug!("Received event action={}", identifier);
                         metrics::action_event(&identifier);
-                        handle_event(&identifier, event, kv.clone(), client.clone()).await;
+                        handle_event(
+                            &identifier,
+                            event,
+                            context.kv.clone(),
+                            context.client.clone(),
+                        )
+                        .await;
                     }
                     tucana::aquila::action_transfer_request::Data::Result(execution_result) => {
                         log::debug!(
@@ -273,7 +271,7 @@ impl ActionTransferService for AquilaActionTransferServiceServer {
                         handle_result(
                             &identifier,
                             execution_result,
-                            client.clone(),
+                            context.client.clone(),
                             pending_replies.clone(),
                         )
                         .await;
@@ -284,6 +282,24 @@ impl ActionTransferService for AquilaActionTransferServiceServer {
                             "Received sub flow execution request action={} (not yet implemented)",
                             identifier
                         );
+                    }
+                    tucana::aquila::action_transfer_request::Data::FlowExecution(request) => {
+                        log::debug!(
+                            "Received flow execution request action={} execution_id={} flow_id={}",
+                            identifier,
+                            request.execution_identifier,
+                            request.flow_id
+                        );
+
+                        handle_flow_execution(
+                            &identifier,
+                            request,
+                            context.kv.clone(),
+                            context.client.clone(),
+                            context.flow_execution_registry.clone(),
+                            tx.clone(),
+                        )
+                        .await;
                     }
                 }
             }
