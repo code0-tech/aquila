@@ -19,7 +19,9 @@ use tucana::sagittarius_gateway::{
     FlowLogonRequest, FlowResponse, flow_response::Data, flow_service_client::FlowServiceClient,
 };
 
-use crate::{authorization::authorization::get_authentication_metadata, telemetry::metrics};
+use crate::{
+    authorization::authorization::get_authentication_metadata, flow::FlowChange, telemetry::metrics,
+};
 
 #[derive(Clone)]
 pub struct SagittariusFlowClient {
@@ -34,6 +36,9 @@ pub struct SagittariusFlowClient {
     /// components can hold off on work that depends on Sagittarius state
     /// actually being loaded.
     sagittarius_ready: Arc<AtomicBool>,
+    /// Broadcasts every applied flow change so connected actions' forwarders
+    /// can relay the ones they own - see `crate::server::action_transfer`.
+    flow_tx: tokio::sync::broadcast::Sender<FlowChange>,
 }
 
 impl SagittariusFlowClient {
@@ -44,6 +49,7 @@ impl SagittariusFlowClient {
         flow_export_path: String,
         channel: Channel,
         sagittarius_ready: Arc<AtomicBool>,
+        flow_tx: tokio::sync::broadcast::Sender<FlowChange>,
     ) -> SagittariusFlowClient {
         let client = FlowServiceClient::new(channel);
 
@@ -54,6 +60,7 @@ impl SagittariusFlowClient {
             token,
             flow_export_path,
             sagittarius_ready,
+            flow_tx,
         }
     }
 
@@ -79,7 +86,8 @@ impl SagittariusFlowClient {
                     dev_export::remove_flow(&self.flow_export_path, id).await;
                 }
 
-                let deleted_count = flow_store::delete_flow(&self.store, id).await;
+                let (deleted_count, definition_sources) =
+                    flow_store::delete_flow(&self.store, id).await;
 
                 if deleted_count == 0 {
                     metrics::flow_operation("delete", "not_found", 1);
@@ -91,6 +99,13 @@ impl SagittariusFlowClient {
                         id,
                         deleted_count
                     );
+                }
+
+                for definition_source in definition_sources {
+                    let _ = self.flow_tx.send(FlowChange::Deleted {
+                        flow_id: id,
+                        definition_source,
+                    });
                 }
             }
             Data::UpdatedFlow(flow) => {
@@ -104,7 +119,8 @@ impl SagittariusFlowClient {
                 match result {
                     Ok(()) => {
                         metrics::flow_operation("update", "success", 1);
-                        log::info!("Stored flow update flow_id={} key={}", flow_id, key)
+                        log::info!("Stored flow update flow_id={} key={}", flow_id, key);
+                        let _ = self.flow_tx.send(FlowChange::Updated(Box::new(flow)));
                     }
                     Err(err) => {
                         metrics::flow_operation("update", "failure", 1);
@@ -128,6 +144,11 @@ impl SagittariusFlowClient {
                     dev_export::overwrite(&self.flow_export_path, flows.clone()).await;
                 }
 
+                // Broadcast the replacement set as updates so already-connected
+                // actions pick up any changes; flows removed by this wholesale
+                // replace (rather than an explicit deletion) aren't diffed out,
+                // so an action that owned one keeps it until its next reconnect.
+                let flows_for_broadcast = flows.flows.clone();
                 let (purged_count, stored_count) =
                     flow_store::replace_all(&self.store, flows).await;
                 log::info!(
@@ -142,6 +163,10 @@ impl SagittariusFlowClient {
                     "failure",
                     received_count.saturating_sub(stored_count) as u64,
                 );
+
+                for flow in flows_for_broadcast {
+                    let _ = self.flow_tx.send(FlowChange::Updated(Box::new(flow)));
+                }
             }
         }
     }

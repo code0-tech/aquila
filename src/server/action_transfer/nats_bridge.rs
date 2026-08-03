@@ -20,7 +20,7 @@ use super::pending_replies::{PendingReplyStore, pending_reply_keys};
 /// get a stable, human-readable message while [`std::error::Error::source`]
 /// still exposes the original cause for logging.
 #[derive(Debug)]
-struct FlowIdentificationError {
+pub(super) struct FlowIdentificationError {
     source: Box<dyn std::error::Error + Send + Sync>,
 }
 
@@ -39,7 +39,7 @@ impl std::error::Error for FlowIdentificationError {
 /// Scans the flow KV bucket for every entry whose key matches `pattern`,
 /// decoding each match. There is no secondary index for flows, so a full key
 /// scan is the only lookup path available.
-async fn get_flows(
+pub(super) async fn get_flows(
     pattern: String,
     kv: async_nats::jetstream::kv::Store,
 ) -> Result<Flows, FlowIdentificationError> {

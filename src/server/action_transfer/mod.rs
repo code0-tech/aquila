@@ -26,7 +26,7 @@ use tucana::aquila::{
 };
 
 use crate::{
-    configuration::service::ServiceConfiguration,
+    configuration::service::ServiceConfiguration, flow::FlowChange,
     sagittarius::module_service_client_impl::SagittariusModuleServiceClient, telemetry::metrics,
 };
 
@@ -49,6 +49,8 @@ pub struct AquilaActionTransferServiceServer {
     module_service: Option<Arc<Mutex<SagittariusModuleServiceClient>>>,
     /// Broadcasts module configuration updates to every connected action's config forwarder.
     action_config_tx: tokio::sync::broadcast::Sender<tucana::shared::ModuleConfigurations>,
+    /// Broadcasts flow store changes to every connected action's flow forwarder.
+    action_flow_tx: tokio::sync::broadcast::Sender<FlowChange>,
     /// Whether Aquila is running in static mode, which changes how config updates are sourced.
     is_static: bool,
 }
@@ -60,6 +62,7 @@ impl AquilaActionTransferServiceServer {
         actions: ServiceConfiguration,
         module_service: Option<Arc<Mutex<SagittariusModuleServiceClient>>>,
         action_config_tx: tokio::sync::broadcast::Sender<tucana::shared::ModuleConfigurations>,
+        action_flow_tx: tokio::sync::broadcast::Sender<FlowChange>,
         is_static: bool,
     ) -> Self {
         Self {
@@ -68,6 +71,7 @@ impl AquilaActionTransferServiceServer {
             actions,
             module_service,
             action_config_tx,
+            action_flow_tx,
             is_static,
         }
     }
@@ -106,6 +110,7 @@ impl ActionTransferService for AquilaActionTransferServiceServer {
         let client = self.client.clone();
         let module_service = self.module_service.clone();
         let cfg_tx = self.action_config_tx.clone();
+        let flow_tx = self.action_flow_tx.clone();
         let is_static = self.is_static;
         let pending_replies = PendingReplyStore::new();
 
@@ -118,6 +123,7 @@ impl ActionTransferService for AquilaActionTransferServiceServer {
         );
         tokio::spawn(async move {
             let mut cfg_forwarder_started = false;
+            let mut flow_forwarder_started = false;
             let mut connected_at = None;
             let mut connected_identifier = None;
             log::debug!("Action transfer stream started");
@@ -165,10 +171,13 @@ impl ActionTransferService for AquilaActionTransferServiceServer {
                                 actions.clone(),
                                 module_service.clone(),
                                 client.clone(),
+                                kv.clone(),
                                 cfg_tx.clone(),
+                                flow_tx.clone(),
                                 tx.clone(),
                                 pending_replies.clone(),
                                 &mut cfg_forwarder_started,
+                                &mut flow_forwarder_started,
                             )
                             .await
                             {
@@ -268,6 +277,13 @@ impl ActionTransferService for AquilaActionTransferServiceServer {
                             pending_replies.clone(),
                         )
                         .await;
+                    }
+                    // TODO: revisit once sub-flow execution handling is defined.
+                    tucana::aquila::action_transfer_request::Data::SubFlowExecution(_) => {
+                        log::warn!(
+                            "Received sub flow execution request action={} (not yet implemented)",
+                            identifier
+                        );
                     }
                 }
             }

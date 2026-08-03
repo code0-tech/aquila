@@ -50,6 +50,7 @@ pub async fn run(
 
     let (action_config_tx, _) =
         tokio::sync::broadcast::channel::<tucana::shared::ModuleConfigurations>(64);
+    let (action_flow_tx, _) = tokio::sync::broadcast::channel::<crate::flow::FlowChange>(64);
     let execution_response_sender = SagittariusExecutionResponseSender::new();
 
     let server = AquilaDynamicServer::new(
@@ -60,6 +61,7 @@ pub async fn run(
         client.clone(),
         kv_store.clone(),
         action_config_tx.clone(),
+        action_flow_tx.clone(),
         execution_response_sender.clone(),
     );
 
@@ -83,6 +85,7 @@ pub async fn run(
     let runtime_token_for_flow = config.dynamic_config.backend_token.clone();
     let flow_export_path_for_flow = config.static_config.flow_path.clone();
     let sagittarius_ready_for_flow = app_readiness.sagittarius_ready.clone();
+    let action_flow_tx_for_flow = action_flow_tx.clone();
 
     let backend_url_for_module_configuration = config.dynamic_config.backend_url.clone();
     let runtime_token_for_module_configuration = config.dynamic_config.backend_token.clone();
@@ -156,6 +159,7 @@ pub async fn run(
                 flow_export_path_for_flow.clone(),
                 ch,
                 sagittarius_ready_for_flow.clone(),
+                action_flow_tx_for_flow.clone(),
             );
 
             match flow_client.init_flow_stream().await {

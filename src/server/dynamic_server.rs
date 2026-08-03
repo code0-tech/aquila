@@ -39,6 +39,7 @@ pub struct AquilaDynamicServer {
     nats_client: async_nats::Client,
     kv_store: Arc<Store>,
     action_config_tx: tokio::sync::broadcast::Sender<tucana::shared::ModuleConfigurations>,
+    action_flow_tx: tokio::sync::broadcast::Sender<crate::flow::FlowChange>,
     execution_response_sender: SagittariusExecutionResponseSender,
 
     runtime_status_not_responding_after_secs: u64,
@@ -56,6 +57,7 @@ impl AquilaDynamicServer {
         nats_client: async_nats::Client,
         kv_store: Arc<Store>,
         action_config_tx: tokio::sync::broadcast::Sender<tucana::shared::ModuleConfigurations>,
+        action_flow_tx: tokio::sync::broadcast::Sender<crate::flow::FlowChange>,
         execution_response_sender: SagittariusExecutionResponseSender,
     ) -> Self {
         let address = match format!("{}:{}", config.grpc.host, config.grpc.port).parse() {
@@ -77,6 +79,7 @@ impl AquilaDynamicServer {
             nats_client,
             kv_store,
             action_config_tx,
+            action_flow_tx,
             execution_response_sender,
             runtime_status_not_responding_after_secs: config
                 .runtime_status
@@ -136,6 +139,7 @@ impl AquilaDynamicServer {
             self.service_configuration.clone(),
             Some(module_service.clone()),
             self.action_config_tx.clone(),
+            self.action_flow_tx.clone(),
             false,
         );
 

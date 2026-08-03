@@ -21,6 +21,7 @@ pub struct AquilaStaticServer {
     nats_client: async_nats::Client,
     kv_store: Arc<Store>,
     action_config_tx: tokio::sync::broadcast::Sender<tucana::shared::ModuleConfigurations>,
+    action_flow_tx: tokio::sync::broadcast::Sender<crate::flow::FlowChange>,
 }
 
 impl AquilaStaticServer {
@@ -31,6 +32,7 @@ impl AquilaStaticServer {
         nats_client: async_nats::Client,
         kv_store: Arc<Store>,
         action_config_tx: tokio::sync::broadcast::Sender<tucana::shared::ModuleConfigurations>,
+        action_flow_tx: tokio::sync::broadcast::Sender<crate::flow::FlowChange>,
     ) -> Self {
         let address = match format!("{}:{}", config.grpc.host, config.grpc.port).parse() {
             Ok(addr) => {
@@ -49,6 +51,7 @@ impl AquilaStaticServer {
             nats_client,
             kv_store,
             action_config_tx,
+            action_flow_tx,
         }
     }
 
@@ -59,6 +62,7 @@ impl AquilaStaticServer {
             self.service_configuration.clone(),
             None,
             self.action_config_tx.clone(),
+            self.action_flow_tx.clone(),
             true,
         );
 

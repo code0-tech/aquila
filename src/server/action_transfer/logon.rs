@@ -6,15 +6,19 @@ use std::sync::Arc;
 
 use tokio::sync::Mutex;
 use tonic::Status;
-use tucana::aquila::{ActionLogon, ActionTransferResponse};
+use tucana::aquila::{ActionFlowUpdate, ActionLogon, ActionTransferResponse};
 
 use crate::{
     configuration::service::ServiceConfiguration,
+    flow::{FlowChange, flow_belongs_to_action, to_action_flow},
     sagittarius::module_service_client_impl::SagittariusModuleServiceClient,
     telemetry::{errors, metrics},
 };
 
-use super::{nats_bridge::forward_nats_to_action, pending_replies::PendingReplyStore};
+use super::{
+    nats_bridge::{forward_nats_to_action, get_flows},
+    pending_replies::PendingReplyStore,
+};
 
 /// Extracts the bearer token from gRPC metadata.
 pub(super) fn extract_token(
@@ -80,7 +84,7 @@ fn overwrite_module_definition_sources(
     }
 }
 
-/// Validates the logon request, starts NATS + config forwarders, and returns the accepted logon.
+/// Validates the logon request, starts NATS + config/flow forwarders, and returns the accepted logon.
 #[allow(clippy::too_many_arguments)]
 pub(super) async fn handle_logon(
     token: &str,
@@ -88,10 +92,13 @@ pub(super) async fn handle_logon(
     actions: Arc<Mutex<ServiceConfiguration>>,
     module_service: Option<Arc<Mutex<SagittariusModuleServiceClient>>>,
     client: async_nats::Client,
+    kv: async_nats::jetstream::kv::Store,
     cfg_tx: tokio::sync::broadcast::Sender<tucana::shared::ModuleConfigurations>,
+    flow_tx: tokio::sync::broadcast::Sender<FlowChange>,
     tx: tokio::sync::mpsc::Sender<Result<ActionTransferResponse, tonic::Status>>,
     pending_replies: PendingReplyStore,
     cfg_forwarder_started: &mut bool,
+    flow_forwarder_started: &mut bool,
 ) -> Result<ActionLogon, Status> {
     let module = match action_logon.module.as_mut() {
         Some(m) => m,
@@ -198,7 +205,68 @@ pub(super) async fn handle_logon(
         spawn_cfg_forwarder(identifier.clone(), cfg_tx, tx.clone());
     }
 
+    if !*flow_forwarder_started {
+        *flow_forwarder_started = true;
+        send_known_flows(&identifier, kv, tx.clone()).await;
+        log::debug!("Starting flow forwarder action={}", identifier);
+        spawn_flow_forwarder(identifier.clone(), flow_tx, tx.clone());
+    }
+
     Ok(action_logon)
+}
+
+/// Sends every flow this action already owns from the flow store, so a
+/// newly connected action doesn't have to wait for its next update to learn
+/// about flows created before it connected.
+async fn send_known_flows(
+    action_identifier: &str,
+    kv: async_nats::jetstream::kv::Store,
+    tx: tokio::sync::mpsc::Sender<Result<ActionTransferResponse, tonic::Status>>,
+) {
+    let flows = match get_flows("*.*.*.*".to_string(), kv).await {
+        Ok(flows) => flows,
+        Err(err) => {
+            errors::record(
+                "flow_storage",
+                "action.logon.known_flows",
+                &err,
+                format!("action.identifier={action_identifier}"),
+            );
+            return;
+        }
+    };
+
+    let mut sent_count = 0;
+    for flow in flows.flows {
+        if !flow_belongs_to_action(&flow, action_identifier) {
+            continue;
+        }
+
+        let resp = ActionTransferResponse {
+            data: Some(tucana::aquila::action_transfer_response::Data::FlowUpdate(
+                ActionFlowUpdate {
+                    data: Some(tucana::aquila::action_flow_update::Data::UpdatedFlow(
+                        to_action_flow(&flow),
+                    )),
+                },
+            )),
+        };
+
+        if tx.send(Ok(resp)).await.is_err() {
+            log::debug!(
+                "Action transfer response stream closed while sending known flows action={}",
+                action_identifier
+            );
+            return;
+        }
+        sent_count += 1;
+    }
+
+    log::debug!(
+        "Sent known flows to action action={} flow_count={}",
+        action_identifier,
+        sent_count
+    );
 }
 
 /// Forwards config updates for the given action identifier to the gRPC stream.
@@ -235,6 +303,53 @@ pub(super) fn spawn_cfg_forwarder(
         }
 
         log::debug!("Config forwarder stopped for {}", action_identifier);
+    });
+}
+
+/// Forwards flow store changes that belong to the given action identifier to the gRPC stream.
+pub(super) fn spawn_flow_forwarder(
+    action_identifier: String,
+    flow_tx: tokio::sync::broadcast::Sender<FlowChange>,
+    tx: tokio::sync::mpsc::Sender<Result<ActionTransferResponse, tonic::Status>>,
+) {
+    let mut flow_rx = flow_tx.subscribe();
+    tokio::spawn(async move {
+        while let Ok(change) = flow_rx.recv().await {
+            let data = match change {
+                FlowChange::Updated(flow) => {
+                    if !flow_belongs_to_action(&flow, &action_identifier) {
+                        continue;
+                    }
+                    tucana::aquila::action_flow_update::Data::UpdatedFlow(to_action_flow(&flow))
+                }
+                FlowChange::Deleted {
+                    flow_id,
+                    definition_source,
+                } => {
+                    if definition_source != format!("action.{action_identifier}") {
+                        continue;
+                    }
+                    tucana::aquila::action_flow_update::Data::DeletedFlow(flow_id)
+                }
+            };
+
+            log::debug!("Forwarding flow update to action {}", action_identifier);
+            let resp = ActionTransferResponse {
+                data: Some(tucana::aquila::action_transfer_response::Data::FlowUpdate(
+                    ActionFlowUpdate { data: Some(data) },
+                )),
+            };
+
+            if tx.send(Ok(resp)).await.is_err() {
+                metrics::flow_operation("forward", "failure", 1);
+                metrics::action_failure(&action_identifier, "flow_forward");
+                log::debug!("Flow forwarder channel closed for {}", action_identifier);
+                break;
+            }
+            metrics::flow_operation("forward", "success", 1);
+        }
+
+        log::debug!("Flow forwarder stopped for {}", action_identifier);
     });
 }
 

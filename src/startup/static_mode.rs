@@ -43,6 +43,7 @@ pub async fn run(
 
     let (action_config_tx, _) =
         tokio::sync::broadcast::channel::<tucana::shared::ModuleConfigurations>(64);
+    let (action_flow_tx, _) = tokio::sync::broadcast::channel::<crate::flow::FlowChange>(64);
 
     let server = AquilaStaticServer::new(
         &config,
@@ -51,6 +52,7 @@ pub async fn run(
         client.clone(),
         flow_store_client.clone(),
         action_config_tx.clone(),
+        action_flow_tx.clone(),
     );
 
     let mut server_task = tokio::spawn(async move {
