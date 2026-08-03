@@ -121,11 +121,15 @@ pub(super) async fn handle_logon(
     overwrite_module_definition_sources(module, &identifier);
 
     if let Some(module_service) = module_service {
+        let available_definition_sources = { actions.lock().await.collect_modules() };
         let mut client = module_service.lock().await;
         let response = client
-            .update_modules(tucana::aquila::ModuleUpdateRequest {
-                modules: vec![module.clone()],
-            })
+            .update_modules(
+                tucana::aquila::ModuleUpdateRequest {
+                    modules: vec![module.clone()],
+                },
+                available_definition_sources,
+            )
             .await;
 
         if !response.success {

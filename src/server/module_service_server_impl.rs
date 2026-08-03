@@ -75,7 +75,12 @@ impl ModuleService for AquilaModuleServiceServer {
         );
 
         let mut client = self.client.lock().await;
-        let response = client.update_modules(modules_update_request).await;
+        let response = client
+            .update_modules(
+                modules_update_request,
+                self.service_configuration.collect_modules(),
+            )
+            .await;
 
         log::debug!("Completed module update success={}", response.success);
 
