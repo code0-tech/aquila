@@ -8,9 +8,13 @@ use prost::Message;
 use tucana::{
     aquila::{
         ActionEvent, ActionExecutionRequest, ActionExecutionResponse, ActionFlowExecutionRequest,
-        ActionFlowExecutionResponse, ActionTransferResponse, action_flow_execution_response,
+        ActionFlowExecutionResponse, ActionSubFlowExecutionRequest, ActionSubFlowExecutionResponse,
+        ActionTransferResponse, action_flow_execution_response, action_sub_flow_execution_response,
+        action_transfer_response,
     },
-    shared::{Error, ExecutionFlow, Flows, ValidationFlow, Value},
+    shared::{
+        Error, ExecutionFlow, ExecutionResult, Flows, ValidationFlow, Value, execution_result,
+    },
 };
 
 use crate::{
@@ -343,26 +347,150 @@ async fn send_flow_execution_failure(
     message: String,
 ) {
     let resp = ActionTransferResponse {
-        data: Some(
-            tucana::aquila::action_transfer_response::Data::FlowExecutionResponse(
-                ActionFlowExecutionResponse {
-                    execution_identifier,
-                    result: Some(action_flow_execution_response::Result::Failure(Error {
-                        code: "A-FLOW-EXECUTION-000001".to_string(),
-                        category: "InvalidArgument".to_string(),
-                        message,
-                        timestamp: validation::epoch_millis_now(),
-                        version: crate::version::runtime_version().to_string(),
-                        ..Default::default()
-                    })),
-                },
-            ),
-        ),
+        data: Some(action_transfer_response::Data::FlowExecutionResponse(
+            ActionFlowExecutionResponse {
+                execution_identifier,
+                result: Some(action_flow_execution_response::Result::Failure(Error {
+                    code: "A-FLOW-EXECUTION-000001".to_string(),
+                    category: "InvalidArgument".to_string(),
+                    message,
+                    timestamp: validation::epoch_millis_now(),
+                    version: crate::version::runtime_version().to_string(),
+                    ..Default::default()
+                })),
+            },
+        )),
     };
 
     if tx.send(Ok(resp)).await.is_err() {
         log::debug!(
             "Action transfer response stream closed before flow execution failure could be sent"
+        );
+    }
+}
+
+/// A sub flow is the value of a function parameter that isn't a literal
+/// (`shared.Value`) but the result of executing another flow. When the
+/// action needs that value, it sends `ActionSubFlowExecutionRequest` back to
+/// Aquila; this dispatches it to Taurus over a dedicated NATS request-reply
+/// subject (distinct from the general `execution.<uuid>` bus, so Taurus can
+/// tell the two request kinds apart) and relays the reply straight back to
+/// the action as `ActionSubFlowExecutionResponse` - the same request/response
+/// round trip [`forward_nats_to_action`]/[`handle_result`] drive for regular
+/// node executions, just NATS request-reply instead of publish-then-reply-subject.
+pub(super) async fn handle_sub_flow_execution(
+    action_identifier: &str,
+    request: ActionSubFlowExecutionRequest,
+    nats_client: async_nats::Client,
+    tx: tokio::sync::mpsc::Sender<Result<ActionTransferResponse, tonic::Status>>,
+) {
+    let execution_id = request.execution_identifier.clone();
+    let topic = format!("sub_flow_execution.{}", execution_id);
+    let bytes = request.encode_to_vec();
+
+    log::debug!(
+        "Requesting sub flow execution action={} execution_id={} topic={}",
+        action_identifier,
+        execution_id,
+        topic
+    );
+
+    let reply = match nats_client.request(topic.clone(), bytes.into()).await {
+        Ok(reply) => reply,
+        Err(err) => {
+            errors::record(
+                "messaging",
+                "action.sub_flow_execution.request",
+                &err,
+                format!(
+                    "action.identifier={} execution_id={} topic={}",
+                    action_identifier, execution_id, topic
+                ),
+            );
+            send_sub_flow_execution_failure(
+                &tx,
+                execution_id,
+                "failed to dispatch sub flow execution".to_string(),
+            )
+            .await;
+            return;
+        }
+    };
+
+    let execution_result = match ExecutionResult::decode(reply.payload) {
+        Ok(result) => result,
+        Err(err) => {
+            errors::record(
+                "protocol",
+                "action.sub_flow_execution.decode",
+                &err,
+                format!(
+                    "action.identifier={} execution_id={} topic={}",
+                    action_identifier, execution_id, topic
+                ),
+            );
+            send_sub_flow_execution_failure(
+                &tx,
+                execution_id,
+                "failed to decode sub flow execution result".to_string(),
+            )
+            .await;
+            return;
+        }
+    };
+
+    let result = match execution_result.result {
+        Some(execution_result::Result::Success(value)) => {
+            Some(action_sub_flow_execution_response::Result::Success(value))
+        }
+        Some(execution_result::Result::Error(error)) => {
+            Some(action_sub_flow_execution_response::Result::Failure(error))
+        }
+        None => None,
+    };
+
+    let resp = ActionTransferResponse {
+        data: Some(action_transfer_response::Data::SubFlowExecutionResponse(
+            ActionSubFlowExecutionResponse {
+                execution_identifier: execution_id,
+                result,
+            },
+        )),
+    };
+
+    if tx.send(Ok(resp)).await.is_err() {
+        log::debug!(
+            "Action transfer response stream closed before sub flow execution result could be sent"
+        );
+    }
+}
+
+/// Sends an immediate `ActionSubFlowExecutionResponse` failure without a
+/// runtime having ever seen the request - used for dispatch/decode errors.
+async fn send_sub_flow_execution_failure(
+    tx: &tokio::sync::mpsc::Sender<Result<ActionTransferResponse, tonic::Status>>,
+    execution_identifier: String,
+    message: String,
+) {
+    let resp = ActionTransferResponse {
+        data: Some(action_transfer_response::Data::SubFlowExecutionResponse(
+            ActionSubFlowExecutionResponse {
+                execution_identifier,
+                result: Some(action_sub_flow_execution_response::Result::Failure(Error {
+                    code: "A-SUB-FLOW-EXECUTION-000001".to_string(),
+                    category: "Unavailable".to_string(),
+                    message,
+                    timestamp: validation::epoch_millis_now(),
+                    version: crate::version::runtime_version().to_string(),
+                    ..Default::default()
+                })),
+            },
+        )),
+    };
+
+    if tx.send(Ok(resp)).await.is_err() {
+        log::debug!(
+            "Action transfer response stream closed before sub flow execution failure could be sent"
         );
     }
 }

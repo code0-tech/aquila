@@ -36,7 +36,10 @@ use crate::{
 };
 
 use logon::{extract_token, handle_logon};
-use nats_bridge::{handle_event, handle_flow_execution, handle_result, send_stream_error};
+use nats_bridge::{
+    handle_event, handle_flow_execution, handle_result, handle_sub_flow_execution,
+    send_stream_error,
+};
 use pending_replies::PendingReplyStore;
 
 /// Every dependency an action's connection needs, bundled into one
@@ -276,12 +279,20 @@ impl ActionTransferService for AquilaActionTransferServiceServer {
                         )
                         .await;
                     }
-                    // TODO: revisit once sub-flow execution handling is defined.
-                    tucana::aquila::action_transfer_request::Data::SubFlowExecution(_) => {
-                        log::warn!(
-                            "Received sub flow execution request action={} (not yet implemented)",
-                            identifier
+                    tucana::aquila::action_transfer_request::Data::SubFlowExecution(request) => {
+                        log::debug!(
+                            "Received sub flow execution request action={} execution_id={}",
+                            identifier,
+                            request.execution_identifier
                         );
+
+                        handle_sub_flow_execution(
+                            &identifier,
+                            request,
+                            context.client.clone(),
+                            tx.clone(),
+                        )
+                        .await;
                     }
                     tucana::aquila::action_transfer_request::Data::FlowExecution(request) => {
                         log::debug!(
