@@ -107,6 +107,41 @@ impl ExecutionService for AquilaExecutionServiceServer {
         let flow_id = execution_result.flow_id;
         let result_status = execution_result_status(&execution_result);
 
+        // Every execution result is always reported to Sagittarius,
+        // regardless of whether an action is also waiting on it, so
+        // Sagittarius has a complete record of runtime executions rather
+        // than only the ones it triggered itself.
+        log::debug!(
+            "Forwarding execution result into Sagittarius stream execution_id={} flow_id={}",
+            execution_id,
+            flow_id
+        );
+
+        match self
+            .execution_response_sender
+            .send_execution_result(execution_result.clone())
+            .await
+        {
+            Ok(forwarded_flow_id) => {
+                log::info!(
+                    "Forwarded execution result into Sagittarius stream execution_id={} flow_id={} runtime_flow_id={} result_status={}",
+                    execution_id,
+                    forwarded_flow_id,
+                    flow_id,
+                    result_status
+                );
+            }
+            Err(err) => {
+                log::warn!(
+                    "Failed to forward execution result into Sagittarius stream execution_id={} flow_id={} result_status={} error={}",
+                    execution_id,
+                    flow_id,
+                    result_status,
+                    err
+                );
+            }
+        }
+
         if let Some(action_tx) = self.flow_execution_registry.take(&execution_id).await {
             log::debug!(
                 "Forwarding execution result to originating action stream execution_id={} flow_id={}",
@@ -133,36 +168,7 @@ impl ExecutionService for AquilaExecutionServiceServer {
                 flow_id,
                 result_status
             );
-
-            return Ok(tonic::Response::new(tucana::aquila::ExecutionResponse {
-                success: true,
-            }));
         }
-
-        log::debug!(
-            "Forwarding execution result into Sagittarius stream execution_id={} flow_id={}",
-            execution_id,
-            flow_id
-        );
-
-        let forwarded_flow_id = self
-            .execution_response_sender
-            .send_execution_result(execution_result)
-            .await?;
-
-        log::info!(
-            "Forwarded execution result into Sagittarius stream execution_id={} flow_id={} runtime_flow_id={} result_status={}",
-            execution_id,
-            forwarded_flow_id,
-            flow_id,
-            result_status
-        );
-        log::debug!(
-            "Completed execution update execution_id={} flow_id={} runtime_flow_id={}",
-            execution_id,
-            forwarded_flow_id,
-            flow_id
-        );
 
         Ok(tonic::Response::new(tucana::aquila::ExecutionResponse {
             success: true,

@@ -284,6 +284,17 @@ pub(super) async fn handle_flow_execution(
         return;
     };
 
+    if !flow::flow_belongs_to_action(&validation_flow, action_identifier) {
+        log::warn!(
+            "Rejected action flow execution request for a flow it doesn't own action={} flow_id={}",
+            action_identifier,
+            flow_id
+        );
+        send_flow_execution_failure(&tx, execution_id, format!("flow {} was not found", flow_id))
+            .await;
+        return;
+    }
+
     if validation::is_rest_flow(&validation_flow) {
         let input_schema = validation::extract_input_schema(&validation_flow);
         if let Err(err) =
