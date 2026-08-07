@@ -106,10 +106,14 @@ impl ServiceConfiguration {
         vec![actions, runtime].concat()
     }
 
-    /// Loads the service configuration file at `path`, falling back to an
-    /// empty configuration (rather than failing startup) if the file is
-    /// missing, unreadable, or malformed — this file is optional.
-    pub fn from_path(path: impl AsRef<Path>) -> Self {
+    /// Loads the service configuration file at `path`. A missing file is
+    /// treated as "not configured" and falls back to an empty configuration,
+    /// since this file is optional. But if the file exists and is unreadable
+    /// or malformed, that's a real misconfiguration — silently falling back
+    /// to an empty (deny-all) configuration there would mask it behind
+    /// confusing "token not registered" rejections, so this returns an error
+    /// for the caller to fail startup on instead.
+    pub fn from_path(path: impl AsRef<Path>) -> Result<Self, String> {
         let mut data = String::new();
 
         let mut file = match File::open(path) {
@@ -119,33 +123,18 @@ impl ServiceConfiguration {
                     "Couldn't open service configuration file, Reason: {}. Starting with empty service configuration",
                     error
                 );
-                return ServiceConfiguration::default();
+                return Ok(ServiceConfiguration::default());
             }
         };
 
-        match file.read_to_string(&mut data) {
-            Ok(_) => {
-                log::debug!("Successfully loaded action configuration file");
-            }
-            Err(error) => {
-                log::warn!(
-                    "Couldn't read service configuration file, Reason: {}. Starting with empty service configuration",
-                    error
-                );
-                return ServiceConfiguration::default();
-            }
-        }
+        file.read_to_string(&mut data)
+            .map_err(|error| format!("Couldn't read service configuration file: {}", error))?;
 
-        match from_str::<SerializableServiceConfiguration>(&data) {
-            Ok(conf) => return conf.into(),
-            Err(error) => {
-                log::warn!(
-                    "Couldn't parse service configuration file, Reason: {}. Starting with empty service configuration",
-                    error
-                );
-                ServiceConfiguration::default()
-            }
-        }
+        log::debug!("Successfully loaded action configuration file");
+
+        from_str::<SerializableServiceConfiguration>(&data)
+            .map(Into::into)
+            .map_err(|error| format!("Couldn't parse service configuration file: {}", error))
     }
 }
 

@@ -64,9 +64,11 @@ async fn main() {
     log::info!("Starting Aquila runtime gateway");
 
     let app_readiness = AppReadiness::new();
-    let service_config = std::env::var_os(SERVICE_CONFIG_PATH_ENV)
-        .map(ServiceConfiguration::from_path)
-        .unwrap_or_default();
+    let service_config = match std::env::var_os(SERVICE_CONFIG_PATH_ENV) {
+        Some(path) => ServiceConfiguration::from_path(path)
+            .unwrap_or_else(|error| panic!("failed to load Aquila service configuration: {error}")),
+        None => ServiceConfiguration::default(),
+    };
     log::debug!("{config}");
 
     startup::run(config, app_readiness, service_config).await;
