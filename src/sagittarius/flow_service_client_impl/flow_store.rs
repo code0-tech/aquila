@@ -9,8 +9,14 @@ use tucana::shared::{Flows, ValidationFlow};
 
 use crate::flow::{get_flow_identifier, key_has_flow_id};
 
-/// Deletes every stored key matching `flow_id`, returning how many were removed.
-pub(super) async fn delete_flow(store: &async_nats::jetstream::kv::Store, flow_id: i64) -> usize {
+/// Deletes every stored key matching `flow_id`, returning how many were
+/// removed and the `definition_source` of each one that had one - read
+/// before deletion, since it's the only way for the caller to know which
+/// action(s) a now-deleted flow belonged to.
+pub(super) async fn delete_flow(
+    store: &async_nats::jetstream::kv::Store,
+    flow_id: i64,
+) -> (usize, Vec<String>) {
     let mut keys = match store.keys().await {
         Ok(keys) => keys.boxed(),
         Err(err) => {
@@ -19,18 +25,40 @@ pub(super) async fn delete_flow(store: &async_nats::jetstream::kv::Store, flow_i
                 flow_id,
                 err
             );
-            return 0;
+            return (0, Vec::new());
         }
     };
 
     let mut deleted_count = 0;
+    let mut definition_sources = Vec::new();
     while let Ok(Some(key)) = keys.try_next().await {
         if !key_has_flow_id(&key, flow_id) {
             continue;
         }
 
+        let definition_source = match store.get(&key).await {
+            Ok(Some(bytes)) => ValidationFlow::decode(bytes)
+                .ok()
+                .and_then(|flow| flow.definition_source),
+            Ok(None) => None,
+            Err(err) => {
+                log::warn!(
+                    "Failed to read stored flow before deletion flow_id={} key={} error={:?}",
+                    flow_id,
+                    key,
+                    err
+                );
+                None
+            }
+        };
+
         match store.delete(&key).await {
-            Ok(_) => deleted_count += 1,
+            Ok(_) => {
+                deleted_count += 1;
+                if let Some(source) = definition_source {
+                    definition_sources.push(source);
+                }
+            }
             Err(err) => log::error!(
                 "Failed to delete stored flow flow_id={} key={} error={:?}",
                 flow_id,
@@ -40,7 +68,7 @@ pub(super) async fn delete_flow(store: &async_nats::jetstream::kv::Store, flow_i
         }
     }
 
-    deleted_count
+    (deleted_count, definition_sources)
 }
 
 /// Stores a single flow update under its computed key, returning that key

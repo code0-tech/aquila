@@ -18,7 +18,7 @@ use crate::{
             SagittariusExecutionResponseSender, SagittariusTestExecutionServiceClient,
         },
     },
-    server::dynamic_server::AquilaDynamicServer,
+    server::dynamic_server::{AquilaDynamicServer, DynamicServerDependencies},
     telemetry::errors,
 };
 use std::{sync::Arc, time::Duration};
@@ -50,17 +50,21 @@ pub async fn run(
 
     let (action_config_tx, _) =
         tokio::sync::broadcast::channel::<tucana::shared::ModuleConfigurations>(64);
+    let (action_flow_tx, _) = tokio::sync::broadcast::channel::<crate::flow::FlowChange>(64);
     let execution_response_sender = SagittariusExecutionResponseSender::new();
 
     let server = AquilaDynamicServer::new(
         &config,
-        app_readiness.clone(),
-        sagittarius_channel.clone(),
-        service_config,
-        client.clone(),
-        kv_store.clone(),
-        action_config_tx.clone(),
-        execution_response_sender.clone(),
+        DynamicServerDependencies {
+            app_readiness: app_readiness.clone(),
+            channel: sagittarius_channel.clone(),
+            service_configuration: service_config,
+            nats_client: client.clone(),
+            kv_store: kv_store.clone(),
+            action_config_tx: action_config_tx.clone(),
+            action_flow_tx: action_flow_tx.clone(),
+            execution_response_sender: execution_response_sender.clone(),
+        },
     );
 
     let mut server_task = tokio::spawn(async move {
@@ -83,6 +87,7 @@ pub async fn run(
     let runtime_token_for_flow = config.dynamic_config.backend_token.clone();
     let flow_export_path_for_flow = config.static_config.flow_path.clone();
     let sagittarius_ready_for_flow = app_readiness.sagittarius_ready.clone();
+    let action_flow_tx_for_flow = action_flow_tx.clone();
 
     let backend_url_for_module_configuration = config.dynamic_config.backend_url.clone();
     let runtime_token_for_module_configuration = config.dynamic_config.backend_token.clone();
@@ -156,6 +161,7 @@ pub async fn run(
                 flow_export_path_for_flow.clone(),
                 ch,
                 sagittarius_ready_for_flow.clone(),
+                action_flow_tx_for_flow.clone(),
             );
 
             match flow_client.init_flow_stream().await {

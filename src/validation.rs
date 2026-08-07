@@ -187,7 +187,7 @@ pub fn rejection_result(
     }
 }
 
-fn epoch_millis_now() -> i64 {
+pub(crate) fn epoch_millis_now() -> i64 {
     match SystemTime::now().duration_since(UNIX_EPOCH) {
         Ok(duration) => duration.as_millis() as i64,
         Err(error) => {

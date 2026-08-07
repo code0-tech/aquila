@@ -18,19 +18,16 @@ pub use response_sender::SagittariusExecutionResponseSender;
 
 use std::sync::Arc;
 
-use futures::{StreamExt, TryStreamExt};
-use prost::Message;
+use futures::StreamExt;
 use tokio_stream::wrappers::ReceiverStream;
 use tonic::transport::Channel;
 use tonic::{Extensions, Request};
 use tucana::sagittarius_gateway::execution_logon_request::Data;
 use tucana::sagittarius_gateway::execution_service_client::ExecutionServiceClient;
 use tucana::sagittarius_gateway::{ExecutionLogonRequest, Logon};
-use tucana::shared::{ExecutionFlow, ValidationFlow};
+use tucana::shared::ExecutionFlow;
 
-use crate::{
-    authorization::authorization::get_authentication_metadata, flow::key_has_flow_id, validation,
-};
+use crate::{authorization::authorization::get_authentication_metadata, flow, validation};
 
 pub struct SagittariusTestExecutionServiceClient {
     nats_client: async_nats::Client,
@@ -55,88 +52,6 @@ impl SagittariusTestExecutionServiceClient {
             client,
             token,
             response_sender,
-        }
-    }
-
-    /// Scans the flow KV bucket for the entry whose key encodes `flow_id`.
-    /// There is no secondary index from flow id to key, so this is a linear
-    /// scan of every stored flow.
-    async fn load_validation_flow(&self, flow_id: i64) -> Option<ValidationFlow> {
-        let mut keys = match self.store.keys().await {
-            Ok(keys) => keys,
-            Err(err) => {
-                log::error!(
-                    "Failed to list validation flow keys flow_id={} error={:?}",
-                    flow_id,
-                    err
-                );
-                return None;
-            }
-        };
-
-        let key = loop {
-            match keys.try_next().await {
-                Ok(Some(key)) if key_has_flow_id(&key, flow_id) => break key,
-                Ok(Some(_)) => {}
-                Ok(None) => {
-                    log::error!("Validation flow was not found flow_id={}", flow_id);
-                    return None;
-                }
-                Err(err) => {
-                    log::error!(
-                        "Failed while scanning validation flow keys flow_id={} error={:?}",
-                        flow_id,
-                        err
-                    );
-                    return None;
-                }
-            }
-        };
-
-        log::debug!(
-            "Resolved validation flow key flow_id={} key={}",
-            flow_id,
-            key
-        );
-
-        match self.store.get(&key).await {
-            Ok(Some(bytes)) => match ValidationFlow::decode(bytes) {
-                Ok(flow) => {
-                    log::debug!(
-                        "Loaded validation flow flow_id={} project_id={} starting_node_id={} node_functions={}",
-                        flow.flow_id,
-                        flow.project_id,
-                        flow.starting_node_id,
-                        flow.node_functions.len()
-                    );
-                    Some(flow)
-                }
-                Err(err) => {
-                    log::error!(
-                        "Failed to decode validation flow flow_id={} error={:?}",
-                        flow_id,
-                        err
-                    );
-                    None
-                }
-            },
-            Ok(None) => {
-                log::error!(
-                    "Validation flow disappeared after key resolution flow_id={} key={}",
-                    flow_id,
-                    key
-                );
-                None
-            }
-            Err(err) => {
-                log::error!(
-                    "Failed to fetch validation flow flow_id={} key={} error={:?}",
-                    flow_id,
-                    key,
-                    err
-                );
-                None
-            }
         }
     }
 
@@ -199,13 +114,15 @@ impl SagittariusTestExecutionServiceClient {
                             request.flow_id,
                             request.body.is_some()
                         );
-                        let validation_flow = match self.load_validation_flow(request.flow_id).await
-                        {
-                            Some(flow) => flow,
-                            None => {
-                                continue;
-                            }
-                        };
+                        let validation_flow =
+                            match flow::load_validation_flow_by_id(&self.store, request.flow_id)
+                                .await
+                            {
+                                Some(flow) => flow,
+                                None => {
+                                    continue;
+                                }
+                            };
 
                         if validation::is_rest_flow(&validation_flow) {
                             let input_schema = validation::extract_input_schema(&validation_flow);
@@ -261,23 +178,23 @@ impl SagittariusTestExecutionServiceClient {
                             project_id: validation_flow.project_id,
                         };
 
-                        let bytes = execution_flow.encode_to_vec();
-                        let payload_len = bytes.len();
-                        let topic = format!("execution.{}", execution_id);
-
                         self.response_sender
                             .remember_execution_flow(&execution_id, execution_flow.flow_id)
                             .await;
 
                         log::debug!(
-                            "Publishing execution request to NATS execution_id={} flow_id={} subject={} payload_bytes={} generated_execution_id={}",
+                            "Publishing execution request to NATS execution_id={} flow_id={} generated_execution_id={}",
                             execution_id,
                             execution_flow.flow_id,
-                            topic,
-                            payload_len,
                             generated_execution_id
                         );
-                        match self.nats_client.publish(topic, bytes.into()).await {
+                        match flow::dispatch_execution(
+                            &self.nats_client,
+                            &execution_id,
+                            &execution_flow,
+                        )
+                        .await
+                        {
                             Ok(_) => {
                                 log::info!(
                                     "Published execution request to NATS execution_id={} flow_id={}",

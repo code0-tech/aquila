@@ -4,7 +4,12 @@
 
 use crate::{
     configuration::{config::Config, service::ServiceConfiguration, state::AppReadiness},
-    server::{action_transfer::AquilaActionTransferServiceServer, create_readiness_interceptor},
+    server::{
+        action_transfer::{
+            ActionFlowExecutionRegistry, ActionTransferContext, AquilaActionTransferServiceServer,
+        },
+        create_readiness_interceptor,
+    },
 };
 use async_nats::jetstream::kv::Store;
 use log::info;
@@ -21,6 +26,7 @@ pub struct AquilaStaticServer {
     nats_client: async_nats::Client,
     kv_store: Arc<Store>,
     action_config_tx: tokio::sync::broadcast::Sender<tucana::shared::ModuleConfigurations>,
+    action_flow_tx: tokio::sync::broadcast::Sender<crate::flow::FlowChange>,
 }
 
 impl AquilaStaticServer {
@@ -31,6 +37,7 @@ impl AquilaStaticServer {
         nats_client: async_nats::Client,
         kv_store: Arc<Store>,
         action_config_tx: tokio::sync::broadcast::Sender<tucana::shared::ModuleConfigurations>,
+        action_flow_tx: tokio::sync::broadcast::Sender<crate::flow::FlowChange>,
     ) -> Self {
         let address = match format!("{}:{}", config.grpc.host, config.grpc.port).parse() {
             Ok(addr) => {
@@ -49,18 +56,25 @@ impl AquilaStaticServer {
             nats_client,
             kv_store,
             action_config_tx,
+            action_flow_tx,
         }
     }
 
     pub async fn start(&self) -> Result<(), tonic::transport::Error> {
-        let action_transfer_server = AquilaActionTransferServiceServer::new(
-            self.nats_client.clone(),
-            self.kv_store.as_ref().clone(),
-            self.service_configuration.clone(),
-            None,
-            self.action_config_tx.clone(),
-            true,
-        );
+        let action_transfer_server =
+            AquilaActionTransferServiceServer::new(ActionTransferContext {
+                client: self.nats_client.clone(),
+                kv: self.kv_store.as_ref().clone(),
+                actions: self.service_configuration.clone(),
+                module_service: None,
+                action_config_tx: self.action_config_tx.clone(),
+                action_flow_tx: self.action_flow_tx.clone(),
+                // Static mode has no ExecutionService for a runtime to report results
+                // to, so an action-triggered flow execution can never resolve here -
+                // this registry only exists to satisfy the shared context shape.
+                flow_execution_registry: ActionFlowExecutionRegistry::new(),
+                is_static: true,
+            });
 
         info!("Starting static gRPC Server...");
 

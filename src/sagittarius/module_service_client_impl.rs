@@ -30,10 +30,14 @@ impl SagittariusModuleServiceClient {
         skip_all,
         fields(rpc.system = "grpc", rpc.service = "ModuleService", rpc.method = "Update")
     )]
-    /// Forwards a module update to Sagittarius.
+    /// Forwards a module update to Sagittarius, along with every module
+    /// identifier this Aquila instance currently has registered in its
+    /// service configuration, so Sagittarius knows the full set of sources
+    /// this instance can vouch for.
     pub async fn update_modules(
         &mut self,
         modules_update_request: tucana::aquila::ModuleUpdateRequest,
+        available_definition_sources: Vec<String>,
     ) -> tucana::aquila::ModuleUpdateResponse {
         let module_count = modules_update_request.modules.len();
         log::debug!(
@@ -46,6 +50,7 @@ impl SagittariusModuleServiceClient {
             Extensions::new(),
             tucana::sagittarius_gateway::ModuleUpdateRequest {
                 modules: modules_update_request.modules,
+                available_definition_sources,
             },
         );
         request.set_timeout(self.unary_rpc_timeout);
