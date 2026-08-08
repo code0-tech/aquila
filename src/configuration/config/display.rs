@@ -65,21 +65,6 @@ impl fmt::Display for Config {
             self.dynamic_config.backend_unary_timeout_secs
         )?;
         writeln!(formatter, "  Runtime status")?;
-        writeln!(
-            formatter,
-            "    Not responding after: {}s",
-            self.runtime_status.not_responding_after_secs
-        )?;
-        writeln!(
-            formatter,
-            "    Stopped after:        {}s",
-            self.runtime_status.stopped_after_not_responding_secs
-        )?;
-        writeln!(
-            formatter,
-            "    Monitor interval:     {}s",
-            self.runtime_status.monitor_interval_secs
-        )?;
         write!(
             formatter,
             "    Heartbeat interval:   {}m",

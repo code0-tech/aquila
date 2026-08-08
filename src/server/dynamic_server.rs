@@ -60,9 +60,6 @@ pub struct AquilaDynamicServer {
     flow_execution_registry: ActionFlowExecutionRegistry,
     execution_response_sender: SagittariusExecutionResponseSender,
 
-    runtime_status_not_responding_after_secs: u64,
-    runtime_status_stopped_after_not_responding_secs: u64,
-    runtime_status_monitor_interval_secs: u64,
     sagittarius_unary_rpc_timeout: Duration,
 }
 
@@ -101,14 +98,6 @@ impl AquilaDynamicServer {
             action_flow_tx,
             flow_execution_registry: ActionFlowExecutionRegistry::new(),
             execution_response_sender,
-            runtime_status_not_responding_after_secs: config
-                .runtime_status
-                .not_responding_after_secs,
-
-            runtime_status_stopped_after_not_responding_secs: config
-                .runtime_status
-                .stopped_after_not_responding_secs,
-            runtime_status_monitor_interval_secs: config.runtime_status.monitor_interval_secs,
             sagittarius_unary_rpc_timeout: Duration::from_secs(
                 config.dynamic_config.backend_unary_timeout_secs,
             ),
@@ -149,9 +138,6 @@ impl AquilaDynamicServer {
         let runtime_status_server = AquilaRuntimeStatusServiceServer::new(
             runtime_status_service.clone(),
             self.service_configuration.clone(),
-            Duration::from_secs(self.runtime_status_not_responding_after_secs),
-            Duration::from_secs(self.runtime_status_stopped_after_not_responding_secs),
-            Duration::from_secs(self.runtime_status_monitor_interval_secs),
         );
 
         let action_transfer_server =

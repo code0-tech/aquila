@@ -79,9 +79,6 @@ pub struct Grpc {
 #[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(default)]
 pub struct RuntimeStatus {
-    pub not_responding_after_secs: u64,
-    pub stopped_after_not_responding_secs: u64,
-    pub monitor_interval_secs: u64,
     pub heartbeat_interval_minutes: u64,
 }
 
@@ -148,9 +145,6 @@ impl Default for Grpc {
 impl Default for RuntimeStatus {
     fn default() -> Self {
         Self {
-            not_responding_after_secs: 90,
-            stopped_after_not_responding_secs: 180,
-            monitor_interval_secs: 30,
             heartbeat_interval_minutes: 5,
         }
     }
