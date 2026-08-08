@@ -4,7 +4,17 @@
 		{
 			"identifier": "taurus",
 			"token": "HsCEzbCuaUtUGSCrvwsSbJSlS2HH6TrW0ZeEKUZGTiOH8vPEZxyAEOx974Ku72l4",
-			"resolved_modules": ["taurus-boolean", "taurus-control", "taurus-http", "taurus-list", "taurus-number", "taurus-object", "taurus-text"]
+			"resolved_modules": [
+				"taurus-boolean",
+				"taurus-control",
+				"taurus-http",
+				"taurus-list",
+				"taurus-number",
+				"taurus-object",
+				"taurus-text",
+				"taurus-date",
+				"taurus-file"
+			]
 		},
 		{
 			"identifier": "draco-rest",
