@@ -57,7 +57,7 @@ dependencies = [
  "tonic",
  "tonic-health",
  "tracing",
- "tucana 0.0.79",
+ "tucana 0.0.80",
  "uuid",
 ]
 
@@ -3032,9 +3032,9 @@ dependencies = [
 
 [[package]]
 name = "tucana"
-version = "0.0.79"
+version = "0.0.80"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b0c44a811581d0dff7105096f3f73436daa4184ddf0592a04bcbbaf4672cfb1d"
+checksum = "c0cfe93386a4f88e5ea97e6ce64b72b975a8bb5464062cb66aad12e46544b959"
 dependencies = [
  "pbjson",
  "pbjson-build",
