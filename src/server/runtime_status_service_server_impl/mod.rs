@@ -1,15 +1,8 @@
 //! gRPC server for runtime heartbeats (`RuntimeStatusService.Update`).
 //!
-//! Accepting a heartbeat and detecting a runtime's silence are two
-//! different lifetimes: the RPC handler below only needs to authenticate
-//! and record the heartbeat, while a background tick (spawned once at
-//! construction, see [`monitor`]) is what actually notices when a runtime
-//! stops sending them. Both share the same [`registry::TrackedRuntimeRegistry`].
+//! Accepts a heartbeat, authenticates it, and forwards it to Sagittarius.
 
-mod monitor;
-mod registry;
-
-use std::{sync::Arc, time::Duration};
+use std::sync::Arc;
 
 use tokio::sync::Mutex;
 use tonic::Status;
@@ -20,40 +13,20 @@ use crate::{
     sagittarius::runtime_status_service_client_impl::SagittariusRuntimeStatusServiceClient,
 };
 
-use registry::TrackedRuntimeRegistry;
-
 pub struct AquilaRuntimeStatusServiceServer {
     client: Arc<Mutex<SagittariusRuntimeStatusServiceClient>>,
     service_configuration: ServiceConfiguration,
-    tracked_runtimes: TrackedRuntimeRegistry,
-    not_responding_after: Duration,
-    stopped_after_not_responding: Duration,
 }
 
 impl AquilaRuntimeStatusServiceServer {
     pub fn new(
         client: Arc<Mutex<SagittariusRuntimeStatusServiceClient>>,
         service_configuration: ServiceConfiguration,
-        not_responding_after: Duration,
-        stopped_after_not_responding: Duration,
-        monitor_interval: Duration,
     ) -> Self {
-        let server = Self {
+        Self {
             client,
             service_configuration,
-            tracked_runtimes: TrackedRuntimeRegistry::default(),
-            not_responding_after,
-            stopped_after_not_responding,
-        };
-
-        monitor::spawn(
-            server.tracked_runtimes.clone(),
-            server.client.clone(),
-            server.not_responding_after,
-            server.stopped_after_not_responding,
-            monitor_interval,
-        );
-        server
+        }
     }
 }
 
@@ -97,9 +70,6 @@ impl RuntimeStatusService for AquilaRuntimeStatusServiceServer {
             );
             return Err(Status::unauthenticated("token is not valid"));
         }
-        self.tracked_runtimes
-            .record_heartbeat(&runtime_status_update_request)
-            .await;
 
         log::debug!(
             "Received runtime status update runtime_identifier={}",
