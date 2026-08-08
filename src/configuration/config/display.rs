@@ -75,10 +75,15 @@ impl fmt::Display for Config {
             "    Stopped after:        {}s",
             self.runtime_status.stopped_after_not_responding_secs
         )?;
-        write!(
+        writeln!(
             formatter,
             "    Monitor interval:     {}s",
             self.runtime_status.monitor_interval_secs
+        )?;
+        write!(
+            formatter,
+            "    Heartbeat interval:   {}m",
+            self.runtime_status.heartbeat_interval_minutes
         )
     }
 }
