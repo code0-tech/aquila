@@ -22,6 +22,10 @@ pub struct ActionServiceConfiguration {
     token: String,
     service_name: String,
     config: Vec<ModuleConfigurations>,
+    /// How many `Split`-scaled connections this action identifier is
+    /// expected to run as. Connections in `Disabled` scaling mode ignore
+    /// this and each receive everything, same as if `replicas` were 1.
+    replicas: u32,
 }
 
 #[derive(Clone, Default)]
@@ -68,6 +72,17 @@ impl ServiceConfiguration {
             .iter()
             .find(|x| &x.token == token && &x.service_name == action_name)
             .is_some()
+    }
+
+    /// The configured replica count for a `token`/`action_identifier` pair,
+    /// or `1` if the action isn't registered - a missing action never gets
+    /// this far anyway, since [`Self::has_action`] gates logon first.
+    pub fn action_replicas(&self, token: &String, action_identifier: &String) -> u32 {
+        self.actions
+            .iter()
+            .find(|x| &x.token == token && &x.service_name == action_identifier)
+            .map(|a| a.replicas)
+            .unwrap_or(1)
     }
 
     pub fn get_action_configuration(
@@ -132,9 +147,25 @@ impl ServiceConfiguration {
 
         log::debug!("Successfully loaded action configuration file");
 
-        from_str::<SerializableServiceConfiguration>(&data)
+        let config: ServiceConfiguration = from_str::<SerializableServiceConfiguration>(&data)
             .map(Into::into)
-            .map_err(|error| format!("Couldn't parse service configuration file: {}", error))
+            .map_err(|error| format!("Couldn't parse service configuration file: {}", error))?;
+
+        log::debug!(
+            "Configured services: actions={:?}, runtimes={:?}",
+            config
+                .actions
+                .iter()
+                .map(|a| a.service_name.as_str())
+                .collect::<Vec<_>>(),
+            config
+                .runtimes
+                .iter()
+                .map(|r| r.identifier.as_str())
+                .collect::<Vec<_>>()
+        );
+
+        Ok(config)
     }
 }
 
@@ -154,6 +185,7 @@ mod tests {
                 token: String::from("action-token"),
                 identifier: String::from("action-identifier"),
                 configs: vec![],
+                replicas: 1,
             }],
             runtimes: vec![
                 RuntimeServiceConfiguration {
@@ -221,6 +253,32 @@ mod tests {
     }
 
     #[test]
+    fn action_replicas_reads_the_configured_count_and_defaults_to_one() {
+        let config: ServiceConfiguration = SerializableServiceConfiguration {
+            actions: vec![SerializableActionServiceConfiguration {
+                token: String::from("action-token"),
+                identifier: String::from("action-identifier"),
+                configs: vec![],
+                replicas: 3,
+            }],
+            runtimes: vec![],
+        }
+        .into();
+
+        assert_eq!(
+            config.action_replicas(
+                &String::from("action-token"),
+                &String::from("action-identifier")
+            ),
+            3
+        );
+        assert_eq!(
+            config.action_replicas(&String::from("unknown"), &String::from("unknown")),
+            1
+        );
+    }
+
+    #[test]
     fn has_service_returns_true_for_valid_runtime_or_action_pairings() {
         let config = fixture();
 
@@ -270,6 +328,7 @@ mod tests {
                             value: serde_json::json!("old.example"),
                         }],
                     }],
+                    replicas: 1,
                 },
                 SerializableActionServiceConfiguration {
                     token: String::from("new-token"),
@@ -281,6 +340,7 @@ mod tests {
                             value: serde_json::json!("new.example"),
                         }],
                     }],
+                    replicas: 1,
                 },
             ],
             runtimes: vec![],

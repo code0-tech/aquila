@@ -14,8 +14,10 @@ mod flow_execution_registry;
 mod logon;
 mod nats_bridge;
 mod pending_replies;
+mod shard_registry;
 
 pub use flow_execution_registry::ActionFlowExecutionRegistry;
+pub use shard_registry::{ActionShardRegistry, ShardAssignment};
 
 use std::{pin::Pin, sync::Arc};
 
@@ -64,6 +66,10 @@ pub(super) struct ActionTransferContext {
     /// Correlates action-triggered flow executions with the action stream to
     /// deliver their result to, once a runtime reports it.
     pub(super) flow_execution_registry: ActionFlowExecutionRegistry,
+    /// Tracks which shard index each `Split`-scaled action connection owns,
+    /// so concurrent connections for one identifier partition project-scoped
+    /// updates instead of each receiving everything. See [`shard_registry`].
+    pub(super) shard_registry: ActionShardRegistry,
     /// Whether Aquila is running in static mode, which changes how config updates are sourced.
     pub(super) is_static: bool,
 }
@@ -127,6 +133,7 @@ impl ActionTransferService for AquilaActionTransferServiceServer {
             let mut flow_forwarder_started = false;
             let mut connected_at = None;
             let mut connected_identifier = None;
+            let mut connected_shard: Option<ShardAssignment> = None;
             log::debug!("Action transfer stream started");
 
             while let Some(next) = stream.next().await {
@@ -166,7 +173,7 @@ impl ActionTransferService for AquilaActionTransferServiceServer {
 
                             log::debug!("Received logon for action {}", identifier);
 
-                            let accepted = match handle_logon(
+                            let (accepted, shard) = match handle_logon(
                                 &token,
                                 action_logon,
                                 context.clone(),
@@ -196,6 +203,10 @@ impl ActionTransferService for AquilaActionTransferServiceServer {
                             metrics::action_connection(&identifier, "accepted");
                             metrics::action_active(&identifier, 1);
                             connected_at = Some(std::time::Instant::now());
+                            connected_shard = shard;
+                            if let Some(shard) = shard {
+                                log_unclaimed_shards(&context, &identifier, shard.replicas).await;
+                            }
                             connected_identifier = Some(identifier);
                         }
                         _ => {
@@ -324,11 +335,31 @@ impl ActionTransferService for AquilaActionTransferServiceServer {
                         connected_at.elapsed().as_secs_f64(),
                     );
                 }
+                if let Some(shard) = connected_shard {
+                    context.shard_registry.release(&identifier, shard.index).await;
+                    log_unclaimed_shards(&context, &identifier, shard.replicas).await;
+                }
             }
             log::debug!("Action transfer stream ended");
         }
         .instrument(stream_span));
 
         Ok(tonic::Response::new(Box::pin(ReceiverStream::new(rx))))
+    }
+}
+
+/// Logs every shard index in `0..replicas` for `identifier` with no current
+/// claimant, so an under-scaled or misconfigured deployment (fewer `Split`
+/// connections than the configured `replicas`) is a visible operational
+/// signal instead of a silent gap in project-scoped updates.
+async fn log_unclaimed_shards(context: &ActionTransferContext, identifier: &str, replicas: u32) {
+    let unclaimed = context.shard_registry.unclaimed(identifier, replicas).await;
+    if !unclaimed.is_empty() {
+        log::warn!(
+            "Action has unclaimed shards identifier={} replicas={} unclaimed={:?}",
+            identifier,
+            replicas,
+            unclaimed
+        );
     }
 }

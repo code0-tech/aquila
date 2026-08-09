@@ -3,7 +3,9 @@
 //! up the NATS subscriptions that feed the rest of the stream.
 
 use tonic::Status;
-use tucana::aquila::{ActionFlowUpdate, ActionLogon, ActionTransferResponse};
+use tucana::aquila::{
+    ActionFlowUpdate, ActionLogon, ActionTransferResponse, action_logon::ScalingOption,
+};
 
 use crate::{
     flow::{FlowChange, flow_belongs_to_action, to_action_flow},
@@ -14,6 +16,7 @@ use super::{
     ActionTransferContext,
     nats_bridge::{forward_nats_to_action, get_flows},
     pending_replies::PendingReplyStore,
+    shard_registry::ShardAssignment,
 };
 
 /// Extracts the bearer token from gRPC metadata.
@@ -53,6 +56,34 @@ fn applies_to_action(
     configs.module_identifier == action_identifier
 }
 
+/// Narrows a config update to just the per-project entries `shard` owns, so
+/// a `Split`-scaled connection only ever forwards the slice of projects
+/// assigned to it. `None` (an `Disabled`-scaled connection) passes everything
+/// through unchanged.
+fn narrow_to_shard(
+    configs: tucana::shared::ModuleConfigurations,
+    shard: Option<ShardAssignment>,
+) -> Option<tucana::shared::ModuleConfigurations> {
+    let Some(shard) = shard else {
+        return Some(configs);
+    };
+
+    let module_configurations: Vec<_> = configs
+        .module_configurations
+        .into_iter()
+        .filter(|project_config| shard.owns(project_config.project_id))
+        .collect();
+
+    if module_configurations.is_empty() {
+        return None;
+    }
+
+    Some(tucana::shared::ModuleConfigurations {
+        module_identifier: configs.module_identifier,
+        module_configurations,
+    })
+}
+
 /// Rewrites every definition's `definition_source` on the module an action
 /// logs on with, so downstream consumers can tell it came from this action
 /// rather than from whatever source the action's module definition was
@@ -80,7 +111,9 @@ fn overwrite_module_definition_sources(
     }
 }
 
-/// Validates the logon request, starts NATS + config/flow forwarders, and returns the accepted logon.
+/// Validates the logon request, starts NATS + config/flow forwarders, and
+/// returns the accepted logon along with the shard it was assigned (`None`
+/// for `Disabled`-scaled connections, which receive everything).
 pub(super) async fn handle_logon(
     token: &str,
     mut action_logon: ActionLogon,
@@ -89,7 +122,7 @@ pub(super) async fn handle_logon(
     pending_replies: PendingReplyStore,
     cfg_forwarder_started: &mut bool,
     flow_forwarder_started: &mut bool,
-) -> Result<ActionLogon, Status> {
+) -> Result<(ActionLogon, Option<ShardAssignment>), Status> {
     let module = match action_logon.module.as_mut() {
         Some(m) => m,
         None => {
@@ -111,6 +144,35 @@ pub(super) async fn handle_logon(
             "token not matching to action identifier",
         ));
     }
+
+    let shard = if action_logon.scaling_option == ScalingOption::Split as i32 {
+        let replicas = context.actions.action_replicas(&token.to_string(), &identifier);
+        match context.shard_registry.claim(&identifier, replicas).await {
+            Some(index) => {
+                log::info!(
+                    "Claimed shard for split-scaled action identifier={} shard={}/{}",
+                    identifier,
+                    index,
+                    replicas
+                );
+                Some(ShardAssignment { index, replicas })
+            }
+            None => {
+                metrics::action_connection(&identifier, "rejected");
+                metrics::action_failure(&identifier, "shard_exhausted");
+                log::warn!(
+                    "Rejected action logon identifier={} reason=shard_exhausted replicas={}",
+                    identifier,
+                    replicas
+                );
+                return Err(Status::resource_exhausted(format!(
+                    "all {replicas} configured shards for this action are already claimed"
+                )));
+            }
+        }
+    } else {
+        None
+    };
 
     overwrite_module_definition_sources(module, &identifier);
 
@@ -135,6 +197,7 @@ pub(super) async fn handle_logon(
                 "Sagittarius rejected the action module update",
                 format!("action.identifier={identifier}"),
             );
+            release_shard(&context.shard_registry, &identifier, shard).await;
             return Err(Status::internal(
                 "could not update action module via Sagittarius",
             ));
@@ -158,6 +221,7 @@ pub(super) async fn handle_logon(
                 &err,
                 format!("action.identifier={identifier} subject=action.{identifier}.*"),
             );
+            release_shard(&context.shard_registry, &identifier, shard).await;
             return Err(Status::internal(
                 "could not register action into execution loop",
             ));
@@ -173,6 +237,7 @@ pub(super) async fn handle_logon(
             &err,
             format!("action.identifier={identifier}"),
         );
+        release_shard(&context.shard_registry, &identifier, shard).await;
         return Err(Status::internal(
             "could not register action subscription with NATS",
         ));
@@ -184,7 +249,8 @@ pub(super) async fn handle_logon(
     let pending_replies_clone = pending_replies.clone();
     let forwarder_identifier = identifier.clone();
     tokio::spawn(async move {
-        forward_nats_to_action(forwarder_identifier, sub, tx_clone, pending_replies_clone).await;
+        forward_nats_to_action(forwarder_identifier, sub, tx_clone, pending_replies_clone, shard)
+            .await;
     });
 
     // A logon is only the first message on the stream, but `handle_logon` can't
@@ -197,21 +263,35 @@ pub(super) async fn handle_logon(
             identifier.clone(),
             context.action_config_tx.clone(),
             tx.clone(),
+            shard,
         );
     }
 
     if !*flow_forwarder_started {
         *flow_forwarder_started = true;
-        send_known_flows(&identifier, context.kv.clone(), tx.clone()).await;
+        send_known_flows(&identifier, context.kv.clone(), tx.clone(), shard).await;
         log::debug!("Starting flow forwarder action={}", identifier);
         spawn_flow_forwarder(
             identifier.clone(),
             context.action_flow_tx.clone(),
             tx.clone(),
+            shard,
         );
     }
 
-    Ok(action_logon)
+    Ok((action_logon, shard))
+}
+
+/// Releases a shard claim made earlier in [`handle_logon`], for the error
+/// paths that reject a logon after the claim already succeeded.
+async fn release_shard(
+    shard_registry: &super::ActionShardRegistry,
+    identifier: &str,
+    shard: Option<ShardAssignment>,
+) {
+    if let Some(shard) = shard {
+        shard_registry.release(identifier, shard.index).await;
+    }
 }
 
 /// Sends every flow this action already owns from the flow store, so a
@@ -221,6 +301,7 @@ async fn send_known_flows(
     action_identifier: &str,
     kv: async_nats::jetstream::kv::Store,
     tx: tokio::sync::mpsc::Sender<Result<ActionTransferResponse, tonic::Status>>,
+    shard: Option<ShardAssignment>,
 ) {
     let flows = match get_flows("*.*.*.*".to_string(), kv).await {
         Ok(flows) => flows,
@@ -238,6 +319,10 @@ async fn send_known_flows(
     let mut sent_count = 0;
     for flow in flows.flows {
         if !flow_belongs_to_action(&flow, action_identifier) {
+            continue;
+        }
+
+        if shard.is_some_and(|shard| !shard.owns(flow.project_id)) {
             continue;
         }
 
@@ -273,6 +358,7 @@ pub(super) fn spawn_cfg_forwarder(
     action_identifier: String,
     cfg_tx: tokio::sync::broadcast::Sender<tucana::shared::ModuleConfigurations>,
     tx: tokio::sync::mpsc::Sender<Result<ActionTransferResponse, tonic::Status>>,
+    shard: Option<ShardAssignment>,
 ) {
     let mut cfg_rx = cfg_tx.subscribe();
     tokio::spawn(async move {
@@ -284,6 +370,14 @@ pub(super) fn spawn_cfg_forwarder(
                 );
                 continue;
             }
+
+            let Some(cfgs) = narrow_to_shard(cfgs, shard) else {
+                log::debug!(
+                    "Config update has no projects in shard for action {}",
+                    action_identifier
+                );
+                continue;
+            };
 
             log::debug!("Forwarding config update to action {}", action_identifier);
             let resp = ActionTransferResponse {
@@ -310,6 +404,7 @@ pub(super) fn spawn_flow_forwarder(
     action_identifier: String,
     flow_tx: tokio::sync::broadcast::Sender<FlowChange>,
     tx: tokio::sync::mpsc::Sender<Result<ActionTransferResponse, tonic::Status>>,
+    shard: Option<ShardAssignment>,
 ) {
     let mut flow_rx = flow_tx.subscribe();
     tokio::spawn(async move {
@@ -319,12 +414,18 @@ pub(super) fn spawn_flow_forwarder(
                     if !flow_belongs_to_action(&flow, &action_identifier) {
                         continue;
                     }
+                    if shard.is_some_and(|shard| !shard.owns(flow.project_id)) {
+                        continue;
+                    }
                     tucana::aquila::action_flow_update::Data::UpdatedFlow(to_action_flow(&flow))
                 }
                 FlowChange::Deleted {
                     flow_id,
                     definition_source,
                 } => {
+                    // No project_id travels with a delete, so it can't be
+                    // shard-filtered - forward it to every shard. Deleting a
+                    // flow id a shard never knew about is a harmless no-op.
                     if definition_source != format!("action.{action_identifier}") {
                         continue;
                     }
@@ -371,6 +472,57 @@ mod tests {
 
         assert!(applies_to_action(&configs, "gls-action"));
         assert!(!applies_to_action(&configs, "another-action"));
+    }
+
+    fn module_configurations_for(project_ids: &[i64]) -> tucana::shared::ModuleConfigurations {
+        tucana::shared::ModuleConfigurations {
+            module_identifier: "gls-action".to_string(),
+            module_configurations: project_ids
+                .iter()
+                .map(|&project_id| tucana::shared::ModuleProjectConfigurations {
+                    project_id,
+                    module_configurations: vec![],
+                })
+                .collect(),
+        }
+    }
+
+    #[test]
+    fn narrow_to_shard_passes_everything_through_without_a_shard() {
+        let configs = module_configurations_for(&[1, 2, 3]);
+
+        let narrowed = narrow_to_shard(configs.clone(), None).unwrap();
+
+        assert_eq!(narrowed.module_configurations.len(), 3);
+    }
+
+    #[test]
+    fn narrow_to_shard_keeps_only_owned_projects() {
+        let configs = module_configurations_for(&[1, 2, 3, 4]);
+        let shard = ShardAssignment {
+            index: 0,
+            replicas: 2,
+        };
+
+        let narrowed = narrow_to_shard(configs, Some(shard)).unwrap();
+
+        let project_ids: Vec<_> = narrowed
+            .module_configurations
+            .iter()
+            .map(|pc| pc.project_id)
+            .collect();
+        assert_eq!(project_ids, vec![2, 4]);
+    }
+
+    #[test]
+    fn narrow_to_shard_returns_none_when_shard_owns_nothing_in_the_update() {
+        let configs = module_configurations_for(&[1, 3]);
+        let shard = ShardAssignment {
+            index: 0,
+            replicas: 2,
+        };
+
+        assert!(narrow_to_shard(configs, Some(shard)).is_none());
     }
 
     #[test]

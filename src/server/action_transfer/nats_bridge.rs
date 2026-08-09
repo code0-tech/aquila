@@ -25,6 +25,7 @@ use crate::{
 
 use super::flow_execution_registry::ActionFlowExecutionRegistry;
 use super::pending_replies::{PendingReplyStore, pending_reply_keys};
+use super::shard_registry::ShardAssignment;
 
 /// Wraps the underlying NATS/KV error from a failed flow lookup so callers
 /// get a stable, human-readable message while [`std::error::Error::source`]
@@ -581,6 +582,7 @@ pub(super) async fn forward_nats_to_action(
     mut sub: Subscriber,
     tx: tokio::sync::mpsc::Sender<Result<ActionTransferResponse, tonic::Status>>,
     pending_replies: PendingReplyStore,
+    shard: Option<ShardAssignment>,
 ) {
     log::debug!("Waiting for incoming action execution request");
 
@@ -604,6 +606,19 @@ pub(super) async fn forward_nats_to_action(
                 continue;
             }
         };
+
+        // The NATS subject is a plain fanout subscription shared by every
+        // connection for this identifier, so every shard sees every request -
+        // a `Split`-scaled connection only forwards the ones its shard owns
+        // and silently leaves the rest for whichever connection does.
+        if shard.is_some_and(|shard| !shard.owns(execution.project_id)) {
+            log::debug!(
+                "Execution request outside shard, dropping execution_id={} project_id={}",
+                execution.execution_identifier,
+                execution.project_id
+            );
+            continue;
+        }
 
         let subject_execution_id = subject_execution_identifier(&msg.subject);
         if execution.execution_identifier.is_empty()
