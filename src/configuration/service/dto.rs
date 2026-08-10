@@ -32,6 +32,15 @@ pub(super) struct SerializableActionServiceConfiguration {
     pub(super) identifier: String,
     #[serde(default)]
     pub(super) configs: Vec<SerializableModuleProjectConfiguration>,
+    /// How many `Split`-scaled connections this action identifier is expected
+    /// to run as; see [`super::ActionServiceConfiguration`]. Defaults to `1`
+    /// (a single connection receiving everything, same as `Disabled` scaling).
+    #[serde(default = "default_replicas")]
+    pub(super) replicas: u32,
+}
+
+fn default_replicas() -> u32 {
+    1
 }
 
 #[derive(Serialize, Deserialize, Clone, Default)]
@@ -81,6 +90,7 @@ impl From<SerializableActionServiceConfiguration> for ActionServiceConfiguration
                 module_identifier,
                 module_configurations: value.configs.into_iter().map(Into::into).collect(),
             }],
+            replicas: value.replicas.max(1),
         }
     }
 }

@@ -6,7 +6,8 @@ use crate::{
     configuration::{config::Config, service::ServiceConfiguration, state::AppReadiness},
     server::{
         action_transfer::{
-            ActionFlowExecutionRegistry, ActionTransferContext, AquilaActionTransferServiceServer,
+            ActionFlowExecutionRegistry, ActionShardRegistry, ActionTransferContext,
+            AquilaActionTransferServiceServer,
         },
         create_readiness_interceptor,
     },
@@ -73,6 +74,7 @@ impl AquilaStaticServer {
                 // to, so an action-triggered flow execution can never resolve here -
                 // this registry only exists to satisfy the shared context shape.
                 flow_execution_registry: ActionFlowExecutionRegistry::new(),
+                shard_registry: ActionShardRegistry::new(),
                 is_static: true,
             });
 

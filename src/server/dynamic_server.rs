@@ -11,7 +11,8 @@ use crate::{
     },
     server::{
         action_transfer::{
-            ActionFlowExecutionRegistry, ActionTransferContext, AquilaActionTransferServiceServer,
+            ActionFlowExecutionRegistry, ActionShardRegistry, ActionTransferContext,
+            AquilaActionTransferServiceServer,
         },
         create_readiness_interceptor,
         module_service_server_impl::AquilaModuleServiceServer,
@@ -149,6 +150,7 @@ impl AquilaDynamicServer {
                 action_config_tx: self.action_config_tx.clone(),
                 action_flow_tx: self.action_flow_tx.clone(),
                 flow_execution_registry: self.flow_execution_registry.clone(),
+                shard_registry: ActionShardRegistry::new(),
                 is_static: false,
             });
 
