@@ -17,7 +17,6 @@ struct Metrics {
     action_connections: Counter<u64>,
     active_actions: UpDownCounter<i64>,
     action_connection_duration: Histogram<f64>,
-    action_events: Counter<u64>,
     action_executions: Counter<u64>,
     action_execution_duration: Histogram<f64>,
     action_results: Counter<u64>,
@@ -39,7 +38,6 @@ pub fn initialize() {
             .f64_histogram("aquila.action.connection.duration")
             .with_unit("s")
             .build(),
-        action_events: meter.u64_counter("aquila.action.events").build(),
         action_executions: meter.u64_counter("aquila.action.executions").build(),
         action_execution_duration: meter
             .f64_histogram("aquila.action.execution.duration")
@@ -94,12 +92,6 @@ pub fn action_connection_duration(identifier: &str, seconds: f64) {
         metrics
             .action_connection_duration
             .record(seconds, &action_attributes(identifier));
-    }
-}
-
-pub fn action_event(identifier: &str) {
-    if let Some(metrics) = METRICS.get() {
-        metrics.action_events.add(1, &action_attributes(identifier));
     }
 }
 

@@ -7,14 +7,12 @@ use futures::StreamExt;
 use prost::Message;
 use tucana::{
     aquila::{
-        ActionEvent, ActionExecutionRequest, ActionExecutionResponse, ActionFlowExecutionRequest,
+        ActionExecutionRequest, ActionExecutionResponse, ActionFlowExecutionRequest,
         ActionFlowExecutionResponse, ActionSubFlowExecutionRequest, ActionSubFlowExecutionResponse,
         ActionTransferResponse, action_flow_execution_response, action_sub_flow_execution_response,
         action_transfer_response,
     },
-    shared::{
-        Error, ExecutionFlow, ExecutionResult, Flows, ValidationFlow, Value, execution_result,
-    },
+    shared::{Error, ExecutionFlow, ExecutionResult, Flows, ValidationFlow, execution_result},
 };
 
 use crate::{
@@ -125,18 +123,6 @@ fn is_matching_key(pattern: &String, key: &String) -> bool {
     true
 }
 
-/// Turns a stored, pre-validated flow into the executable form sent to a
-/// runtime, binding the triggering event's payload as its input value.
-fn convert_validation_flow(flow: ValidationFlow, input_value: Option<Value>) -> ExecutionFlow {
-    ExecutionFlow {
-        flow_id: flow.flow_id,
-        starting_node_id: flow.starting_node_id,
-        input_value,
-        node_functions: flow.node_functions,
-        project_id: flow.project_id,
-    }
-}
-
 /// Recovers the execution id from a NATS subject of the form
 /// `action.<identifier>.<execution_id>`, used as a fallback when the
 /// execution request's own payload doesn't carry one.
@@ -171,77 +157,6 @@ pub(super) async fn send_stream_error(
 ) {
     if tx.send(Err(status)).await.is_err() {
         log::debug!("Action transfer response stream closed before error could be sent");
-    }
-}
-
-/// Looks up matching flows for an event and requests their execution.
-///
-/// Each match is dispatched as an independent NATS request-reply exchange on
-/// its own `execution.<uuid>` subject, so one flow failing to find a runtime
-/// doesn't block the others, and a runtime's response arrives correlated to
-/// exactly the flow that triggered it.
-pub(super) async fn handle_event(
-    action_identifier: &str,
-    event: ActionEvent,
-    kv: async_nats::jetstream::kv::Store,
-    client: async_nats::Client,
-) {
-    let pattern = format!("{}.*.{}.*", event.event_type, event.project_id);
-    log::debug!(
-        "Handling action event event_type={} project_id={}",
-        event.event_type,
-        event.project_id
-    );
-
-    let flows = match get_flows(pattern.clone(), kv).await {
-        Ok(f) => f,
-        Err(err) => {
-            errors::record(
-                "flow_storage",
-                "action.event.find_flows",
-                &err,
-                format!(
-                    "action.identifier={} event_type={} project_id={} pattern={}",
-                    action_identifier, event.event_type, event.project_id, pattern
-                ),
-            );
-            return;
-        }
-    };
-
-    let matched_count = flows.flows.len();
-    log::info!(
-        "Matched flows for action event event_type={} project_id={} flow_count={}",
-        event.event_type,
-        event.project_id,
-        matched_count
-    );
-    for flow in flows.flows {
-        let uuid = uuid::Uuid::new_v4().to_string();
-        let flow_id = flow.flow_id;
-        let execution_flow: ExecutionFlow = convert_validation_flow(flow, event.payload.clone());
-        let bytes = execution_flow.encode_to_vec();
-        let topic = format!("execution.{}", uuid);
-
-        log::info!(
-            "Requesting execution flow_id={} execution_id={} event_type={} project_id={}",
-            flow_id,
-            uuid,
-            event.event_type,
-            event.project_id
-        );
-
-        if let Err(err) = client.request(topic.clone(), bytes.into()).await {
-            errors::record(
-                "messaging",
-                "action.event.request_execution",
-                &err,
-                format!(
-                    "action.identifier={} flow_id={} execution_id={} topic={}",
-                    action_identifier, flow_id, uuid, topic
-                ),
-            );
-        }
     }
 }
 
@@ -397,6 +312,7 @@ pub(super) async fn handle_sub_flow_execution(
     tx: tokio::sync::mpsc::Sender<Result<ActionTransferResponse, tonic::Status>>,
 ) {
     let execution_id = request.execution_identifier.clone();
+    let correlation_id = request.correlation_identifier.clone();
     let topic = format!("sub_flow_execution.{}", execution_id);
     let bytes = request.encode_to_vec();
 
@@ -422,6 +338,7 @@ pub(super) async fn handle_sub_flow_execution(
             send_sub_flow_execution_failure(
                 &tx,
                 execution_id,
+                correlation_id,
                 "failed to dispatch sub flow execution".to_string(),
             )
             .await;
@@ -444,6 +361,7 @@ pub(super) async fn handle_sub_flow_execution(
             send_sub_flow_execution_failure(
                 &tx,
                 execution_id,
+                correlation_id,
                 "failed to decode sub flow execution result".to_string(),
             )
             .await;
@@ -465,6 +383,7 @@ pub(super) async fn handle_sub_flow_execution(
         data: Some(action_transfer_response::Data::SubFlowExecutionResponse(
             ActionSubFlowExecutionResponse {
                 execution_identifier: execution_id,
+                correlation_identifier: correlation_id,
                 result,
             },
         )),
@@ -482,12 +401,14 @@ pub(super) async fn handle_sub_flow_execution(
 async fn send_sub_flow_execution_failure(
     tx: &tokio::sync::mpsc::Sender<Result<ActionTransferResponse, tonic::Status>>,
     execution_identifier: String,
+    correlation_identifier: String,
     message: String,
 ) {
     let resp = ActionTransferResponse {
         data: Some(action_transfer_response::Data::SubFlowExecutionResponse(
             ActionSubFlowExecutionResponse {
                 execution_identifier,
+                correlation_identifier,
                 result: Some(action_sub_flow_execution_response::Result::Failure(Error {
                     code: "A-SUB-FLOW-EXECUTION-000001".to_string(),
                     category: "Unavailable".to_string(),

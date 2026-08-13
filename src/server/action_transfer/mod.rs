@@ -38,10 +38,7 @@ use crate::{
 };
 
 use logon::{extract_token, handle_logon};
-use nats_bridge::{
-    handle_event, handle_flow_execution, handle_result, handle_sub_flow_execution,
-    send_stream_error,
-};
+use nats_bridge::{handle_flow_execution, handle_result, handle_sub_flow_execution, send_stream_error};
 use pending_replies::PendingReplyStore;
 
 /// Every dependency an action's connection needs, bundled into one
@@ -263,17 +260,6 @@ impl ActionTransferService for AquilaActionTransferServiceServer {
                         )
                         .await;
                         break;
-                    }
-                    tucana::aquila::action_transfer_request::Data::Event(event) => {
-                        log::debug!("Received event action={}", identifier);
-                        metrics::action_event(&identifier);
-                        handle_event(
-                            &identifier,
-                            event,
-                            context.kv.clone(),
-                            context.client.clone(),
-                        )
-                        .await;
                     }
                     tucana::aquila::action_transfer_request::Data::Result(execution_result) => {
                         log::debug!(
