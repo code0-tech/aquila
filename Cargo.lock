@@ -1329,13 +1329,13 @@ checksum = "0ceec5bc11778974d1bcb055b18002eba7f4b3518b6a0081b3af5f21666da9ad"
 
 [[package]]
 name = "lupus"
-version = "0.0.2"
+version = "0.0.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c732858255ef8034638b39667f7372f129f58ee76f34dd4c862acf71b1d67709"
+checksum = "5d89b00d79184ae937ba982f41371629cb9816bad44881c02f8bd32c97d7f0e8"
 dependencies = [
  "jsonschema",
  "serde_json",
- "tucana 0.0.75",
+ "tucana 0.0.80",
 ]
 
 [[package]]
@@ -3012,9 +3012,9 @@ dependencies = [
 
 [[package]]
 name = "tucana"
-version = "0.0.75"
+version = "0.0.80"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b6a58d33f2013edc52c4d782b3bdcdccff2b6b7f2233b91fc833e2f69df2277b"
+checksum = "c0cfe93386a4f88e5ea97e6ce64b72b975a8bb5464062cb66aad12e46544b959"
 dependencies = [
  "pbjson",
  "pbjson-build",
