@@ -12,7 +12,7 @@ tracing = { version = "0.1.41", features = ["log"] }
 prost = "0.14.1"
 tonic = "0.14.1"
 tucana = { version = "0.0.81", features = ["aquila", "sagittarius_gateway"] }
-code0-flow = { version = "0.0.43", features = ["flow_config", "flow_health", "flow_telemetry"] }
+code0-flow = { version = "0.0.44", features = ["flow_config", "flow_health", "flow_telemetry"] }
 serde_json = "1.0.140"
 lupus = "0.0.2"
 async-nats = "0.50.0"
