@@ -42,6 +42,7 @@ pub fn to_action_flow(flow: &ValidationFlow) -> ActionFlow {
         output_schema: flow.output_schema.clone(),
         project_slug: flow.project_slug.clone(),
         name: flow.name.clone(),
+        r#type: flow.r#type.clone(),
     }
 }
 
