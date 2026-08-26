@@ -2,10 +2,13 @@
 //! the token, registering the action's module with Sagittarius, and wiring
 //! up the NATS subscriptions that feed the rest of the stream.
 
+use futures::TryStreamExt;
+use prost::Message;
 use tonic::Status;
 use tucana::aquila::{
     ActionFlowUpdate, ActionLogon, ActionTransferResponse, action_logon::ScalingOption,
 };
+use tucana::shared::ValidationFlow;
 
 use crate::{
     flow::{FlowChange, flow_belongs_to_action, to_action_flow},
@@ -13,9 +16,7 @@ use crate::{
 };
 
 use super::{
-    ActionTransferContext,
-    nats_bridge::{forward_nats_to_action, get_flows},
-    pending_replies::PendingReplyStore,
+    ActionTransferContext, nats_bridge::forward_nats_to_action, pending_replies::PendingReplyStore,
     shard_registry::ShardAssignment,
 };
 
@@ -303,8 +304,9 @@ async fn send_known_flows(
     tx: tokio::sync::mpsc::Sender<Result<ActionTransferResponse, tonic::Status>>,
     shard: Option<ShardAssignment>,
 ) {
-    let flows = match get_flows("*.*.*.*".to_string(), kv).await {
-        Ok(flows) => flows,
+    let subject_filter = format!("{}>", kv.prefix);
+    let mut subjects = match kv.stream.info_with_subjects(subject_filter).await {
+        Ok(subjects) => subjects,
         Err(err) => {
             errors::record(
                 "flow_storage",
@@ -317,7 +319,58 @@ async fn send_known_flows(
     };
 
     let mut sent_count = 0;
-    for flow in flows.flows {
+    loop {
+        let subject = match subjects.try_next().await {
+            Ok(Some((subject, _message_count))) => subject,
+            Ok(None) => break,
+            Err(err) => {
+                errors::record(
+                    "flow_storage",
+                    "action.logon.known_flows",
+                    &err,
+                    format!("action.identifier={action_identifier}"),
+                );
+                return;
+            }
+        };
+
+        let Some(key) = subject.strip_prefix(&kv.prefix) else {
+            log::warn!(
+                "Ignoring flow stream subject without expected KV prefix subject={} prefix={}",
+                subject,
+                kv.prefix
+            );
+            continue;
+        };
+
+        let flow = match kv.get(key).await {
+            Ok(Some(bytes)) => match ValidationFlow::decode(bytes) {
+                Ok(flow) => flow,
+                Err(err) => {
+                    errors::record(
+                        "flow_storage",
+                        "flow.decode",
+                        &err,
+                        format!("flow.key={key}"),
+                    );
+                    continue;
+                }
+            },
+            Ok(None) => {
+                log::debug!("Skipping deleted or purged flow key={}", key);
+                continue;
+            }
+            Err(err) => {
+                errors::record(
+                    "flow_storage",
+                    "flow.fetch",
+                    &err,
+                    format!("flow.key={key}"),
+                );
+                continue;
+            }
+        };
+
         if !flow_belongs_to_action(&flow, action_identifier) {
             continue;
         }

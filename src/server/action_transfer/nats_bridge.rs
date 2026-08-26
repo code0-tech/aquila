@@ -1,6 +1,6 @@
 //! Bridges NATS execution requests/results to and from a connected action's
-//! gRPC stream: looks up matching flows for incoming events, forwards
-//! execution requests to the action, and publishes results back to NATS.
+//! gRPC stream: loads flows requested by id, forwards execution requests to
+//! the action, and publishes results back to NATS.
 
 use async_nats::{Subject, Subscriber};
 use futures::StreamExt;
@@ -12,7 +12,7 @@ use tucana::{
         ActionTransferResponse, action_flow_execution_response, action_sub_flow_execution_response,
         action_transfer_response,
     },
-    shared::{Error, ExecutionFlow, ExecutionResult, Flows, ValidationFlow, execution_result},
+    shared::{Error, ExecutionFlow, ExecutionResult, execution_result},
 };
 
 use crate::{
@@ -24,104 +24,6 @@ use crate::{
 use super::flow_execution_registry::ActionFlowExecutionRegistry;
 use super::pending_replies::{PendingReplyStore, pending_reply_keys};
 use super::shard_registry::ShardAssignment;
-
-/// Wraps the underlying NATS/KV error from a failed flow lookup so callers
-/// get a stable, human-readable message while [`std::error::Error::source`]
-/// still exposes the original cause for logging.
-#[derive(Debug)]
-pub(super) struct FlowIdentificationError {
-    source: Box<dyn std::error::Error + Send + Sync>,
-}
-
-impl std::fmt::Display for FlowIdentificationError {
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        formatter.write_str("failed to identify flows")
-    }
-}
-
-impl std::error::Error for FlowIdentificationError {
-    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
-        Some(self.source.as_ref())
-    }
-}
-
-/// Scans the flow KV bucket for every entry whose key matches `pattern`,
-/// decoding each match. There is no secondary index for flows, so a full key
-/// scan is the only lookup path available.
-pub(super) async fn get_flows(
-    pattern: String,
-    kv: async_nats::jetstream::kv::Store,
-) -> Result<Flows, FlowIdentificationError> {
-    log::debug!("Scanning flows with pattern: {}", pattern);
-    let mut collector = Vec::new();
-    let mut keys = match kv.keys().await {
-        Ok(keys) => keys.boxed(),
-        Err(err) => {
-            return Err(FlowIdentificationError {
-                source: Box::new(err),
-            });
-        }
-    };
-
-    while let Ok(Some(key)) = tokio_stream::StreamExt::try_next(&mut keys).await {
-        if !is_matching_key(&pattern, &key) {
-            continue;
-        }
-
-        match kv.get(key.clone()).await {
-            Ok(Some(bytes)) => {
-                let decoded_flow = ValidationFlow::decode(bytes);
-                match decoded_flow {
-                    Ok(flow) => collector.push(flow),
-                    Err(err) => {
-                        errors::record(
-                            "flow_storage",
-                            "flow.decode",
-                            &err,
-                            format!("flow.key={key}"),
-                        );
-                    }
-                }
-            }
-            Ok(None) => {
-                log::debug!("Flow key disappeared while reading: {}", key);
-            }
-            Err(err) => {
-                errors::record(
-                    "flow_storage",
-                    "flow.fetch",
-                    &err,
-                    format!("flow.key={key}"),
-                );
-            }
-        }
-    }
-
-    log::debug!("Matched {} flows for pattern {}", collector.len(), pattern);
-    Ok(Flows { flows: collector })
-}
-
-/// Matches a dot-separated KV key against a dot-separated pattern where `*`
-/// matches any single segment. A pattern shorter than the key still counts
-/// as a match on its own segments (the key's trailing segments are ignored).
-fn is_matching_key(pattern: &String, key: &String) -> bool {
-    let split_pattern = pattern.split(".");
-    let split_key = key.split(".").collect::<Vec<&str>>();
-    let zip = split_pattern.into_iter().zip(split_key);
-
-    for (pattern_part, key_part) in zip {
-        if pattern_part == "*" {
-            continue;
-        }
-
-        if pattern_part != key_part {
-            log::debug!("Key {} does not match pattern {}", key, pattern);
-            return false;
-        }
-    }
-
-    true
-}
 
 /// Recovers the execution id from a NATS subject of the form
 /// `action.<identifier>.<execution_id>`, used as a fallback when the
@@ -480,16 +382,6 @@ pub(super) async fn handle_result(
             ),
         );
         return;
-    }
-
-    if let Err(err) = client.flush().await {
-        metrics::action_failure(action_identifier, "result_flush");
-        errors::record(
-            "messaging",
-            "action.result.flush",
-            &err,
-            format!("action.identifier={action_identifier} execution_id={execution_id}"),
-        );
     }
 }
 
