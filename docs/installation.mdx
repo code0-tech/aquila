@@ -101,6 +101,7 @@ provide a more specific runtime filter, for example `RUST_LOG=aquila::server=tra
 | `grpc.host` | Aquila gRPC bind host. |
 | `grpc.port` | Aquila gRPC bind port. |
 | `grpc.health_service` | Enables the gRPC health service. |
+| `grpc.action_transfer_concurrency_limit` | Maximum concurrent post-logon handlers per action stream (default: `256`). |
 | `runtime_status.not_responding_after_secs` | Heartbeat timeout before `not_responding`. |
 | `runtime_status.stopped_after_not_responding_secs` | Additional timeout before `stopped`. |
 | `runtime_status.monitor_interval_secs` | Heartbeat monitor interval. |
