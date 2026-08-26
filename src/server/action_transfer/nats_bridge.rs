@@ -12,7 +12,7 @@ use tucana::{
         ActionTransferResponse, action_flow_execution_response, action_sub_flow_execution_response,
         action_transfer_response,
     },
-    shared::{Error, ExecutionFlow, ExecutionResult, Flows, ValidationFlow, execution_result},
+    shared::{Error, ExecutionFlow, ExecutionResult, execution_result},
 };
 
 use crate::{
@@ -24,75 +24,6 @@ use crate::{
 use super::flow_execution_registry::ActionFlowExecutionRegistry;
 use super::pending_replies::{PendingReplyStore, pending_reply_keys};
 use super::shard_registry::ShardAssignment;
-
-/// Wraps the underlying NATS/KV error from a failed flow lookup so callers
-/// get a stable, human-readable message while [`std::error::Error::source`]
-/// still exposes the original cause for logging.
-#[derive(Debug)]
-pub(super) struct FlowIdentificationError {
-    source: Box<dyn std::error::Error + Send + Sync>,
-}
-
-impl std::fmt::Display for FlowIdentificationError {
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        formatter.write_str("failed to identify flows")
-    }
-}
-
-impl std::error::Error for FlowIdentificationError {
-    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
-        Some(self.source.as_ref())
-    }
-}
-
-/// Loads every flow in the KV bucket for the infrequent action-logon sync.
-pub(super) async fn get_flows(
-    kv: async_nats::jetstream::kv::Store,
-) -> Result<Flows, FlowIdentificationError> {
-    log::debug!("Loading all stored flows");
-    let mut collector = Vec::new();
-    let mut keys = match kv.keys().await {
-        Ok(keys) => keys.boxed(),
-        Err(err) => {
-            return Err(FlowIdentificationError {
-                source: Box::new(err),
-            });
-        }
-    };
-
-    while let Ok(Some(key)) = tokio_stream::StreamExt::try_next(&mut keys).await {
-        match kv.get(key.clone()).await {
-            Ok(Some(bytes)) => {
-                let decoded_flow = ValidationFlow::decode(bytes);
-                match decoded_flow {
-                    Ok(flow) => collector.push(flow),
-                    Err(err) => {
-                        errors::record(
-                            "flow_storage",
-                            "flow.decode",
-                            &err,
-                            format!("flow.key={key}"),
-                        );
-                    }
-                }
-            }
-            Ok(None) => {
-                log::debug!("Flow key disappeared while reading: {}", key);
-            }
-            Err(err) => {
-                errors::record(
-                    "flow_storage",
-                    "flow.fetch",
-                    &err,
-                    format!("flow.key={key}"),
-                );
-            }
-        }
-    }
-
-    log::debug!("Loaded {} stored flows", collector.len());
-    Ok(Flows { flows: collector })
-}
 
 /// Recovers the execution id from a NATS subject of the form
 /// `action.<identifier>.<execution_id>`, used as a fallback when the
