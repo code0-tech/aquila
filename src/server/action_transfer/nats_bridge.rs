@@ -383,16 +383,6 @@ pub(super) async fn handle_result(
         );
         return;
     }
-
-    if let Err(err) = client.flush().await {
-        metrics::action_failure(action_identifier, "result_flush");
-        errors::record(
-            "messaging",
-            "action.result.flush",
-            &err,
-            format!("action.identifier={action_identifier} execution_id={execution_id}"),
-        );
-    }
 }
 
 /// Forwards NATS execution requests to the connected action via gRPC and stores reply subjects.
