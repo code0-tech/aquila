@@ -19,11 +19,14 @@ mod shard_registry;
 pub use flow_execution_registry::ActionFlowExecutionRegistry;
 pub use shard_registry::{ActionShardRegistry, ShardAssignment};
 
-use std::{pin::Pin, sync::Arc};
+use std::{future::Future, pin::Pin, sync::Arc};
 
 use futures::StreamExt;
 use futures_core::Stream;
-use tokio::sync::Mutex;
+use tokio::{
+    sync::{Mutex, Semaphore},
+    task::JoinSet,
+};
 use tokio_stream::wrappers::ReceiverStream;
 use tonic::Status;
 use tracing::Instrument;
@@ -38,7 +41,9 @@ use crate::{
 };
 
 use logon::{extract_token, handle_logon};
-use nats_bridge::{handle_flow_execution, handle_result, handle_sub_flow_execution, send_stream_error};
+use nats_bridge::{
+    handle_flow_execution, handle_result, handle_sub_flow_execution, send_stream_error,
+};
 use pending_replies::PendingReplyStore;
 
 /// Every dependency an action's connection needs, bundled into one
@@ -69,6 +74,68 @@ pub(super) struct ActionTransferContext {
     pub(super) shard_registry: ActionShardRegistry,
     /// Whether Aquila is running in static mode, which changes how config updates are sourced.
     pub(super) is_static: bool,
+    /// Per-connection limit for post-logon message handlers. Parsing stays on
+    /// the stream task; handler work runs in this bounded task set.
+    pub(super) concurrency_limit: usize,
+}
+
+/// Owns every post-logon handler spawned for one action stream.
+///
+/// Permits are acquired inside the spawned tasks so a slow handler never
+/// prevents the stream task from parsing later messages or noticing EOF. The
+/// join set gives the connection a single place to reap completed work and to
+/// cancel everything that is still running when the stream closes.
+struct PostLogonTaskSet {
+    semaphore: Arc<Semaphore>,
+    tasks: JoinSet<()>,
+}
+
+impl PostLogonTaskSet {
+    fn new(concurrency_limit: usize) -> Self {
+        assert!(
+            concurrency_limit > 0,
+            "grpc.action_transfer_concurrency_limit must be at least 1"
+        );
+
+        Self {
+            semaphore: Arc::new(Semaphore::new(concurrency_limit)),
+            tasks: JoinSet::new(),
+        }
+    }
+
+    fn spawn<F>(&mut self, future: F)
+    where
+        F: Future<Output = ()> + Send + 'static,
+    {
+        self.reap_finished();
+
+        let semaphore = self.semaphore.clone();
+        self.tasks.spawn(async move {
+            let Ok(_permit) = semaphore.acquire_owned().await else {
+                return;
+            };
+            future.await;
+        });
+    }
+
+    fn reap_finished(&mut self) {
+        while let Some(result) = self.tasks.try_join_next() {
+            if let Err(error) = result {
+                log::warn!("Action transfer message handler failed: {error}");
+            }
+        }
+    }
+
+    async fn shutdown(&mut self) {
+        self.tasks.abort_all();
+        while let Some(result) = self.tasks.join_next().await {
+            if let Err(error) = result
+                && !error.is_cancelled()
+            {
+                log::warn!("Action transfer message handler failed during shutdown: {error}");
+            }
+        }
+    }
 }
 
 /// Implements the `ActionTransfer` gRPC service that a connected action
@@ -126,6 +193,7 @@ impl ActionTransferService for AquilaActionTransferServiceServer {
             action.identifier = tracing::field::Empty
         );
         tokio::spawn(async move {
+            let mut post_logon_tasks = PostLogonTaskSet::new(context.concurrency_limit);
             let mut cfg_forwarder_started = false;
             let mut flow_forwarder_started = false;
             let mut connected_at = None;
@@ -268,13 +336,17 @@ impl ActionTransferService for AquilaActionTransferServiceServer {
                             identifier
                         );
 
-                        handle_result(
-                            &identifier,
-                            execution_result,
-                            context.client.clone(),
-                            pending_replies.clone(),
-                        )
-                        .await;
+                        let client = context.client.clone();
+                        let pending_replies = pending_replies.clone();
+                        post_logon_tasks.spawn(async move {
+                            handle_result(
+                                &identifier,
+                                execution_result,
+                                client,
+                                pending_replies,
+                            )
+                            .await;
+                        });
                     }
                     tucana::aquila::action_transfer_request::Data::SubFlowExecution(request) => {
                         log::debug!(
@@ -283,13 +355,11 @@ impl ActionTransferService for AquilaActionTransferServiceServer {
                             request.execution_identifier
                         );
 
-                        handle_sub_flow_execution(
-                            &identifier,
-                            request,
-                            context.client.clone(),
-                            tx.clone(),
-                        )
-                        .await;
+                        let client = context.client.clone();
+                        let tx = tx.clone();
+                        post_logon_tasks.spawn(async move {
+                            handle_sub_flow_execution(&identifier, request, client, tx).await;
+                        });
                     }
                     tucana::aquila::action_transfer_request::Data::FlowExecution(request) => {
                         log::debug!(
@@ -299,18 +369,29 @@ impl ActionTransferService for AquilaActionTransferServiceServer {
                             request.flow_id
                         );
 
-                        handle_flow_execution(
-                            &identifier,
-                            request,
-                            context.kv.clone(),
-                            context.client.clone(),
-                            context.flow_execution_registry.clone(),
-                            tx.clone(),
-                        )
-                        .await;
+                        let kv = context.kv.clone();
+                        let client = context.client.clone();
+                        let registry = context.flow_execution_registry.clone();
+                        let tx = tx.clone();
+                        post_logon_tasks.spawn(async move {
+                            handle_flow_execution(
+                                &identifier,
+                                request,
+                                kv,
+                                client,
+                                registry,
+                                tx,
+                            )
+                            .await;
+                        });
                     }
                 }
             }
+
+            // Handler futures may be blocked on NATS or waiting for a permit.
+            // Once the stream is gone none can produce a useful response, so
+            // cancel and join them before releasing per-connection state.
+            post_logon_tasks.shutdown().await;
 
             if let Some(identifier) = connected_identifier {
                 metrics::action_active(&identifier, -1);
@@ -347,5 +428,159 @@ async fn log_unclaimed_shards(context: &ActionTransferContext, identifier: &str,
             replicas,
             unclaimed
         );
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::sync::{
+        Arc,
+        atomic::{AtomicUsize, Ordering},
+    };
+
+    use tokio::sync::{Notify, Semaphore, mpsc};
+
+    use super::PostLogonTaskSet;
+
+    #[tokio::test]
+    async fn parallel_flow_starts_are_not_serialized() {
+        let mut tasks = PostLogonTaskSet::new(2);
+        let (started_tx, mut started_rx) = mpsc::unbounded_channel();
+        let release = Arc::new(Semaphore::new(0));
+
+        for execution_id in ["flow-1", "flow-2"] {
+            let started_tx = started_tx.clone();
+            let release = release.clone();
+            tasks.spawn(async move {
+                started_tx.send(execution_id).unwrap();
+                let _permit = release.acquire().await.unwrap();
+            });
+        }
+
+        let first = tokio::time::timeout(std::time::Duration::from_secs(1), started_rx.recv())
+            .await
+            .expect("first flow should start")
+            .unwrap();
+        let second = tokio::time::timeout(std::time::Duration::from_secs(1), started_rx.recv())
+            .await
+            .expect("second flow should start while the first is running")
+            .unwrap();
+
+        assert_ne!(first, second);
+        release.add_permits(2);
+        tasks.shutdown().await;
+    }
+
+    #[tokio::test]
+    async fn slow_subflow_does_not_block_an_unrelated_flow() {
+        let mut tasks = PostLogonTaskSet::new(2);
+        let slow_subflow = Arc::new(Notify::new());
+        let (subflow_started_tx, subflow_started_rx) = tokio::sync::oneshot::channel();
+        let (flow_started_tx, flow_started_rx) = tokio::sync::oneshot::channel();
+
+        let slow_subflow_task = slow_subflow.clone();
+        tasks.spawn(async move {
+            subflow_started_tx.send(()).unwrap();
+            slow_subflow_task.notified().await;
+        });
+        subflow_started_rx.await.unwrap();
+
+        tasks.spawn(async move {
+            flow_started_tx.send(()).unwrap();
+        });
+
+        tokio::time::timeout(std::time::Duration::from_secs(1), flow_started_rx)
+            .await
+            .expect("flow should start while the subflow is still waiting")
+            .unwrap();
+
+        slow_subflow.notify_one();
+        tasks.shutdown().await;
+    }
+
+    #[tokio::test]
+    async fn configured_concurrency_limit_is_never_exceeded() {
+        const LIMIT: usize = 3;
+        const TASK_COUNT: usize = 12;
+
+        let mut tasks = PostLogonTaskSet::new(LIMIT);
+        let active = Arc::new(AtomicUsize::new(0));
+        let maximum = Arc::new(AtomicUsize::new(0));
+        let release = Arc::new(Semaphore::new(0));
+        let (started_tx, mut started_rx) = mpsc::unbounded_channel();
+        let (finished_tx, mut finished_rx) = mpsc::unbounded_channel();
+
+        for _ in 0..TASK_COUNT {
+            let active = active.clone();
+            let maximum = maximum.clone();
+            let release = release.clone();
+            let started_tx = started_tx.clone();
+            let finished_tx = finished_tx.clone();
+            tasks.spawn(async move {
+                let now_active = active.fetch_add(1, Ordering::SeqCst) + 1;
+                maximum.fetch_max(now_active, Ordering::SeqCst);
+                started_tx.send(()).unwrap();
+
+                let _release = release.acquire().await.unwrap();
+                active.fetch_sub(1, Ordering::SeqCst);
+                finished_tx.send(()).unwrap();
+            });
+        }
+
+        for _ in 0..LIMIT {
+            tokio::time::timeout(std::time::Duration::from_secs(1), started_rx.recv())
+                .await
+                .expect("task up to the limit should start")
+                .unwrap();
+        }
+        assert!(
+            tokio::time::timeout(std::time::Duration::from_millis(50), started_rx.recv())
+                .await
+                .is_err(),
+            "a task beyond the limit started before a permit was released"
+        );
+
+        release.add_permits(TASK_COUNT);
+        for _ in 0..TASK_COUNT {
+            tokio::time::timeout(std::time::Duration::from_secs(1), finished_rx.recv())
+                .await
+                .expect("all tasks should finish")
+                .unwrap();
+        }
+
+        assert_eq!(maximum.load(Ordering::SeqCst), LIMIT);
+        tasks.shutdown().await;
+    }
+
+    #[tokio::test]
+    async fn stream_shutdown_cancels_outstanding_tasks() {
+        struct NotifyOnDrop(Option<tokio::sync::oneshot::Sender<()>>);
+
+        impl Drop for NotifyOnDrop {
+            fn drop(&mut self) {
+                if let Some(tx) = self.0.take() {
+                    let _ = tx.send(());
+                }
+            }
+        }
+
+        let mut tasks = PostLogonTaskSet::new(1);
+        let (started_tx, started_rx) = tokio::sync::oneshot::channel();
+        let (dropped_tx, dropped_rx) = tokio::sync::oneshot::channel();
+
+        tasks.spawn(async move {
+            let _drop_notification = NotifyOnDrop(Some(dropped_tx));
+            started_tx.send(()).unwrap();
+            std::future::pending::<()>().await;
+        });
+        started_rx.await.unwrap();
+
+        tasks.shutdown().await;
+
+        tokio::time::timeout(std::time::Duration::from_secs(1), dropped_rx)
+            .await
+            .expect("shutdown should drop the outstanding handler future")
+            .unwrap();
+        assert!(tasks.tasks.is_empty());
     }
 }
