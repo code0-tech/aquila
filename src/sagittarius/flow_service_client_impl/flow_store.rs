@@ -2,7 +2,6 @@
 //! Sagittarius: delete-by-id, wholesale replace, and single-flow upsert.
 //! Every flow is keyed directly by its globally unique flow id.
 
-use futures::{StreamExt, TryStreamExt};
 use prost::Message;
 use tucana::shared::{Flows, ValidationFlow};
 
@@ -64,24 +63,16 @@ pub(super) async fn replace_all(
     store: &async_nats::jetstream::kv::Store,
     flows: Flows,
 ) -> (usize, usize) {
-    let mut keys = match store.keys().await {
-        Ok(keys) => keys.boxed(),
+    let purged_count = match store.stream.purge().await {
+        Ok(response) => response.purged as usize,
         Err(err) => {
             log::error!(
-                "Failed to list stored flows before replacement error={:?}",
+                "Failed to purge stored flows before replacement error={:?}",
                 err
             );
             return (0, 0);
         }
     };
-
-    let mut purged_count = 0;
-    while let Ok(Some(key)) = keys.try_next().await {
-        match store.purge(&key).await {
-            Ok(_) => purged_count += 1,
-            Err(err) => log::error!("Failed to purge stored flow key={} error={}", key, err),
-        }
-    }
 
     let mut stored_count = 0;
     for flow in flows.flows {
