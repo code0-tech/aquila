@@ -1,26 +1,14 @@
-//! The key scheme Aquila's flow KV store uses, and the two operations built
-//! on it: computing a flow's key and checking whether a key belongs to a
-//! given flow id. There is no secondary index, so every "find by flow id"
-//! lookup elsewhere in the codebase is a scan using [`key_has_flow_id`].
+//! Flow KV storage and the shared operations used to execute stored flows.
+//! Flows are keyed directly by their globally unique `flow_id`, so resolving
+//! one for execution is a single KV lookup.
 
-use futures::TryStreamExt;
 use prost::Message;
 use tucana::aquila::ActionFlow;
 use tucana::shared::{ExecutionFlow, ValidationFlow};
 
-/// Every flow identifier has this key
-/// `<type>.<project_slug>.<project_id>.<flow_id>`
+/// Returns the stable, directly addressable KV key for `flow`.
 pub fn get_flow_identifier(flow: &ValidationFlow) -> String {
-    format!(
-        "{}.{}.{}.{}",
-        flow.r#type, flow.project_slug, flow.project_id, flow.flow_id
-    )
-}
-
-pub fn key_has_flow_id(key: &str, flow_id: i64) -> bool {
-    key.rsplit_once('.')
-        .and_then(|(_, id)| id.parse::<i64>().ok())
-        == Some(flow_id)
+    flow.flow_id.to_string()
 }
 
 /// Whether `flow` was created against the module an action logs on with -
@@ -46,44 +34,12 @@ pub fn to_action_flow(flow: &ValidationFlow) -> ActionFlow {
     }
 }
 
-/// Scans the flow KV bucket for the entry whose key encodes `flow_id`. There
-/// is no secondary index from flow id to key, so this is a linear scan of
-/// every stored flow - shared by every caller that needs to resolve a flow
-/// by id alone (Sagittarius test executions, action-triggered executions).
+/// Loads a flow directly by its globally unique id.
 pub async fn load_validation_flow_by_id(
     store: &async_nats::jetstream::kv::Store,
     flow_id: i64,
 ) -> Option<ValidationFlow> {
-    let mut keys = match store.keys().await {
-        Ok(keys) => keys,
-        Err(err) => {
-            log::error!(
-                "Failed to list validation flow keys flow_id={} error={:?}",
-                flow_id,
-                err
-            );
-            return None;
-        }
-    };
-
-    let key = loop {
-        match keys.try_next().await {
-            Ok(Some(key)) if key_has_flow_id(&key, flow_id) => break key,
-            Ok(Some(_)) => {}
-            Ok(None) => {
-                log::error!("Validation flow was not found flow_id={}", flow_id);
-                return None;
-            }
-            Err(err) => {
-                log::error!(
-                    "Failed while scanning validation flow keys flow_id={} error={:?}",
-                    flow_id,
-                    err
-                );
-                return None;
-            }
-        }
-    };
+    let key = flow_id.to_string();
 
     match store.get(&key).await {
         Ok(Some(bytes)) => match ValidationFlow::decode(bytes) {
@@ -99,7 +55,7 @@ pub async fn load_validation_flow_by_id(
         },
         Ok(None) => {
             log::error!(
-                "Validation flow disappeared after key resolution flow_id={} key={}",
+                "Validation flow was not found flow_id={} key={}",
                 flow_id,
                 key
             );
@@ -147,16 +103,16 @@ mod tests {
     use super::*;
 
     #[test]
-    fn matches_flow_id_in_final_key_segment() {
-        assert!(key_has_flow_id("CRON.test.1.1", 1));
-        assert!(key_has_flow_id("REST.project.42.123", 123));
-    }
+    fn flow_identifier_is_the_flow_id() {
+        let flow = ValidationFlow {
+            flow_id: 123,
+            project_id: 42,
+            project_slug: "project".to_string(),
+            r#type: "REST".to_string(),
+            ..Default::default()
+        };
 
-    #[test]
-    fn rejects_partial_or_non_final_flow_id_matches() {
-        assert!(!key_has_flow_id("CRON.test.1.11", 1));
-        assert!(!key_has_flow_id("CRON.test.1.1.extra", 1));
-        assert!(!key_has_flow_id("CRON.test.1.invalid", 1));
+        assert_eq!(get_flow_identifier(&flow), "123");
     }
 
     fn flow(definition_source: Option<&str>) -> ValidationFlow {

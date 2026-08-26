@@ -1,6 +1,6 @@
 //! Bridges NATS execution requests/results to and from a connected action's
-//! gRPC stream: looks up matching flows for incoming events, forwards
-//! execution requests to the action, and publishes results back to NATS.
+//! gRPC stream: loads flows requested by id, forwards execution requests to
+//! the action, and publishes results back to NATS.
 
 use async_nats::{Subject, Subscriber};
 use futures::StreamExt;
@@ -45,14 +45,11 @@ impl std::error::Error for FlowIdentificationError {
     }
 }
 
-/// Scans the flow KV bucket for every entry whose key matches `pattern`,
-/// decoding each match. There is no secondary index for flows, so a full key
-/// scan is the only lookup path available.
+/// Loads every flow in the KV bucket for the infrequent action-logon sync.
 pub(super) async fn get_flows(
-    pattern: String,
     kv: async_nats::jetstream::kv::Store,
 ) -> Result<Flows, FlowIdentificationError> {
-    log::debug!("Scanning flows with pattern: {}", pattern);
+    log::debug!("Loading all stored flows");
     let mut collector = Vec::new();
     let mut keys = match kv.keys().await {
         Ok(keys) => keys.boxed(),
@@ -64,10 +61,6 @@ pub(super) async fn get_flows(
     };
 
     while let Ok(Some(key)) = tokio_stream::StreamExt::try_next(&mut keys).await {
-        if !is_matching_key(&pattern, &key) {
-            continue;
-        }
-
         match kv.get(key.clone()).await {
             Ok(Some(bytes)) => {
                 let decoded_flow = ValidationFlow::decode(bytes);
@@ -97,30 +90,8 @@ pub(super) async fn get_flows(
         }
     }
 
-    log::debug!("Matched {} flows for pattern {}", collector.len(), pattern);
+    log::debug!("Loaded {} stored flows", collector.len());
     Ok(Flows { flows: collector })
-}
-
-/// Matches a dot-separated KV key against a dot-separated pattern where `*`
-/// matches any single segment. A pattern shorter than the key still counts
-/// as a match on its own segments (the key's trailing segments are ignored).
-fn is_matching_key(pattern: &String, key: &String) -> bool {
-    let split_pattern = pattern.split(".");
-    let split_key = key.split(".").collect::<Vec<&str>>();
-    let zip = split_pattern.into_iter().zip(split_key);
-
-    for (pattern_part, key_part) in zip {
-        if pattern_part == "*" {
-            continue;
-        }
-
-        if pattern_part != key_part {
-            log::debug!("Key {} does not match pattern {}", key, pattern);
-            return false;
-        }
-    }
-
-    true
 }
 
 /// Recovers the execution id from a NATS subject of the form

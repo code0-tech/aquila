@@ -303,7 +303,7 @@ async fn send_known_flows(
     tx: tokio::sync::mpsc::Sender<Result<ActionTransferResponse, tonic::Status>>,
     shard: Option<ShardAssignment>,
 ) {
-    let flows = match get_flows("*.*.*.*".to_string(), kv).await {
+    let flows = match get_flows(kv).await {
         Ok(flows) => flows,
         Err(err) => {
             errors::record(
