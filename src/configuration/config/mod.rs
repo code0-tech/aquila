@@ -74,6 +74,9 @@ pub struct Grpc {
     pub host: String,
     pub port: u16,
     pub health_service: bool,
+    /// Maximum number of post-logon messages processed concurrently for one
+    /// action transfer stream.
+    pub action_transfer_concurrency_limit: usize,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -138,6 +141,7 @@ impl Default for Grpc {
             host: "127.0.0.1".into(),
             port: 8081,
             health_service: false,
+            action_transfer_concurrency_limit: 256,
         }
     }
 }
@@ -260,5 +264,26 @@ mod tests {
     #[test]
     fn opentelemetry_default_service_name_is_aquila() {
         assert_eq!(Config::default().opentelemetry.service_name, "aquila");
+    }
+
+    #[test]
+    fn action_transfer_concurrency_limit_is_configurable() {
+        let config: Config = ConfigLoader::builder()
+            .add_source(
+                ConfigLoader::try_from(&Config::default())
+                    .expect("default configuration should serialize"),
+            )
+            .set_override("grpc.action_transfer_concurrency_limit", 17)
+            .expect("concurrency override should apply")
+            .build()
+            .expect("configuration should build")
+            .try_deserialize()
+            .expect("configuration should deserialize");
+
+        assert_eq!(
+            Config::default().grpc.action_transfer_concurrency_limit,
+            256
+        );
+        assert_eq!(config.grpc.action_transfer_concurrency_limit, 17);
     }
 }

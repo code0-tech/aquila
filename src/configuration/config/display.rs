@@ -50,6 +50,11 @@ impl fmt::Display for Config {
             "    Health service: {}",
             self.grpc.health_service
         )?;
+        writeln!(
+            formatter,
+            "    Action transfer concurrency: {}",
+            self.grpc.action_transfer_concurrency_limit
+        )?;
         writeln!(formatter, "  Static mode")?;
         writeln!(formatter, "    Flow path: {}", self.static_config.flow_path)?;
         writeln!(formatter, "  Dynamic mode")?;
@@ -93,6 +98,7 @@ mod tests {
         assert!(output.starts_with("Aquila configuration\n"));
         assert!(output.contains("  Environment: development"));
         assert!(output.contains("    Address:   127.0.0.1:8081"));
+        assert!(output.contains("    Action transfer concurrency: 256"));
         assert!(output.contains("    Request timeout: 5s"));
         assert!(output.contains("    Backend token:   [FILTERED]"));
         assert!(!output.contains("super-secret"));
