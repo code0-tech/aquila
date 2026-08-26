@@ -47,6 +47,9 @@ grpc:
   # Expose the standard gRPC health service.
   health_service: false
 
+  # Maximum number of post-logon messages handled concurrently per action stream.
+  action_transfer_concurrency_limit: 256
+
 runtime_status:
   # Frequency of Aquila's own heartbeat to the Sagittarius gateway, in minutes.
   heartbeat_interval_minutes: 5
