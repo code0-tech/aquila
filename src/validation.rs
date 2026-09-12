@@ -187,6 +187,31 @@ pub fn rejection_result(
     }
 }
 
+/// Synthesizes the [`ExecutionResult`] sent back in place of dispatching an
+/// execution request against a disabled flow.
+pub fn disabled_flow_rejection_result(
+    execution_identifier: String,
+    flow_id: i64,
+    reason: &str,
+) -> ExecutionResult {
+    let now = epoch_millis_now();
+    ExecutionResult {
+        execution_identifier,
+        flow_id,
+        started_at: now,
+        finished_at: now,
+        result: Some(execution_result::Result::Error(Error {
+            code: "A-VALIDATION-000002".to_string(),
+            category: "InvalidArgument".to_string(),
+            message: format!("flow {} has been disabled for the reason: {}", flow_id, reason),
+            timestamp: now,
+            version: crate::version::runtime_version().to_string(),
+            ..Default::default()
+        })),
+        ..Default::default()
+    }
+}
+
 pub(crate) fn epoch_millis_now() -> i64 {
     match SystemTime::now().duration_since(UNIX_EPOCH) {
         Ok(duration) => duration.as_millis() as i64,
@@ -317,6 +342,20 @@ mod tests {
         match result.result {
             Some(execution_result::Result::Error(err)) => {
                 assert!(err.message.contains("expected string"));
+            }
+            other => panic!("expected error result, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn disabled_flow_rejection_result_carries_reason() {
+        let result = disabled_flow_rejection_result("exec-1".to_string(), 42, "maintenance");
+
+        assert_eq!(result.execution_identifier, "exec-1");
+        assert_eq!(result.flow_id, 42);
+        match result.result {
+            Some(execution_result::Result::Error(err)) => {
+                assert!(err.message.contains("maintenance"));
             }
             other => panic!("expected error result, got {:?}", other),
         }

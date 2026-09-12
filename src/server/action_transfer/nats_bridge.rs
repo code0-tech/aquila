@@ -113,6 +113,25 @@ pub(super) async fn handle_flow_execution(
         return;
     }
 
+    if let Some(reason) = flow::flow_disable_reason(&validation_flow) {
+        log::warn!(
+            "Rejected action flow execution request for a disabled flow action={} flow_id={} reason={}",
+            action_identifier,
+            flow_id,
+            reason
+        );
+        send_flow_execution_failure(
+            &tx,
+            execution_id,
+            format!(
+                "flow {} has been disabled for the reason: {}",
+                flow_id, reason
+            ),
+        )
+        .await;
+        return;
+    }
+
     if validation::is_rest_flow(&validation_flow) {
         let input_schema = validation::extract_input_schema(&validation_flow);
         if let Err(err) =
