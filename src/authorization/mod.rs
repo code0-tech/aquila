@@ -1,14 +1,29 @@
 //! Bearer-token helpers shared by every gRPC client and server in Aquila:
 //! [`authorization::get_authentication_metadata`] to attach a token to an
 //! outgoing request, [`authorization::extract_token`] to read one back off
-//! an incoming request.
+//! an incoming request, and [`authorization::verify_jwt`] to check a
+//! presented token against the pre-provisioned secret for an action or
+//! runtime identity.
 
 pub mod authorization {
     use std::str::FromStr;
+    use jsonwebtoken::{Algorithm, DecodingKey, Validation, decode};
+    use serde::Deserialize;
     use tonic::{
         Request, Status,
         metadata::{MetadataMap, MetadataValue},
     };
+
+    /// Claims carried by an action/runtime authentication JWT. `sub` must
+    /// match the identity (action identifier or runtime family) the token is
+    /// presented for, so a secret leaked for one identity can't be replayed
+    /// to authenticate as another.
+    #[derive(Debug, Deserialize)]
+    struct Claims {
+        sub: String,
+        #[allow(dead_code)]
+        exp: u64,
+    }
 
     /// get_authentication_metadata
     ///
@@ -57,5 +72,43 @@ pub mod authorization {
         }
 
         Ok(token)
+    }
+
+    /// Verifies `token` is a JWT signed with `secret` (HS256), not expired,
+    /// and issued for `expected_subject` - the pre-provisioned identity
+    /// (action identifier or runtime family) `secret` was configured for.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use aquila_grpc::verify_jwt;
+    /// use jsonwebtoken::{Algorithm, EncodingKey, Header, encode};
+    /// use serde::Serialize;
+    ///
+    /// #[derive(Serialize)]
+    /// struct Claims { sub: String, exp: u64 }
+    ///
+    /// let token = encode(
+    ///     &Header::new(Algorithm::HS256),
+    ///     &Claims { sub: "taurus".to_string(), exp: 4_102_444_800 },
+    ///     &EncodingKey::from_secret(b"secret"),
+    /// ).unwrap();
+    ///
+    /// assert!(verify_jwt(&token, "secret", "taurus"));
+    /// assert!(!verify_jwt(&token, "secret", "draco-rest"));
+    /// assert!(!verify_jwt(&token, "wrong-secret", "taurus"));
+    /// ```
+    pub fn verify_jwt(token: &str, secret: &str, expected_subject: &str) -> bool {
+        let mut validation = Validation::new(Algorithm::HS256);
+        validation.set_required_spec_claims(&["sub", "exp"]);
+        let decoding_key = DecodingKey::from_secret(secret.as_bytes());
+
+        match decode::<Claims>(token, &decoding_key, &validation) {
+            Ok(data) => data.claims.sub == expected_subject,
+            Err(err) => {
+                log::debug!("JWT verification failed: {:?}", err);
+                false
+            }
+        }
     }
 }
