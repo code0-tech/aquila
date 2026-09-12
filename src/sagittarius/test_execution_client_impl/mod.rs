@@ -124,6 +124,39 @@ impl SagittariusTestExecutionServiceClient {
                                 }
                             };
 
+                        if let Some(reason) = flow::flow_disable_reason(&validation_flow) {
+                            log::warn!(
+                                "Rejecting Sagittarius execution request for a disabled flow requested_execution_id={} flow_id={} reason={}",
+                                request.execution_identifier,
+                                request.flow_id,
+                                reason
+                            );
+
+                            let execution_id = if request.execution_identifier.is_empty() {
+                                uuid::Uuid::new_v4().to_string()
+                            } else {
+                                request.execution_identifier.clone()
+                            };
+
+                            let rejection = validation::disabled_flow_rejection_result(
+                                execution_id,
+                                request.flow_id,
+                                reason,
+                            );
+
+                            if let Err(status) =
+                                self.response_sender.send_execution_result(rejection).await
+                            {
+                                log::error!(
+                                    "Failed to send disabled flow rejection result flow_id={} error={:?}",
+                                    request.flow_id,
+                                    status
+                                );
+                            }
+
+                            continue;
+                        }
+
                         if validation::is_rest_flow(&validation_flow) {
                             let input_schema = validation::extract_input_schema(&validation_flow);
                             if let Err(err) = validation::validate_body_against_schema(

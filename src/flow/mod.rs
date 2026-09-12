@@ -19,6 +19,12 @@ pub fn flow_belongs_to_action(flow: &ValidationFlow, action_identifier: &str) ->
     flow.definition_source.as_deref() == Some(source.as_str())
 }
 
+/// Whether `flow` has been disabled, and if so, why. Callers must reject
+/// execution requests against a disabled flow rather than dispatching them.
+pub fn flow_disable_reason(flow: &ValidationFlow) -> Option<&str> {
+    flow.disable_reason.as_deref()
+}
+
 /// Projects a `ValidationFlow` down to the fields an action needs to
 /// execute/validate against it - an "action flow".
 pub fn to_action_flow(flow: &ValidationFlow) -> ActionFlow {
@@ -133,6 +139,21 @@ mod tests {
             "other-action"
         ));
         assert!(!flow_belongs_to_action(&flow(None), "send-email"));
+    }
+
+    #[test]
+    fn flow_disable_reason_returns_reason_when_disabled() {
+        let disabled = ValidationFlow {
+            disable_reason: Some("maintenance".to_string()),
+            ..Default::default()
+        };
+        let enabled = ValidationFlow {
+            disable_reason: None,
+            ..Default::default()
+        };
+
+        assert_eq!(flow_disable_reason(&disabled), Some("maintenance"));
+        assert_eq!(flow_disable_reason(&enabled), None);
     }
 
     #[test]
