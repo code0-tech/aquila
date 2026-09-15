@@ -22,3 +22,4 @@ uuid = { version = "1.18.0", features = ["v4"] }
 serde = "1.0.228"
 futures-core = "0.3.32"
 config = "0.15.25"
+jsonwebtoken = { version = "11.0.0", features = ["rust_crypto"] }
