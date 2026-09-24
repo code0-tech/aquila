@@ -11,75 +11,9 @@ use lupus::data::{Data, Number};
 use std::collections::BTreeMap;
 use std::time::{SystemTime, UNIX_EPOCH};
 use tucana::shared::{
-    Error, ExecutionResult, Struct, ValidationFlow, Value, execution_result,
-    helper::value::to_json_value, value::Kind,
+    Error, ExecutionResult, Struct, Value, execution_result, helper::value::to_json_value,
+    value::Kind,
 };
-
-const REST_FLOW_TYPE: &str = "REST";
-const INPUT_SCHEMA_SETTING_ID: &str = "input_schema";
-
-/// Whether `flow` is a REST (webhook) flow - the only flow type that carries
-/// a request body to validate against `input_schema` before dispatch.
-pub fn is_rest_flow(flow: &ValidationFlow) -> bool {
-    flow.r#type == REST_FLOW_TYPE
-}
-
-/// Reads the `input_schema` flow setting, the same way draco's REST adapter
-/// reads `httpMethod`/`httpURL`/`input_schema` off `flow.settings`.
-pub fn extract_input_schema(flow: &ValidationFlow) -> Option<&Struct> {
-    let setting = match flow
-        .settings
-        .iter()
-        .find(|setting| setting.flow_setting_id == INPUT_SCHEMA_SETTING_ID)
-    {
-        Some(setting) => setting,
-        None => {
-            log::debug!(
-                "flow setting is missing: flow_id={} flow_setting_id={}",
-                flow.flow_id,
-                INPUT_SCHEMA_SETTING_ID
-            );
-            return None;
-        }
-    };
-
-    let value = match setting.value.as_ref() {
-        Some(value) => value,
-        None => {
-            log::debug!(
-                "flow setting has no value: flow_id={} flow_setting_id={}",
-                flow.flow_id,
-                INPUT_SCHEMA_SETTING_ID
-            );
-            return None;
-        }
-    };
-
-    let kind = match value.kind.as_ref() {
-        Some(kind) => kind,
-        None => {
-            log::debug!(
-                "flow setting has no kind: flow_id={} flow_setting_id={}",
-                flow.flow_id,
-                INPUT_SCHEMA_SETTING_ID
-            );
-            return None;
-        }
-    };
-
-    match kind {
-        Kind::StructValue(value) => Some(value),
-        _ => {
-            log::debug!(
-                "flow setting has non-struct kind: flow_id={} flow_setting_id={} kind={:?}",
-                flow.flow_id,
-                INPUT_SCHEMA_SETTING_ID,
-                kind
-            );
-            None
-        }
-    }
-}
 
 #[derive(Debug)]
 pub enum BodyValidationError {
@@ -103,7 +37,7 @@ impl std::error::Error for BodyValidationError {}
 /// Validates `body` against `input_schema` (a JSON Schema stored as a `shared.Struct` on the
 /// flow). A flow without an `input_schema` (or with an empty one) accepts any body unvalidated.
 pub fn validate_body_against_schema(
-    input_schema: Option<&Struct>,
+    input_schema: Option<Struct>,
     body: Option<&Value>,
 ) -> Result<(), BodyValidationError> {
     let Some(input_schema) = input_schema.filter(|schema| !schema.fields.is_empty()) else {
@@ -203,7 +137,10 @@ pub fn disabled_flow_rejection_result(
         result: Some(execution_result::Result::Error(Error {
             code: "A-VALIDATION-000002".to_string(),
             category: "InvalidArgument".to_string(),
-            message: format!("flow {} has been disabled for the reason: {}", flow_id, reason),
+            message: format!(
+                "flow {} has been disabled for the reason: {}",
+                flow_id, reason
+            ),
             timestamp: now,
             version: crate::version::runtime_version().to_string(),
             ..Default::default()
@@ -226,7 +163,6 @@ pub(crate) fn epoch_millis_now() -> i64 {
 mod tests {
     use super::*;
     use std::collections::HashMap;
-    use tucana::shared::FlowSetting;
 
     fn schema_struct(raw_schema: serde_json::Value) -> Struct {
         let Value {
@@ -236,21 +172,6 @@ mod tests {
             panic!("expected object schema");
         };
         schema
-    }
-
-    #[test]
-    fn rest_flow_type_is_detected() {
-        let flow = ValidationFlow {
-            r#type: "REST".to_string(),
-            ..Default::default()
-        };
-        assert!(is_rest_flow(&flow));
-
-        let flow = ValidationFlow {
-            r#type: "CRON".to_string(),
-            ..Default::default()
-        };
-        assert!(!is_rest_flow(&flow));
     }
 
     #[test]
@@ -269,7 +190,7 @@ mod tests {
         let body = Value {
             kind: Some(Kind::StringValue("anything".to_string())),
         };
-        assert!(validate_body_against_schema(Some(&schema), Some(&body)).is_ok());
+        assert!(validate_body_against_schema(Some(schema), Some(&body)).is_ok());
     }
 
     #[test]
@@ -286,7 +207,7 @@ mod tests {
             "name": "Ada"
         }));
 
-        assert!(validate_body_against_schema(Some(&schema), Some(&body)).is_ok());
+        assert!(validate_body_against_schema(Some(schema), Some(&body)).is_ok());
     }
 
     #[test]
@@ -303,33 +224,8 @@ mod tests {
             "age": 42
         }));
 
-        let err = validate_body_against_schema(Some(&schema), Some(&body)).unwrap_err();
+        let err = validate_body_against_schema(Some(schema), Some(&body)).unwrap_err();
         assert!(matches!(err, BodyValidationError::Validation(_)));
-    }
-
-    #[test]
-    fn extract_input_schema_reads_struct_value_setting() {
-        let schema = schema_struct(serde_json::json!({ "type": "object" }));
-        let flow = ValidationFlow {
-            flow_id: 1,
-            settings: vec![FlowSetting {
-                database_id: None,
-                flow_setting_id: "input_schema".to_string(),
-                value: Some(Value {
-                    kind: Some(Kind::StructValue(schema.clone())),
-                }),
-                cast: None,
-            }],
-            ..Default::default()
-        };
-
-        assert_eq!(extract_input_schema(&flow), Some(&schema));
-    }
-
-    #[test]
-    fn extract_input_schema_is_none_when_setting_missing() {
-        let flow = ValidationFlow::default();
-        assert_eq!(extract_input_schema(&flow), None);
     }
 
     #[test]

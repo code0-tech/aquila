@@ -132,23 +132,6 @@ pub(super) async fn handle_flow_execution(
         return;
     }
 
-    if validation::is_rest_flow(&validation_flow) {
-        let input_schema = validation::extract_input_schema(&validation_flow);
-        if let Err(err) =
-            validation::validate_body_against_schema(input_schema, request.payload.as_ref())
-        {
-            log::warn!(
-                "Rejecting action flow execution request due to input schema validation failure action={} flow_id={} execution_id={} error={}",
-                action_identifier,
-                flow_id,
-                execution_id,
-                err
-            );
-            send_flow_execution_failure(&tx, execution_id, err.to_string()).await;
-            return;
-        }
-    }
-
     let execution_flow = ExecutionFlow {
         flow_id,
         input_value: request.payload,
@@ -400,7 +383,6 @@ pub(super) async fn handle_result(
                 action_identifier, execution_id, pending_reply.reply_subject
             ),
         );
-        return;
     }
 }
 

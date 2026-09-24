@@ -61,7 +61,11 @@ impl ServiceConfiguration {
     /// resolves to the one `taurus` entry) - and verified against `token`.
     /// Multiple entries may share an identifier (e.g. during a secret
     /// rotation window), so each is tried until one verifies.
-    fn find_runtime(&self, token: &String, runtime_name: &String) -> Option<&RuntimeServiceConfiguration> {
+    fn find_runtime(
+        &self,
+        token: &String,
+        runtime_name: &String,
+    ) -> Option<&RuntimeServiceConfiguration> {
         let name = Self::extract_service_name(runtime_name)?;
         self.runtimes
             .iter()
@@ -72,7 +76,11 @@ impl ServiceConfiguration {
     /// Resolves the action config entry registered under `action_name` and
     /// verified against `token` - see [`Self::find_runtime`] on why more
     /// than one entry may need to be tried.
-    fn find_action(&self, token: &String, action_name: &String) -> Option<&ActionServiceConfiguration> {
+    fn find_action(
+        &self,
+        token: &String,
+        action_name: &String,
+    ) -> Option<&ActionServiceConfiguration> {
         self.actions
             .iter()
             .filter(|x| &x.service_name == action_name)
@@ -125,7 +133,7 @@ impl ServiceConfiguration {
             })
             .collect();
 
-        vec![actions, runtime].concat()
+        [actions, runtime].concat()
     }
 
     /// Loads the service configuration file at `path`. A missing file is
@@ -258,10 +266,7 @@ mod tests {
             &jwt("draco-cron-secret", "draco-cron"),
             &String::from("draco-cron")
         ));
-        assert!(!config.has_runtime(
-            &jwt("taurus-secret", "taurus"),
-            &String::from("draco-rest")
-        ));
+        assert!(!config.has_runtime(&jwt("taurus-secret", "taurus"), &String::from("draco-rest")));
         assert!(!config.has_runtime(
             &jwt("draco-rest-secret", "draco-rest"),
             &String::from("taurus-x")
@@ -339,10 +344,7 @@ mod tests {
     fn has_service_returns_true_for_valid_runtime_or_action_pairings() {
         let config = fixture();
 
-        assert!(config.has_service(
-            &jwt("taurus-secret", "taurus"),
-            &String::from("taurus-x")
-        ));
+        assert!(config.has_service(&jwt("taurus-secret", "taurus"), &String::from("taurus-x")));
         assert!(config.has_service(
             &jwt("draco-rest-secret", "draco-rest"),
             &String::from("draco-rest")
