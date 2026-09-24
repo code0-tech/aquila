@@ -147,7 +147,9 @@ pub(super) async fn handle_logon(
     }
 
     let shard = if action_logon.scaling_option == ScalingOption::Split as i32 {
-        let replicas = context.actions.action_replicas(&token.to_string(), &identifier);
+        let replicas = context
+            .actions
+            .action_replicas(&token.to_string(), &identifier);
         match context.shard_registry.claim(&identifier, replicas).await {
             Some(index) => {
                 log::info!(
@@ -250,8 +252,14 @@ pub(super) async fn handle_logon(
     let pending_replies_clone = pending_replies.clone();
     let forwarder_identifier = identifier.clone();
     tokio::spawn(async move {
-        forward_nats_to_action(forwarder_identifier, sub, tx_clone, pending_replies_clone, shard)
-            .await;
+        forward_nats_to_action(
+            forwarder_identifier,
+            sub,
+            tx_clone,
+            pending_replies_clone,
+            shard,
+        )
+        .await;
     });
 
     // A logon is only the first message on the stream, but `handle_logon` can't

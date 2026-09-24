@@ -383,7 +383,6 @@ pub(super) async fn handle_result(
                 action_identifier, execution_id, pending_reply.reply_subject
             ),
         );
-        return;
     }
 }
 

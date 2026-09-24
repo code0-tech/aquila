@@ -11,8 +11,8 @@ use lupus::data::{Data, Number};
 use std::collections::BTreeMap;
 use std::time::{SystemTime, UNIX_EPOCH};
 use tucana::shared::{
-    Error, ExecutionResult, Struct, Value, execution_result,
-    helper::value::to_json_value, value::Kind,
+    Error, ExecutionResult, Struct, Value, execution_result, helper::value::to_json_value,
+    value::Kind,
 };
 
 #[derive(Debug)]
@@ -137,7 +137,10 @@ pub fn disabled_flow_rejection_result(
         result: Some(execution_result::Result::Error(Error {
             code: "A-VALIDATION-000002".to_string(),
             category: "InvalidArgument".to_string(),
-            message: format!("flow {} has been disabled for the reason: {}", flow_id, reason),
+            message: format!(
+                "flow {} has been disabled for the reason: {}",
+                flow_id, reason
+            ),
             timestamp: now,
             version: crate::version::runtime_version().to_string(),
             ..Default::default()

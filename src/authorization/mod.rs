@@ -6,9 +6,9 @@
 //! runtime identity.
 
 pub mod authorization {
-    use std::str::FromStr;
     use jsonwebtoken::{Algorithm, DecodingKey, Validation, decode};
     use serde::Deserialize;
+    use std::str::FromStr;
     use tonic::{
         Request, Status,
         metadata::{MetadataMap, MetadataValue},
