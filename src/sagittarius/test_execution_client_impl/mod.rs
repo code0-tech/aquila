@@ -157,11 +157,10 @@ impl SagittariusTestExecutionServiceClient {
                             continue;
                         }
 
-                        let input_schema = validation_flow.input_schema;
-                        if let Err(err) = validation::validate_body_against_schema(
-                            input_schema,
-                            request.body.as_ref(),
-                        ) {
+                        let schema = validation_flow.output_schema;
+                        if let Err(err) =
+                            validation::validate_body_against_schema(schema, request.body.as_ref())
+                        {
                             log::warn!(
                                 "Rejecting Sagittarius execution request due to input schema validation failure requested_execution_id={} flow_id={} error={}",
                                 request.execution_identifier,
