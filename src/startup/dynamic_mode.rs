@@ -54,7 +54,8 @@ pub async fn run(
     let (action_config_tx, _) =
         tokio::sync::broadcast::channel::<tucana::shared::ModuleConfigurations>(64);
     let (action_flow_tx, _) = tokio::sync::broadcast::channel::<crate::flow::FlowChange>(64);
-    let execution_response_sender = SagittariusExecutionResponseSender::new();
+    let execution_response_sender =
+        SagittariusExecutionResponseSender::new(config.grpc.max_execution_result_size);
 
     let server = AquilaDynamicServer::new(
         &config,
