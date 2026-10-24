@@ -149,7 +149,9 @@ pub(super) async fn handle_flow_execution(
         flow_id
     );
 
-    if let Err(err) = flow::dispatch_execution(&nats_client, &execution_id, &execution_flow).await {
+    if let Err(err) =
+        flow::dispatch_execution(&nats_client, &execution_id, &execution_flow, false).await
+    {
         errors::record(
             "messaging",
             "action.flow_execution.dispatch",
@@ -523,7 +525,9 @@ mod tests {
 
     #[test]
     fn action_result_outcome_distinguishes_success_error_and_missing() {
-        use tucana::shared::{Error, NodeExecutionResult, Value, node_execution_result};
+        use tucana::shared::{
+            Error, NodeExecutionResult, NodeValueExecutionResult, node_execution_result,
+        };
 
         let response = |result| ActionExecutionResponse {
             execution_identifier: "execution-id".into(),
@@ -535,7 +539,7 @@ mod tests {
 
         assert_eq!(
             action_result_outcome(&response(Some(node_execution_result::Result::Success(
-                Value::default()
+                NodeValueExecutionResult::default()
             )))),
             "success"
         );

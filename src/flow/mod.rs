@@ -2,9 +2,14 @@
 //! Flows are keyed directly by their globally unique `flow_id`, so resolving
 //! one for execution is a single KV lookup.
 
+use async_nats::HeaderMap;
 use prost::Message;
 use tucana::aquila::ActionFlow;
 use tucana::shared::{ExecutionFlow, ValidationFlow};
+
+/// NATS header (value `true`) telling the runtime to always report this
+/// execution's full result, regardless of its configured sample rate.
+pub const SAMPLED_HEADER: &str = "Code0-Sampled";
 
 /// Returns the stable, directly addressable KV key for `flow`.
 pub fn get_flow_identifier(flow: &ValidationFlow) -> String {
@@ -82,15 +87,27 @@ pub async fn load_validation_flow_by_id(
 /// Publishes `execution_flow` onto the NATS execution bus under
 /// `execution.<execution_id>`, the subject a runtime picks the request up
 /// from - shared by every execution source (Sagittarius test executions,
-/// action-triggered executions).
+/// action-triggered executions). With `force_sampled` the runtime reports
+/// the full result (and Aquila forwards it to Sagittarius) even when the
+/// execution falls outside its result sample rate.
 pub async fn dispatch_execution(
     nats_client: &async_nats::Client,
     execution_id: &str,
     execution_flow: &ExecutionFlow,
+    force_sampled: bool,
 ) -> Result<(), async_nats::PublishError> {
     let bytes = execution_flow.encode_to_vec();
     let topic = format!("execution.{}", execution_id);
-    nats_client.publish(topic, bytes.into()).await
+
+    if force_sampled {
+        let mut headers = HeaderMap::new();
+        headers.insert(SAMPLED_HEADER, "true");
+        nats_client
+            .publish_with_headers(topic, headers, bytes.into())
+            .await
+    } else {
+        nats_client.publish(topic, bytes.into()).await
+    }
 }
 
 /// A change to the flow store, broadcast so every connected action can keep
