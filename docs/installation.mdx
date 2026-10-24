@@ -123,6 +123,9 @@ Set `mode: dynamic` to keep flows synchronized from Sagittarius.
 | `dynamic_config.backend_url` | — | URL of the Sagittarius instance Aquila connects to for flow and action updates. | `http://localhost:50051` |
 | `dynamic_config.backend_token` | `AQUILA_BACKEND_TOKEN` | Token used by Aquila to authenticate with Sagittarius. | `default_session_token` |
 | `dynamic_config.backend_unary_timeout_secs` | — | Timeout for unary Sagittarius RPCs. | `5` |
+| `runtime_usage.stream` | — | NATS JetStream work-queue stream (and subject) Taurus publishes execution usages to. Must match Taurus' `RUNTIME_USAGE_STREAM`. | `runtime_usage` |
+| `runtime_usage.forward_interval_secs` | — | How often buffered runtime usages are forwarded to Sagittarius, in seconds. | `10` |
+| `runtime_usage.max_batches_per_request` | — | Maximum number of runtime usage batches (NATS messages) merged into one Sagittarius request. | `50` |
 
 ---
 
