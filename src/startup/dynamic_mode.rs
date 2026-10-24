@@ -1,9 +1,9 @@
 //! Dynamic mode wiring: the gRPC server, three independent, self-healing
 //! Sagittarius streams (flow sync, module configuration sync, test
-//! execution), and Aquila's own heartbeat to Sagittarius all run as
-//! separate tasks supervised by a single `select!` — if any one of them
-//! exits or panics, the others are aborted and Aquila shuts down rather
-//! than continuing in a partially working state.
+//! execution), Aquila's own heartbeat to Sagittarius, and the runtime usage
+//! forwarder all run as separate tasks supervised by a single `select!` —
+//! if any one of them exits or panics, the others are aborted and Aquila
+//! shuts down rather than continuing in a partially working state.
 
 use async_nats::Client;
 
@@ -17,6 +17,8 @@ use crate::{
         retry::create_channel_with_retry,
         runtime_status_heartbeat,
         runtime_status_service_client_impl::SagittariusRuntimeStatusServiceClient,
+        runtime_usage_forwarder::{self, RuntimeUsageForwarderSettings},
+        runtime_usage_service_client_impl::SagittariusRuntimeUsageServiceClient,
         test_execution_client_impl::{
             SagittariusExecutionResponseSender, SagittariusTestExecutionServiceClient,
         },
@@ -250,6 +252,22 @@ pub async fn run(
         Duration::from_secs(config.runtime_status.heartbeat_interval_minutes * 60),
     );
 
+    let mut runtime_usage_task = runtime_usage_forwarder::spawn(
+        async_nats::jetstream::new(client.clone()),
+        SagittariusRuntimeUsageServiceClient::new(
+            sagittarius_channel.clone(),
+            config.dynamic_config.backend_token.clone(),
+            Duration::from_secs(config.dynamic_config.backend_unary_timeout_secs),
+        ),
+        RuntimeUsageForwarderSettings {
+            stream: config.runtime_usage.stream.clone(),
+            forward_interval: Duration::from_secs(
+                config.runtime_usage.forward_interval_secs.max(1),
+            ),
+            max_batches_per_request: config.runtime_usage.max_batches_per_request,
+        },
+    );
+
     #[cfg(unix)]
     let sigterm = async {
         use tokio::signal::unix::{SignalKind, signal};
@@ -272,6 +290,7 @@ pub async fn run(
             module_configuration_task.abort();
             test_execution_task.abort();
             heartbeat_task.abort();
+            runtime_usage_task.abort();
         }
         result = &mut test_execution_task => {
             match result {
@@ -283,6 +302,7 @@ pub async fn run(
             flow_task.abort();
             module_configuration_task.abort();
             heartbeat_task.abort();
+            runtime_usage_task.abort();
         }
         result = &mut flow_task => {
             match result {
@@ -294,6 +314,7 @@ pub async fn run(
             module_configuration_task.abort();
             test_execution_task.abort();
             heartbeat_task.abort();
+            runtime_usage_task.abort();
         }
         result = &mut module_configuration_task => {
             match result {
@@ -305,6 +326,7 @@ pub async fn run(
             flow_task.abort();
             test_execution_task.abort();
             heartbeat_task.abort();
+            runtime_usage_task.abort();
         }
         result = &mut heartbeat_task => {
             match result {
@@ -316,6 +338,19 @@ pub async fn run(
             flow_task.abort();
             module_configuration_task.abort();
             test_execution_task.abort();
+            runtime_usage_task.abort();
+        }
+        result = &mut runtime_usage_task => {
+            match result {
+                Ok(()) => log::warn!("Runtime usage forwarder task exited unexpectedly; shutting down"),
+                Err(err) if err.is_panic() => {}
+                Err(err) => errors::record("task", "runtime_usage.task", &err, "mode=dynamic"),
+            }
+            server_task.abort();
+            flow_task.abort();
+            module_configuration_task.abort();
+            test_execution_task.abort();
+            heartbeat_task.abort();
         }
         _ = tokio::signal::ctrl_c() => {
             log::info!("Ctrl+C/Exit signal received, shutting down");
@@ -324,6 +359,7 @@ pub async fn run(
             module_configuration_task.abort();
             test_execution_task.abort();
             heartbeat_task.abort();
+            runtime_usage_task.abort();
         }
         _ = sigterm => {
             log::info!("SIGTERM received, shutting down");
@@ -332,6 +368,7 @@ pub async fn run(
             module_configuration_task.abort();
             test_execution_task.abort();
             heartbeat_task.abort();
+            runtime_usage_task.abort();
         }
     }
 
