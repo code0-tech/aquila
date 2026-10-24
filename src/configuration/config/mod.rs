@@ -31,6 +31,7 @@ pub struct Config {
     pub dynamic_config: DynamicConfig,
     pub grpc: Grpc,
     pub runtime_status: RuntimeStatus,
+    pub runtime_usage: RuntimeUsage,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -85,6 +86,20 @@ pub struct RuntimeStatus {
     pub heartbeat_interval_minutes: u64,
 }
 
+/// Forwarding of the runtime usage Taurus group-commits into NATS (dynamic
+/// mode only).
+#[derive(Clone, Debug, Deserialize, Serialize)]
+#[serde(default)]
+pub struct RuntimeUsage {
+    /// JetStream work-queue stream (and subject) runtimes publish usages to.
+    pub stream: String,
+    /// How often buffered usages are forwarded to Sagittarius, in seconds.
+    pub forward_interval_secs: u64,
+    /// Maximum number of runtime usage batches (NATS messages) merged into
+    /// one Sagittarius request.
+    pub max_batches_per_request: usize,
+}
+
 impl Default for Config {
     fn default() -> Self {
         Self {
@@ -97,6 +112,7 @@ impl Default for Config {
             dynamic_config: DynamicConfig::default(),
             grpc: Grpc::default(),
             runtime_status: RuntimeStatus::default(),
+            runtime_usage: RuntimeUsage::default(),
         }
     }
 }
@@ -150,6 +166,16 @@ impl Default for RuntimeStatus {
     fn default() -> Self {
         Self {
             heartbeat_interval_minutes: 5,
+        }
+    }
+}
+
+impl Default for RuntimeUsage {
+    fn default() -> Self {
+        Self {
+            stream: "runtime_usage".into(),
+            forward_interval_secs: 10,
+            max_batches_per_request: 50,
         }
     }
 }
