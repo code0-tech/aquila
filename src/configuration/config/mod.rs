@@ -77,6 +77,12 @@ pub struct Grpc {
     /// Maximum number of post-logon messages processed concurrently for one
     /// action transfer stream.
     pub action_transfer_concurrency_limit: usize,
+    /// Largest encoded `ExecutionResult` (in bytes) Aquila will push onto the
+    /// Sagittarius execution stream. Results above this are trimmed in place
+    /// (oversized node values are cut) rather than crashing the stream, which
+    /// Sagittarius' gRPC decoder would otherwise reject. Defaults a little
+    /// under gRPC's 4 MiB message ceiling to leave room for framing overhead.
+    pub max_execution_result_size: usize,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -142,6 +148,9 @@ impl Default for Grpc {
             port: 8081,
             health_service: false,
             action_transfer_concurrency_limit: 256,
+            // 4 MiB gRPC ceiling minus 64 KiB headroom for the
+            // `ExecutionLogonRequest` wrapper and gRPC/HTTP-2 framing.
+            max_execution_result_size: 4 * 1024 * 1024 - 64 * 1024,
         }
     }
 }
@@ -285,5 +294,26 @@ mod tests {
             256
         );
         assert_eq!(config.grpc.action_transfer_concurrency_limit, 17);
+    }
+
+    #[test]
+    fn max_execution_result_size_is_configurable() {
+        let config: Config = ConfigLoader::builder()
+            .add_source(
+                ConfigLoader::try_from(&Config::default())
+                    .expect("default configuration should serialize"),
+            )
+            .set_override("grpc.max_execution_result_size", 123)
+            .expect("size override should apply")
+            .build()
+            .expect("configuration should build")
+            .try_deserialize()
+            .expect("configuration should deserialize");
+
+        assert_eq!(
+            Config::default().grpc.max_execution_result_size,
+            4 * 1024 * 1024 - 64 * 1024
+        );
+        assert_eq!(config.grpc.max_execution_result_size, 123);
     }
 }

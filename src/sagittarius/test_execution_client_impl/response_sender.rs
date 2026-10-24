@@ -11,6 +11,7 @@ use tucana::sagittarius_gateway::execution_logon_request::Data;
 use tucana::shared::ExecutionResult;
 
 use super::flow_id_cache::ExecutionFlowIdCache;
+use super::result_trim::trim_execution_result_to_fit;
 
 /// Handle shared between the task driving the Sagittarius execution stream
 /// and every task that needs to report an execution result back to it.
@@ -18,15 +19,23 @@ use super::flow_id_cache::ExecutionFlowIdCache;
 /// The stream sender is `None` whenever no stream is currently connected
 /// (before the first logon, or after a disconnect), in which case results
 /// are rejected rather than buffered.
-#[derive(Clone, Default)]
+#[derive(Clone)]
 pub struct SagittariusExecutionResponseSender {
     sender: Arc<Mutex<Option<tokio::sync::mpsc::Sender<ExecutionLogonRequest>>>>,
     execution_flow_ids: ExecutionFlowIdCache,
+    /// Largest encoded `ExecutionResult` (bytes) sent onto the stream; larger
+    /// results are trimmed to fit before sending. See
+    /// [`crate::configuration::config::Grpc::max_execution_result_size`].
+    max_execution_result_size: usize,
 }
 
 impl SagittariusExecutionResponseSender {
-    pub fn new() -> Self {
-        Self::default()
+    pub fn new(max_execution_result_size: usize) -> Self {
+        Self {
+            sender: Arc::default(),
+            execution_flow_ids: ExecutionFlowIdCache::default(),
+            max_execution_result_size,
+        }
     }
 
     pub(super) async fn attach(&self, sender: tokio::sync::mpsc::Sender<ExecutionLogonRequest>) {
@@ -87,6 +96,25 @@ impl SagittariusExecutionResponseSender {
             }
         } else {
             self.forget_execution_flow(&execution_id).await;
+        }
+
+        // Keep the result under the stream's gRPC message-size ceiling. An
+        // oversized result would be rejected by Sagittarius' decoder and tear
+        // down the whole stream, so we cut its largest values down to fit
+        // instead - the execution is still reported, just without the
+        // oversized payload.
+        let cuts = trim_execution_result_to_fit(
+            &mut execution_result,
+            self.max_execution_result_size,
+        );
+        if cuts > 0 {
+            log::warn!(
+                "Trimmed oversized execution result to fit Sagittarius stream limit execution_id={} cuts={} limit={} final_size={}",
+                execution_id,
+                cuts,
+                self.max_execution_result_size,
+                prost::Message::encoded_len(&execution_result)
+            );
         }
 
         let flow_id = execution_result.flow_id;
