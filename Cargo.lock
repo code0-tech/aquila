@@ -58,7 +58,7 @@ dependencies = [
  "tonic",
  "tonic-health",
  "tracing",
- "tucana",
+ "tucana 0.0.82",
  "uuid",
 ]
 
@@ -1461,13 +1461,13 @@ checksum = "f9f8bd3e56ce4dfc153cf470fffbfa98c7620958b312ca5c3a4b8d5181fd13c6"
 
 [[package]]
 name = "lupus"
-version = "0.0.5"
+version = "0.0.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d63a56c98f5a06e1d00b5ab768b62302641450d70da6fdb79573584e3f582371"
+checksum = "e96dc06c47a11ec3ac687ecf376ef025c793ef1adcafabd928881823204de02c"
 dependencies = [
  "jsonschema",
  "serde_json",
- "tucana",
+ "tucana 0.0.83",
 ]
 
 [[package]]
@@ -3252,6 +3252,26 @@ name = "tucana"
 version = "0.0.82"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9f2eb0829308e8695969b580f1ff4c80f0e2c5e6b6b7f49aeb751d458410e93a"
+dependencies = [
+ "pbjson",
+ "pbjson-build",
+ "pbjson-types",
+ "prost",
+ "prost-build",
+ "prost-types",
+ "serde",
+ "serde_json",
+ "tonic",
+ "tonic-build",
+ "tonic-prost",
+ "tonic-prost-build",
+]
+
+[[package]]
+name = "tucana"
+version = "0.0.83"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b4810f214ea212f895371454f99eb87b1af072b3275f89fa6b4d3aba7780dbef"
 dependencies = [
  "pbjson",
  "pbjson-build",
