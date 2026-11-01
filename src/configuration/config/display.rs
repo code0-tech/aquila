@@ -55,6 +55,11 @@ impl fmt::Display for Config {
             "    Action transfer concurrency: {}",
             self.grpc.action_transfer_concurrency_limit
         )?;
+        writeln!(
+            formatter,
+            "    Max execution result size: {} bytes",
+            self.grpc.max_execution_result_size
+        )?;
         writeln!(formatter, "  Static mode")?;
         writeln!(formatter, "    Flow path: {}", self.static_config.flow_path)?;
         writeln!(formatter, "  Dynamic mode")?;
