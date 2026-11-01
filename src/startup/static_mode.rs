@@ -4,9 +4,10 @@
 //! nothing external left to wait on.
 
 use crate::{
+    ca::CertificateAuthority,
     configuration::{config::Config, service::ServiceConfiguration, state::AppReadiness},
     flow::get_flow_identifier,
-    server::static_server::AquilaStaticServer,
+    server::static_server::{AquilaStaticServer, StaticServerDependencies},
     telemetry::{errors, metrics},
 };
 use async_nats::Client;
@@ -45,14 +46,35 @@ pub async fn run(
         tokio::sync::broadcast::channel::<tucana::shared::ModuleConfigurations>(64);
     let (action_flow_tx, _) = tokio::sync::broadcast::channel::<crate::flow::FlowChange>(64);
 
+    // Loaded once at startup, not per request: in staging/production this
+    // is a hard failure rather than ever running with no certificate
+    // authority (or, worse, a different ephemeral one per restart).
+    let apus_ca = if config.apus.enabled {
+        Some(Arc::new(
+            CertificateAuthority::load(
+                config.environment,
+                config.apus.ca_cert_path.as_deref(),
+                config.apus.ca_key_path.as_deref(),
+            )
+            .unwrap_or_else(|error| {
+                panic!("failed to load the Apus certificate authority: {error}")
+            }),
+        ))
+    } else {
+        None
+    };
+
     let server = AquilaStaticServer::new(
         &config,
-        app_readiness.clone(),
-        service_config,
-        client.clone(),
-        flow_store_client.clone(),
-        action_config_tx.clone(),
-        action_flow_tx.clone(),
+        StaticServerDependencies {
+            app_readiness: app_readiness.clone(),
+            service_configuration: service_config,
+            nats_client: client.clone(),
+            kv_store: flow_store_client.clone(),
+            action_config_tx: action_config_tx.clone(),
+            action_flow_tx: action_flow_tx.clone(),
+            apus_ca,
+        },
     );
 
     let mut server_task = tokio::spawn(async move {

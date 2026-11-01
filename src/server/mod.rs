@@ -3,6 +3,7 @@
 //! for each run mode from the individual `*_service_server_impl` modules.
 
 mod action_transfer;
+pub mod apus_certificate;
 mod interceptor;
 mod module_service_server_impl;
 mod runtime_execution_service_server_impl;

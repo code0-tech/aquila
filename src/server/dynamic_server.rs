@@ -3,6 +3,7 @@
 //! runtime status, all gated behind the Sagittarius readiness interceptor.
 
 use crate::{
+    ca::CertificateAuthority,
     configuration::{config::Config, service::ServiceConfiguration, state::AppReadiness},
     sagittarius::{
         module_service_client_impl::SagittariusModuleServiceClient,
@@ -14,6 +15,7 @@ use crate::{
             ActionFlowExecutionRegistry, ActionShardRegistry, ActionTransferContext,
             AquilaActionTransferServiceServer,
         },
+        apus_certificate::{AquilaCertificateServiceServer, CertificateServiceServer},
         create_readiness_interceptor,
         module_service_server_impl::AquilaModuleServiceServer,
         runtime_execution_service_server_impl::AquilaExecutionServiceServer,
@@ -43,6 +45,8 @@ pub struct DynamicServerDependencies {
     pub action_config_tx: tokio::sync::broadcast::Sender<tucana::shared::ModuleConfigurations>,
     pub action_flow_tx: tokio::sync::broadcast::Sender<crate::flow::FlowChange>,
     pub execution_response_sender: SagittariusExecutionResponseSender,
+    /// `Some` only when `config.apus.enabled` - see [`crate::startup::dynamic_mode`].
+    pub apus_ca: Option<Arc<CertificateAuthority>>,
 }
 
 pub struct AquilaDynamicServer {
@@ -63,6 +67,10 @@ pub struct AquilaDynamicServer {
     action_transfer_concurrency_limit: usize,
 
     sagittarius_unary_rpc_timeout: Duration,
+
+    apus_ca: Option<Arc<CertificateAuthority>>,
+    apus_action_cert_lifetime: Duration,
+    apus_server_cert_lifetime: Duration,
 }
 
 impl AquilaDynamicServer {
@@ -76,6 +84,7 @@ impl AquilaDynamicServer {
             action_config_tx,
             action_flow_tx,
             execution_response_sender,
+            apus_ca,
         } = deps;
 
         let address = match format!("{}:{}", config.grpc.host, config.grpc.port).parse() {
@@ -104,6 +113,9 @@ impl AquilaDynamicServer {
             sagittarius_unary_rpc_timeout: Duration::from_secs(
                 config.dynamic_config.backend_unary_timeout_secs,
             ),
+            apus_ca,
+            apus_action_cert_lifetime: Duration::from_secs(config.apus.action_cert_lifetime_secs),
+            apus_server_cert_lifetime: Duration::from_secs(config.apus.server_cert_lifetime_secs),
         }
     }
 
@@ -162,6 +174,18 @@ impl AquilaDynamicServer {
         let readiness: Arc<AppReadiness> = Arc::new(self.app_readiness.clone());
         let intercept = create_readiness_interceptor(readiness.clone(), "sagittarius");
 
+        // Not behind the Sagittarius readiness interceptor: issuing a
+        // certificate has no Sagittarius dependency at all.
+        let apus_certificate_service = self.apus_ca.clone().map(|ca| {
+            info!("ApusCertificateService started");
+            CertificateServiceServer::new(AquilaCertificateServiceServer::new(
+                ca,
+                self.service_configuration.clone(),
+                self.apus_action_cert_lifetime,
+                self.apus_server_cert_lifetime,
+            ))
+        });
+
         if self.with_health_service {
             info!("Starting with HealthService");
             let health_service = code0_flow::flow_health::HealthService::new(self.nats_url.clone());
@@ -186,6 +210,7 @@ impl AquilaDynamicServer {
                     action_transfer_server,
                     intercept.clone(),
                 ))
+                .add_optional_service(apus_certificate_service)
                 .serve(self.address)
                 .await
         } else {
@@ -206,6 +231,7 @@ impl AquilaDynamicServer {
                     action_transfer_server,
                     intercept.clone(),
                 ))
+                .add_optional_service(apus_certificate_service)
                 .serve(self.address)
                 .await
         }
