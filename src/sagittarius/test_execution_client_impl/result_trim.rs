@@ -18,8 +18,8 @@
 
 use prost::Message;
 use tucana::shared::{
-    Error, ExecutionResult, NodeValueExecutionResult, Value, execution_result,
-    node_execution_result, node_value_execution_result, value::Kind,
+    Error, ExecutionResult, Value, execution_result, node_execution_result,
+    node_value_execution_result, value::Kind,
 };
 
 /// Placeholder substituted for a plain `Value` that had to be cut (node
@@ -84,7 +84,10 @@ fn largest_target(result: &ExecutionResult) -> Option<CutTarget> {
         if weight < MIN_CUTTABLE_SIZE {
             return;
         }
-        if best.as_ref().is_none_or(|(best_weight, _)| weight > *best_weight) {
+        if best
+            .as_ref()
+            .is_none_or(|(best_weight, _)| weight > *best_weight)
+        {
             best = Some((weight, target));
         }
     };
@@ -172,9 +175,8 @@ fn apply_cut(result: &mut ExecutionResult, target: CutTarget) -> Option<usize> {
             if let Some(node) = result.node_execution_results.get_mut(node_index)
                 && let Some(parameter) = node.parameter_results.get_mut(param_index)
             {
-                parameter.value = Some(node_value_execution_result::Value::RawValue(
-                    marker_value(),
-                ));
+                parameter.value =
+                    Some(node_value_execution_result::Value::RawValue(marker_value()));
             }
             Some(node_index)
         }
@@ -236,7 +238,7 @@ pub fn trim_execution_result_to_fit(result: &mut ExecutionResult, limit: usize) 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use tucana::shared::NodeExecutionResult;
+    use tucana::shared::{NodeExecutionResult, NodeValueExecutionResult};
 
     fn big_string_value(len: usize) -> Value {
         Value {
@@ -290,19 +292,15 @@ mod tests {
     #[test]
     fn oversized_node_result_becomes_error_marker() {
         let mut result = base_result();
-        result
-            .node_execution_results
-            .push(node_with_result(node_execution_result::Result::Success(
-                node_value(big_string_value(10_000)),
-            )));
+        result.node_execution_results.push(node_with_result(
+            node_execution_result::Result::Success(node_value(big_string_value(10_000))),
+        ));
         // A second, small node that must stay untouched.
-        result
-            .node_execution_results
-            .push(node_with_result(node_execution_result::Result::Success(
-                node_value(Value {
-                    kind: Some(Kind::BoolValue(true)),
-                }),
-            )));
+        result.node_execution_results.push(node_with_result(
+            node_execution_result::Result::Success(node_value(Value {
+                kind: Some(Kind::BoolValue(true)),
+            })),
+        ));
 
         let cuts = trim_execution_result_to_fit(&mut result, 2048);
 
@@ -321,11 +319,13 @@ mod tests {
         // Untouched node and the top-level success outcome are preserved.
         assert!(matches!(
             &result.node_execution_results[1].result,
-            Some(node_execution_result::Result::Success(NodeValueExecutionResult {
-                value: Some(node_value_execution_result::Value::RawValue(Value {
-                    kind: Some(Kind::BoolValue(true))
-                }))
-            }))
+            Some(node_execution_result::Result::Success(
+                NodeValueExecutionResult {
+                    value: Some(node_value_execution_result::Value::RawValue(Value {
+                        kind: Some(Kind::BoolValue(true))
+                    }))
+                }
+            ))
         ));
         assert!(matches!(
             result.result,
@@ -336,11 +336,10 @@ mod tests {
     #[test]
     fn oversized_parameter_value_becomes_string_marker() {
         let mut result = base_result();
-        let mut node = node_with_result(node_execution_result::Result::Success(node_value(
-            Value {
+        let mut node =
+            node_with_result(node_execution_result::Result::Success(node_value(Value {
                 kind: Some(Kind::BoolValue(true)),
-            },
-        )));
+            })));
         node.parameter_results
             .push(node_value(big_string_value(10_000)));
         result.node_execution_results.push(node);
@@ -388,11 +387,9 @@ mod tests {
     fn many_small_nodes_are_dropped_as_last_resort() {
         let mut result = base_result();
         for _ in 0..5_000 {
-            result
-                .node_execution_results
-                .push(node_with_result(node_execution_result::Result::Success(
-                    node_value(big_string_value(100)),
-                )));
+            result.node_execution_results.push(node_with_result(
+                node_execution_result::Result::Success(node_value(big_string_value(100))),
+            ));
         }
         assert!(result.encoded_len() > 2048);
 

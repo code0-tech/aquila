@@ -13,6 +13,7 @@ use crate::configuration::{
 use code0_flow::flow_config::load_env_file;
 
 pub mod authorization;
+pub mod ca;
 pub mod configuration;
 pub mod flow;
 pub mod sagittarius;
