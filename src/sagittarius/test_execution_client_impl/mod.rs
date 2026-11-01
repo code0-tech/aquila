@@ -215,10 +215,13 @@ impl SagittariusTestExecutionServiceClient {
                             execution_flow.flow_id,
                             generated_execution_id
                         );
+                        // Test executions are always sampled: the user started
+                        // them to inspect the full result.
                         match flow::dispatch_execution(
                             &self.nats_client,
                             &execution_id,
                             &execution_flow,
+                            true,
                         )
                         .await
                         {

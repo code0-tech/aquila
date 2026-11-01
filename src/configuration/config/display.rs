@@ -70,10 +70,26 @@ impl fmt::Display for Config {
             self.dynamic_config.backend_unary_timeout_secs
         )?;
         writeln!(formatter, "  Runtime status")?;
-        write!(
+        writeln!(
             formatter,
             "    Heartbeat interval:   {}m",
             self.runtime_status.heartbeat_interval_minutes
+        )?;
+        writeln!(formatter, "  Runtime usage")?;
+        writeln!(
+            formatter,
+            "    Stream:           {}",
+            self.runtime_usage.stream
+        )?;
+        writeln!(
+            formatter,
+            "    Forward interval: {}s",
+            self.runtime_usage.forward_interval_secs
+        )?;
+        write!(
+            formatter,
+            "    Batches per request: {}",
+            self.runtime_usage.max_batches_per_request
         )
     }
 }
@@ -100,6 +116,7 @@ mod tests {
         assert!(output.contains("    Address:   127.0.0.1:8081"));
         assert!(output.contains("    Action transfer concurrency: 256"));
         assert!(output.contains("    Request timeout: 5s"));
+        assert!(output.contains("    Stream:           runtime_usage"));
         assert!(output.contains("    Backend token:   [FILTERED]"));
         assert!(!output.contains("super-secret"));
         assert!(!output.contains("Config {"));

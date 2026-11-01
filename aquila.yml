@@ -53,3 +53,13 @@ grpc:
 runtime_status:
   # Frequency of Aquila's own heartbeat to the Sagittarius gateway, in minutes.
   heartbeat_interval_minutes: 5
+
+runtime_usage:
+  # JetStream work-queue stream (and subject) Taurus group-commits execution usages to.
+  stream: runtime_usage
+
+  # Frequency of forwarding buffered runtime usages to the Sagittarius gateway, in seconds.
+  forward_interval_secs: 10
+
+  # Maximum number of runtime usage batches (NATS messages) merged into one Sagittarius request.
+  max_batches_per_request: 50

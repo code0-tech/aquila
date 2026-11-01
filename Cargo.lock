@@ -320,9 +320,9 @@ dependencies = [
 
 [[package]]
 name = "code0-flow"
-version = "0.0.45"
+version = "0.0.46"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "93cd6b6d108b2e788c26bba0b07f1f2a52bded801e6d681cb3c8fc3cb2f3f326"
+checksum = "a757d08dc48f2e416c7c755447ac30c432af83632b84bf1c4bb67a4c299baf6d"
 dependencies = [
  "async-nats",
  "dotenv",
@@ -1461,9 +1461,9 @@ checksum = "f9f8bd3e56ce4dfc153cf470fffbfa98c7620958b312ca5c3a4b8d5181fd13c6"
 
 [[package]]
 name = "lupus"
-version = "0.0.5"
+version = "0.0.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d63a56c98f5a06e1d00b5ab768b62302641450d70da6fdb79573584e3f582371"
+checksum = "e96dc06c47a11ec3ac687ecf376ef025c793ef1adcafabd928881823204de02c"
 dependencies = [
  "jsonschema",
  "serde_json",
@@ -3249,9 +3249,9 @@ dependencies = [
 
 [[package]]
 name = "tucana"
-version = "0.0.82"
+version = "0.0.83"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9f2eb0829308e8695969b580f1ff4c80f0e2c5e6b6b7f49aeb751d458410e93a"
+checksum = "b4810f214ea212f895371454f99eb87b1af072b3275f89fa6b4d3aba7780dbef"
 dependencies = [
  "pbjson",
  "pbjson-build",

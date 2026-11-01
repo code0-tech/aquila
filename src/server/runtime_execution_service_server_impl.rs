@@ -1,6 +1,11 @@
 //! gRPC server for `ExecutionService.Update`: the endpoint the Taurus
 //! runtime posts execution results to, which are then relayed onto the
 //! Sagittarius execution stream via [`SagittariusExecutionResponseSender`].
+//!
+//! Taurus reports every execution's outcome, but only a sampled share
+//! carries the full result (see [`SAMPLED_METADATA_KEY`]); only those are
+//! forwarded to Sagittarius. The action waiting on an execution always gets
+//! its result.
 
 use crate::{
     authorization::authorization::extract_token, configuration::service::ServiceConfiguration,
@@ -14,6 +19,19 @@ use tucana::aquila::{
     action_transfer_response,
 };
 use tucana::shared::{ExecutionResult, execution_result};
+
+/// gRPC metadata key the runtime sets to `false` on execution results that
+/// fell outside its sample rate (outcome only, without input or node results).
+const SAMPLED_METADATA_KEY: &str = "code0-sampled";
+
+/// Results without the key come from runtimes that predate sampling and are
+/// treated as sampled, keeping the previous report-everything behavior.
+fn is_sampled(metadata: &tonic::metadata::MetadataMap) -> bool {
+    metadata
+        .get(SAMPLED_METADATA_KEY)
+        .and_then(|value| value.to_str().ok())
+        != Some("false")
+}
 
 pub struct AquilaExecutionServiceServer {
     service_configuration: ServiceConfiguration,
@@ -98,6 +116,7 @@ impl ExecutionService for AquilaExecutionServiceServer {
         }
         log::debug!("Accepted execution update from runtime runtime=taurus");
 
+        let sampled = is_sampled(request.metadata());
         let execution_result = request.into_inner().execution_result.ok_or_else(|| {
             log::warn!("Rejected execution update reason=missing_execution_result");
             Status::invalid_argument("missing execution result")
@@ -107,39 +126,49 @@ impl ExecutionService for AquilaExecutionServiceServer {
         let flow_id = execution_result.flow_id;
         let result_status = execution_result_status(&execution_result);
 
-        // Every execution result is always reported to Sagittarius,
+        // Every sampled execution result is reported to Sagittarius,
         // regardless of whether an action is also waiting on it, so
-        // Sagittarius has a complete record of runtime executions rather
-        // than only the ones it triggered itself.
-        log::debug!(
-            "Forwarding execution result into Sagittarius stream execution_id={} flow_id={}",
-            execution_id,
-            flow_id
-        );
+        // Sagittarius keeps a representative record of runtime executions
+        // rather than only the ones it triggered itself. Its own test
+        // executions are always sampled.
+        if sampled {
+            log::debug!(
+                "Forwarding execution result into Sagittarius stream execution_id={} flow_id={}",
+                execution_id,
+                flow_id
+            );
 
-        match self
-            .execution_response_sender
-            .send_execution_result(execution_result.clone())
-            .await
-        {
-            Ok(forwarded_flow_id) => {
-                log::info!(
-                    "Forwarded execution result into Sagittarius stream execution_id={} flow_id={} runtime_flow_id={} result_status={}",
-                    execution_id,
-                    forwarded_flow_id,
-                    flow_id,
-                    result_status
-                );
+            match self
+                .execution_response_sender
+                .send_execution_result(execution_result.clone())
+                .await
+            {
+                Ok(forwarded_flow_id) => {
+                    log::info!(
+                        "Forwarded execution result into Sagittarius stream execution_id={} flow_id={} runtime_flow_id={} result_status={}",
+                        execution_id,
+                        forwarded_flow_id,
+                        flow_id,
+                        result_status
+                    );
+                }
+                Err(err) => {
+                    log::warn!(
+                        "Failed to forward execution result into Sagittarius stream execution_id={} flow_id={} result_status={} error={}",
+                        execution_id,
+                        flow_id,
+                        result_status,
+                        err
+                    );
+                }
             }
-            Err(err) => {
-                log::warn!(
-                    "Failed to forward execution result into Sagittarius stream execution_id={} flow_id={} result_status={} error={}",
-                    execution_id,
-                    flow_id,
-                    result_status,
-                    err
-                );
-            }
+        } else {
+            log::debug!(
+                "Skipping Sagittarius forward for unsampled execution result execution_id={} flow_id={} result_status={}",
+                execution_id,
+                flow_id,
+                result_status
+            );
         }
 
         if let Some(action_tx) = self.flow_execution_registry.take(&execution_id).await {
@@ -173,5 +202,32 @@ impl ExecutionService for AquilaExecutionServiceServer {
         Ok(tonic::Response::new(tucana::aquila::ExecutionResponse {
             success: true,
         }))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{SAMPLED_METADATA_KEY, is_sampled};
+    use tonic::metadata::{MetadataMap, MetadataValue};
+
+    fn metadata_with_sampled(value: &'static str) -> MetadataMap {
+        let mut metadata = MetadataMap::new();
+        metadata.insert(SAMPLED_METADATA_KEY, MetadataValue::from_static(value));
+        metadata
+    }
+
+    #[test]
+    fn result_marked_unsampled_is_not_sampled() {
+        assert!(!is_sampled(&metadata_with_sampled("false")));
+    }
+
+    #[test]
+    fn result_marked_sampled_is_sampled() {
+        assert!(is_sampled(&metadata_with_sampled("true")));
+    }
+
+    #[test]
+    fn result_without_sampling_metadata_is_sampled() {
+        assert!(is_sampled(&MetadataMap::new()));
     }
 }
