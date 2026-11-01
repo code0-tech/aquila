@@ -8,6 +8,7 @@
 use async_nats::Client;
 
 use crate::{
+    ca::CertificateAuthority,
     configuration::{
         config::Config as AquilaConfig, service::ServiceConfiguration, state::AppReadiness,
     },
@@ -59,6 +60,24 @@ pub async fn run(
     let execution_response_sender =
         SagittariusExecutionResponseSender::new(config.grpc.max_execution_result_size);
 
+    // Loaded once at startup, not per request: in staging/production this
+    // is a hard failure rather than ever running with no certificate
+    // authority (or, worse, a different ephemeral one per restart).
+    let apus_ca = if config.apus.enabled {
+        Some(Arc::new(
+            CertificateAuthority::load(
+                config.environment,
+                config.apus.ca_cert_path.as_deref(),
+                config.apus.ca_key_path.as_deref(),
+            )
+            .unwrap_or_else(|error| {
+                panic!("failed to load the Apus certificate authority: {error}")
+            }),
+        ))
+    } else {
+        None
+    };
+
     let server = AquilaDynamicServer::new(
         &config,
         DynamicServerDependencies {
@@ -70,6 +89,7 @@ pub async fn run(
             action_config_tx: action_config_tx.clone(),
             action_flow_tx: action_flow_tx.clone(),
             execution_response_sender: execution_response_sender.clone(),
+            apus_ca,
         },
     );
 
