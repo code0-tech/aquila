@@ -23,3 +23,9 @@ serde = "1.0.228"
 futures-core = "0.3.32"
 config = "0.15.25"
 jsonwebtoken = { version = "11.0.0", features = ["rust_crypto"] }
+rcgen = { version = "0.13", features = ["x509-parser"] }
+time = { version = "0.3", default-features = false, features = ["std"] }
+
+[dev-dependencies]
+x509-parser = "0.17"
+rustls = "0.23"
