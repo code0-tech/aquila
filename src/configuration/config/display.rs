@@ -91,10 +91,37 @@ impl fmt::Display for Config {
             "    Forward interval: {}s",
             self.runtime_usage.forward_interval_secs
         )?;
-        write!(
+        writeln!(
             formatter,
             "    Batches per request: {}",
             self.runtime_usage.max_batches_per_request
+        )?;
+        writeln!(formatter, "  Apus")?;
+        writeln!(formatter, "    Enabled:    {}", self.apus.enabled)?;
+        writeln!(
+            formatter,
+            "    CA cert:    {}",
+            display_optional_path(&self.apus.ca_cert_path)
+        )?;
+        writeln!(
+            formatter,
+            "    CA key:     {}",
+            display_optional_path(&self.apus.ca_key_path)
+        )?;
+        writeln!(
+            formatter,
+            "    Action cert lifetime: {}s",
+            self.apus.action_cert_lifetime_secs
+        )?;
+        writeln!(
+            formatter,
+            "    Server cert lifetime: {}s",
+            self.apus.server_cert_lifetime_secs
+        )?;
+        write!(
+            formatter,
+            "    Output dir: {}",
+            display_optional_path(&self.apus.output_dir)
         )
     }
 }
@@ -103,6 +130,12 @@ fn display_optional_url(url: &Option<String>) -> &str {
     url.as_deref()
         .filter(|value| !value.trim().is_empty())
         .unwrap_or("<disabled>")
+}
+
+fn display_optional_path(path: &Option<String>) -> &str {
+    path.as_deref()
+        .filter(|value| !value.trim().is_empty())
+        .unwrap_or("<not configured>")
 }
 
 #[cfg(test)]
@@ -125,5 +158,32 @@ mod tests {
         assert!(output.contains("    Backend token:   [FILTERED]"));
         assert!(!output.contains("super-secret"));
         assert!(!output.contains("Config {"));
+    }
+
+    #[test]
+    fn display_output_renders_apus_paths_not_configured_by_default() {
+        let output = Config::default().to_string();
+
+        assert!(output.contains("  Apus"));
+        assert!(output.contains("    Enabled:    false"));
+        assert!(output.contains("    CA cert:    <not configured>"));
+        assert!(output.contains("    CA key:     <not configured>"));
+        assert!(output.contains("    Action cert lifetime: 86400s"));
+        assert!(output.contains("    Server cert lifetime: 7776000s"));
+        assert!(output.contains("    Output dir: <not configured>"));
+    }
+
+    #[test]
+    fn display_output_renders_configured_apus_paths() {
+        let mut config = Config::default();
+        config.apus.enabled = true;
+        config.apus.ca_cert_path = Some("/etc/aquila/ca.pem".into());
+        config.apus.ca_key_path = Some("/etc/aquila/ca.key".into());
+
+        let output = config.to_string();
+
+        assert!(output.contains("    Enabled:    true"));
+        assert!(output.contains("    CA cert:    /etc/aquila/ca.pem"));
+        assert!(output.contains("    CA key:     /etc/aquila/ca.key"));
     }
 }

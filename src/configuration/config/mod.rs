@@ -32,6 +32,7 @@ pub struct Config {
     pub grpc: Grpc,
     pub runtime_status: RuntimeStatus,
     pub runtime_usage: RuntimeUsage,
+    pub apus: Apus,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -106,6 +107,28 @@ pub struct RuntimeUsage {
     pub max_batches_per_request: usize,
 }
 
+/// Aquila's role as the certificate authority for Apus (mutual TLS between
+/// Taurus and actions) - see [`crate::ca`]. `ca_cert_path`/`ca_key_path`
+/// must both be set, or neither (a missing pair generates an ephemeral CA
+/// in development, and is a hard startup error in staging/production).
+///
+/// Only *paths* live here, never key material - the key itself is read
+/// from `ca_key_path` at load time and never stored in this config value,
+/// so there's nothing secret to filter out of its `Debug`/display output.
+#[derive(Clone, Debug, Deserialize, Serialize)]
+#[serde(default)]
+pub struct Apus {
+    pub enabled: bool,
+    pub ca_cert_path: Option<String>,
+    pub ca_key_path: Option<String>,
+    /// How long an issued action client certificate stays valid, in seconds.
+    pub action_cert_lifetime_secs: u64,
+    /// How long an issued Taurus server certificate stays valid, in seconds.
+    pub server_cert_lifetime_secs: u64,
+    /// Directory the interim file bridge (dev only) writes certificates to.
+    pub output_dir: Option<String>,
+}
+
 impl Default for Config {
     fn default() -> Self {
         Self {
@@ -119,6 +142,7 @@ impl Default for Config {
             grpc: Grpc::default(),
             runtime_status: RuntimeStatus::default(),
             runtime_usage: RuntimeUsage::default(),
+            apus: Apus::default(),
         }
     }
 }
@@ -185,6 +209,19 @@ impl Default for RuntimeUsage {
             stream: "runtime_usage".into(),
             forward_interval_secs: 10,
             max_batches_per_request: 50,
+        }
+    }
+}
+
+impl Default for Apus {
+    fn default() -> Self {
+        Self {
+            enabled: false,
+            ca_cert_path: None,
+            ca_key_path: None,
+            action_cert_lifetime_secs: 86_400,    // 24h
+            server_cert_lifetime_secs: 7_776_000, // 90d
+            output_dir: None,
         }
     }
 }
@@ -341,5 +378,45 @@ mod tests {
             4 * 1024 * 1024 - 64 * 1024
         );
         assert_eq!(config.grpc.max_execution_result_size, 123);
+    }
+
+    #[test]
+    fn apus_defaults_to_disabled_with_no_ca_configured() {
+        let config = Config::default();
+
+        assert!(!config.apus.enabled);
+        assert_eq!(config.apus.ca_cert_path, None);
+        assert_eq!(config.apus.ca_key_path, None);
+        assert_eq!(config.apus.action_cert_lifetime_secs, 86_400);
+        assert_eq!(config.apus.server_cert_lifetime_secs, 7_776_000);
+    }
+
+    #[test]
+    fn apus_ca_paths_are_configurable() {
+        let config: Config = ConfigLoader::builder()
+            .add_source(
+                ConfigLoader::try_from(&Config::default())
+                    .expect("default configuration should serialize"),
+            )
+            .set_override("apus.enabled", true)
+            .expect("enabled override should apply")
+            .set_override("apus.ca_cert_path", "/etc/aquila/ca.pem")
+            .expect("ca cert path override should apply")
+            .set_override("apus.ca_key_path", "/etc/aquila/ca.key")
+            .expect("ca key path override should apply")
+            .build()
+            .expect("configuration should build")
+            .try_deserialize()
+            .expect("configuration should deserialize");
+
+        assert!(config.apus.enabled);
+        assert_eq!(
+            config.apus.ca_cert_path,
+            Some("/etc/aquila/ca.pem".to_string())
+        );
+        assert_eq!(
+            config.apus.ca_key_path,
+            Some("/etc/aquila/ca.key".to_string())
+        );
     }
 }
