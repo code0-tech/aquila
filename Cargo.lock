@@ -60,6 +60,7 @@ dependencies = [
  "tokio-stream",
  "tonic",
  "tonic-health",
+ "tonic-prost",
  "tracing",
  "tucana",
  "uuid",
