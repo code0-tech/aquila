@@ -39,6 +39,12 @@ pub struct Config {
 pub struct Nats {
     pub url: String,
     pub bucket: String,
+    /// How long Aquila waits for a runtime to answer a sub flow execution
+    /// request (`sub_flow_execution.<id>`) before failing it with
+    /// `A-SUB-FLOW-EXECUTION-000001`. Previously the async-nats default (10s);
+    /// now configurable (default 30s) so slow-but-legitimate sub flows aren't
+    /// cut off.
+    pub sub_flow_execution_timeout_secs: u64,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -135,6 +141,7 @@ impl Default for Nats {
         Self {
             url: "nats://localhost:4222".into(),
             bucket: "flow_store".into(),
+            sub_flow_execution_timeout_secs: 30,
         }
     }
 }

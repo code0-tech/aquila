@@ -39,6 +39,11 @@ impl fmt::Display for Config {
         writeln!(formatter, "  NATS")?;
         writeln!(formatter, "    URL:       {}", self.nats.url)?;
         writeln!(formatter, "    Bucket:    {}", self.nats.bucket)?;
+        writeln!(
+            formatter,
+            "    Sub flow execution timeout: {}s",
+            self.nats.sub_flow_execution_timeout_secs
+        )?;
         writeln!(formatter, "  gRPC")?;
         writeln!(
             formatter,

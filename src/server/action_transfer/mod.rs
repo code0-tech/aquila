@@ -77,6 +77,9 @@ pub(super) struct ActionTransferContext {
     /// Per-connection limit for post-logon message handlers. Parsing stays on
     /// the stream task; handler work runs in this bounded task set.
     pub(super) concurrency_limit: usize,
+    /// How long to wait for a runtime to answer a sub flow execution request
+    /// before failing it (`nats.sub_flow_execution_timeout_secs`).
+    pub(super) sub_flow_execution_timeout: std::time::Duration,
 }
 
 /// Owns every post-logon handler spawned for one action stream.
@@ -357,8 +360,10 @@ impl ActionTransferService for AquilaActionTransferServiceServer {
 
                         let client = context.client.clone();
                         let tx = tx.clone();
+                        let timeout = context.sub_flow_execution_timeout;
                         post_logon_tasks.spawn(async move {
-                            handle_sub_flow_execution(&identifier, request, client, tx).await;
+                            handle_sub_flow_execution(&identifier, request, client, tx, timeout)
+                                .await;
                         });
                     }
                     tucana::aquila::action_transfer_request::Data::FlowExecution(request) => {

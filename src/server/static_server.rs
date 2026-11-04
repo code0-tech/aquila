@@ -29,6 +29,7 @@ pub struct AquilaStaticServer {
     action_config_tx: tokio::sync::broadcast::Sender<tucana::shared::ModuleConfigurations>,
     action_flow_tx: tokio::sync::broadcast::Sender<crate::flow::FlowChange>,
     action_transfer_concurrency_limit: usize,
+    sub_flow_execution_timeout: std::time::Duration,
 }
 
 impl AquilaStaticServer {
@@ -60,6 +61,9 @@ impl AquilaStaticServer {
             action_config_tx,
             action_flow_tx,
             action_transfer_concurrency_limit: config.grpc.action_transfer_concurrency_limit,
+            sub_flow_execution_timeout: std::time::Duration::from_secs(
+                config.nats.sub_flow_execution_timeout_secs,
+            ),
         }
     }
 
@@ -79,6 +83,7 @@ impl AquilaStaticServer {
                 shard_registry: ActionShardRegistry::new(),
                 is_static: true,
                 concurrency_limit: self.action_transfer_concurrency_limit,
+                sub_flow_execution_timeout: self.sub_flow_execution_timeout,
             });
 
         info!("Starting static gRPC Server...");

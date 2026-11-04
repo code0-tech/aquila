@@ -61,6 +61,7 @@ pub struct AquilaDynamicServer {
     flow_execution_registry: ActionFlowExecutionRegistry,
     execution_response_sender: SagittariusExecutionResponseSender,
     action_transfer_concurrency_limit: usize,
+    sub_flow_execution_timeout: std::time::Duration,
 
     sagittarius_unary_rpc_timeout: Duration,
 }
@@ -101,6 +102,9 @@ impl AquilaDynamicServer {
             flow_execution_registry: ActionFlowExecutionRegistry::new(),
             execution_response_sender,
             action_transfer_concurrency_limit: config.grpc.action_transfer_concurrency_limit,
+            sub_flow_execution_timeout: std::time::Duration::from_secs(
+                config.nats.sub_flow_execution_timeout_secs,
+            ),
             sagittarius_unary_rpc_timeout: Duration::from_secs(
                 config.dynamic_config.backend_unary_timeout_secs,
             ),
@@ -155,6 +159,7 @@ impl AquilaDynamicServer {
                 shard_registry: ActionShardRegistry::new(),
                 is_static: false,
                 concurrency_limit: self.action_transfer_concurrency_limit,
+                sub_flow_execution_timeout: self.sub_flow_execution_timeout,
             });
 
         info!("Starting dynamic gRPC Server...");

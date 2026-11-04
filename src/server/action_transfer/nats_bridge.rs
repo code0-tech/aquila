@@ -216,6 +216,7 @@ pub(super) async fn handle_sub_flow_execution(
     request: ActionSubFlowExecutionRequest,
     nats_client: async_nats::Client,
     tx: tokio::sync::mpsc::Sender<Result<ActionTransferResponse, tonic::Status>>,
+    timeout: std::time::Duration,
 ) {
     let execution_id = request.execution_identifier.clone();
     let correlation_id = request.correlation_identifier.clone();
@@ -229,7 +230,10 @@ pub(super) async fn handle_sub_flow_execution(
         topic
     );
 
-    let reply = match nats_client.request(topic.clone(), bytes.into()).await {
+    let nats_request = async_nats::Request::new()
+        .payload(bytes.into())
+        .timeout(Some(timeout));
+    let reply = match nats_client.send_request(topic.clone(), nats_request).await {
         Ok(reply) => reply,
         Err(err) => {
             errors::record(
