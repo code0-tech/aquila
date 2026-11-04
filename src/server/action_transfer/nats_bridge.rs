@@ -334,6 +334,47 @@ async fn send_sub_flow_execution_failure(
     }
 }
 
+/// Stamps `action.<identifier>` onto the `definition_source` of any sub flow
+/// function the action returns inside its node result.
+///
+/// At logon `overwrite_module_definition_sources` rewrites the module's own
+/// definitions, but a `SubFlowFunctionResult` handed back as a node result
+/// never passes through that rewrite - it carries hercules' raw `"action"`
+/// placeholder. Left untouched it reaches taurus, which can't resolve it to
+/// this action's NATS subject and times the invoking node out. The identity
+/// is taken from the authenticated stream here, which keeps it authoritative
+/// rather than trusting whatever the SDK sent (code0-tech/aquila#466).
+fn overwrite_sub_flow_function_sources(
+    response: &mut ActionExecutionResponse,
+    action_identifier: &str,
+) {
+    let Some(node_result) = response.node_result.as_mut() else {
+        return;
+    };
+
+    let source = format!("action.{}", action_identifier);
+    let rewrite = |value: &mut tucana::shared::NodeValueExecutionResult| {
+        if let Some(tucana::shared::node_value_execution_result::Value::SubFlowFunctionResult(
+            result,
+        )) = value.value.as_mut()
+            && let Some(function) = result.function.as_mut()
+        {
+            function.definition_source = Some(source.clone());
+        }
+    };
+
+    // The returned value (a function passed on to the consuming node) and any
+    // sub flow functions the action received as parameters and echoes back.
+    for parameter in &mut node_result.parameter_results {
+        rewrite(parameter);
+    }
+    if let Some(tucana::shared::node_execution_result::Result::Success(value)) =
+        node_result.result.as_mut()
+    {
+        rewrite(value);
+    }
+}
+
 /// Publishes execution results back to the original NATS reply subject.
 ///
 /// The reply subject was stashed by [`forward_nats_to_action`] when the
@@ -342,12 +383,14 @@ async fn send_sub_flow_execution_failure(
 /// place that reunites the two.
 pub(super) async fn handle_result(
     action_identifier: &str,
-    execution_result: ActionExecutionResponse,
+    mut execution_result: ActionExecutionResponse,
     client: async_nats::Client,
     pending_replies: PendingReplyStore,
 ) {
     let execution_id = execution_result.execution_identifier.clone();
     metrics::action_result(action_identifier, action_result_outcome(&execution_result));
+
+    overwrite_sub_flow_function_sources(&mut execution_result, action_identifier);
 
     let Some(pending_reply) = pending_replies.remove(&execution_id).await else {
         metrics::action_failure(action_identifier, "result_unmatched");
@@ -553,6 +596,59 @@ mod tests {
         assert_eq!(
             action_result_outcome(&ActionExecutionResponse::default()),
             "missing"
+        );
+    }
+
+    #[test]
+    fn overwrite_sub_flow_function_sources_stamps_action_identifier() {
+        use tucana::shared::{
+            NodeExecutionResult, NodeValueExecutionResult, SubFlowFunction, SubFlowFunctionResult,
+            node_execution_result, node_value_execution_result,
+        };
+
+        let function_result = |definition_source: Option<&str>| NodeValueExecutionResult {
+            value: Some(node_value_execution_result::Value::SubFlowFunctionResult(
+                SubFlowFunctionResult {
+                    function: Some(SubFlowFunction {
+                        function_identifier: "send-email::compose::uuid".into(),
+                        definition_source: definition_source.map(ToString::to_string),
+                    }),
+                    ..Default::default()
+                },
+            )),
+        };
+
+        let mut response = ActionExecutionResponse {
+            execution_identifier: "execution-id".into(),
+            node_result: Some(NodeExecutionResult {
+                // A returned function carrying hercules' raw placeholder...
+                result: Some(node_execution_result::Result::Success(function_result(
+                    Some("action"),
+                ))),
+                // ...and one echoed back as a parameter with no source at all.
+                parameter_results: vec![function_result(None)],
+                ..Default::default()
+            }),
+        };
+
+        overwrite_sub_flow_function_sources(&mut response, "send-email");
+
+        let source_of = |value: &NodeValueExecutionResult| match value.value.as_ref() {
+            Some(node_value_execution_result::Value::SubFlowFunctionResult(result)) => result
+                .function
+                .as_ref()
+                .and_then(|function| function.definition_source.clone()),
+            _ => None,
+        };
+
+        let node_result = response.node_result.unwrap();
+        let Some(node_execution_result::Result::Success(returned)) = node_result.result else {
+            panic!("expected a success result");
+        };
+        assert_eq!(source_of(&returned).as_deref(), Some("action.send-email"));
+        assert_eq!(
+            source_of(&node_result.parameter_results[0]).as_deref(),
+            Some("action.send-email")
         );
     }
 }
