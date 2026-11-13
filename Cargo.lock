@@ -41,7 +41,7 @@ checksum = "7f202df86484c868dbad7eaa557ef785d5c66295e41b460ef922eca0723b842c"
 name = "aquila"
 version = "0.1.0"
 dependencies = [
- "async-nats",
+ "async-nats 0.52.0",
  "code0-flow",
  "config",
  "futures",
@@ -73,6 +73,42 @@ name = "async-nats"
 version = "0.51.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a4f92759f418774b78c36ef07885849150ce950c67d9bcdeff8a9c253f57d9a1"
+dependencies = [
+ "base64",
+ "bytes",
+ "futures-util",
+ "memchr",
+ "nkeys",
+ "nuid",
+ "pin-project",
+ "portable-atomic",
+ "rand 0.10.1",
+ "regex",
+ "ring",
+ "rustls-native-certs",
+ "rustls-pki-types",
+ "rustls-webpki",
+ "serde",
+ "serde_json",
+ "serde_nanos",
+ "serde_repr",
+ "thiserror",
+ "time",
+ "tokio",
+ "tokio-rustls",
+ "tokio-stream",
+ "tokio-util",
+ "tokio-websockets",
+ "tracing",
+ "tryhard",
+ "url",
+]
+
+[[package]]
+name = "async-nats"
+version = "0.52.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "015f0a7a3b0b29701b78c76a4d4a122624c97c71fa30363381664eb729d619c7"
 dependencies = [
  "base64",
  "bytes",
@@ -324,7 +360,7 @@ version = "0.0.48"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "fc747443a23d8f7bdd12ba846f083fb245e16a9f27ca353ed2225cad0563cb77"
 dependencies = [
- "async-nats",
+ "async-nats 0.51.0",
  "dotenv",
  "futures-core",
  "log",
