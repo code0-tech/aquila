@@ -63,3 +63,14 @@ runtime_usage:
 
   # Maximum number of runtime usage batches (NATS messages) merged into one Sagittarius request.
   max_batches_per_request: 50
+
+file_storage:
+  # Sagittarius gateway HTTP ingress receiving streamed multipart uploads from actions.
+  # Relative download URLs returned by Sagittarius are resolved against this URL.
+  storage_upload_url: http://127.0.0.1:8080/storage_objects/upload
+
+  # Largest file an action may upload through Aquila, in bytes (default 100 MiB).
+  max_file_size: 104857600
+
+  # Timeout for connecting to the Sagittarius HTTP ingress, in seconds.
+  http_connect_timeout_secs: 5
