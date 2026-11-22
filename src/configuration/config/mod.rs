@@ -32,7 +32,6 @@ pub struct Config {
     pub grpc: Grpc,
     pub runtime_status: RuntimeStatus,
     pub runtime_usage: RuntimeUsage,
-    pub file_storage: FileStorage,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -107,21 +106,6 @@ pub struct RuntimeUsage {
     pub max_batches_per_request: usize,
 }
 
-/// File transfer for actions (`ActionFileService`). Aquila brokers the bytes
-/// between an action and Sagittarius; actions never see storage URLs.
-#[derive(Clone, Debug, Deserialize, Serialize)]
-#[serde(default)]
-pub struct FileStorage {
-    /// Sagittarius gateway HTTP ingress that accepts streamed multipart uploads.
-    /// Relative download URLs returned by Sagittarius are resolved against it.
-    pub storage_upload_url: String,
-    /// Largest file (in bytes) an action may upload; enforced while receiving.
-    pub max_file_size: u64,
-    /// Timeout for establishing the HTTP connection to Sagittarius, in seconds.
-    /// Transfers themselves have no overall timeout since files are streamed.
-    pub http_connect_timeout_secs: u64,
-}
-
 impl Default for Config {
     fn default() -> Self {
         Self {
@@ -135,7 +119,6 @@ impl Default for Config {
             grpc: Grpc::default(),
             runtime_status: RuntimeStatus::default(),
             runtime_usage: RuntimeUsage::default(),
-            file_storage: FileStorage::default(),
         }
     }
 }
@@ -202,16 +185,6 @@ impl Default for RuntimeUsage {
             stream: "runtime_usage".into(),
             forward_interval_secs: 10,
             max_batches_per_request: 50,
-        }
-    }
-}
-
-impl Default for FileStorage {
-    fn default() -> Self {
-        Self {
-            storage_upload_url: "http://127.0.0.1:8080/storage_objects/upload".into(),
-            max_file_size: 100 * 1024 * 1024,
-            http_connect_timeout_secs: 5,
         }
     }
 }
@@ -347,29 +320,6 @@ mod tests {
             256
         );
         assert_eq!(config.grpc.action_transfer_concurrency_limit, 17);
-    }
-
-    #[test]
-    fn file_storage_defaults_and_overrides() {
-        let defaults = Config::default().file_storage;
-        assert_eq!(defaults.max_file_size, 100 * 1024 * 1024);
-        assert_eq!(
-            defaults.storage_upload_url,
-            "http://127.0.0.1:8080/storage_objects/upload"
-        );
-
-        let config: Config = ConfigLoader::builder()
-            .add_source(
-                ConfigLoader::try_from(&Config::default())
-                    .expect("default configuration should serialize"),
-            )
-            .set_override("file_storage.max_file_size", 42)
-            .expect("size override should apply")
-            .build()
-            .expect("configuration should build")
-            .try_deserialize()
-            .expect("configuration should deserialize");
-        assert_eq!(config.file_storage.max_file_size, 42);
     }
 
     #[test]

@@ -8,11 +8,10 @@ use crate::{
         file_service_client_impl::SagittariusFileServiceClient,
         module_service_client_impl::SagittariusModuleServiceClient,
         runtime_status_service_client_impl::SagittariusRuntimeStatusServiceClient,
-        storage_http_client_impl::SagittariusStorageClient,
         test_execution_client_impl::SagittariusExecutionResponseSender,
     },
     server::{
-        AquilaActionFileService, FileBackend,
+        AquilaActionFileService,
         action_transfer::{
             ActionFlowExecutionRegistry, ActionShardRegistry, ActionTransferContext,
             AquilaActionTransferServiceServer,
@@ -65,7 +64,6 @@ pub struct AquilaDynamicServer {
     flow_execution_registry: ActionFlowExecutionRegistry,
     execution_response_sender: SagittariusExecutionResponseSender,
     action_transfer_concurrency_limit: usize,
-    file_storage: crate::configuration::config::FileStorage,
 
     sagittarius_unary_rpc_timeout: Duration,
 }
@@ -106,7 +104,6 @@ impl AquilaDynamicServer {
             flow_execution_registry: ActionFlowExecutionRegistry::new(),
             execution_response_sender,
             action_transfer_concurrency_limit: config.grpc.action_transfer_concurrency_limit,
-            file_storage: config.file_storage.clone(),
             sagittarius_unary_rpc_timeout: Duration::from_secs(
                 config.dynamic_config.backend_unary_timeout_secs,
             ),
@@ -165,19 +162,11 @@ impl AquilaDynamicServer {
 
         let action_file_server = AquilaActionFileService::new(
             self.service_configuration.clone(),
-            Some(FileBackend {
-                files: SagittariusFileServiceClient::new(
-                    self.channel.clone(),
-                    self.token.clone(),
-                    self.sagittarius_unary_rpc_timeout,
-                ),
-                storage: SagittariusStorageClient::new(
-                    self.file_storage.storage_upload_url.clone(),
-                    self.token.clone(),
-                    Duration::from_secs(self.file_storage.http_connect_timeout_secs),
-                ),
-            }),
-            self.file_storage.max_file_size,
+            Some(SagittariusFileServiceClient::new(
+                self.channel.clone(),
+                self.token.clone(),
+                self.sagittarius_unary_rpc_timeout,
+            )),
         );
 
         info!("Starting dynamic gRPC Server...");

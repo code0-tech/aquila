@@ -88,7 +88,7 @@ impl AquilaStaticServer {
         // Static mode has no Sagittarius to store files in: calls authenticate,
         // then report that file storage is unavailable.
         let action_file_server =
-            AquilaActionFileService::new(self.service_configuration.clone(), None, 0);
+            AquilaActionFileService::new(self.service_configuration.clone(), None);
 
         info!("Starting static gRPC Server...");
 

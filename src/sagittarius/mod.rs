@@ -13,5 +13,4 @@ pub mod runtime_status_heartbeat;
 pub mod runtime_status_service_client_impl;
 pub mod runtime_usage_forwarder;
 pub mod runtime_usage_service_client_impl;
-pub mod storage_http_client_impl;
 pub mod test_execution_client_impl;

@@ -91,21 +91,10 @@ impl fmt::Display for Config {
             "    Forward interval: {}s",
             self.runtime_usage.forward_interval_secs
         )?;
-        writeln!(
+        write!(
             formatter,
             "    Batches per request: {}",
             self.runtime_usage.max_batches_per_request
-        )?;
-        writeln!(formatter, "  File storage")?;
-        writeln!(
-            formatter,
-            "    Upload URL:       {}",
-            self.file_storage.storage_upload_url
-        )?;
-        write!(
-            formatter,
-            "    Max file size:    {} bytes",
-            self.file_storage.max_file_size
         )
     }
 }

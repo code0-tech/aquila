@@ -22,6 +22,7 @@ For a working runtime, the following services are required:
   - Keeps runtime definitions up to date
   - Keeps the latest flows available in the runtime
   - Handles authentication and node execution for actions
+  - Hands out signed file upload and download URLs to actions
 - Draco is the runtime flow trigger (for example HTTP requests and cron jobs)
 - Taurus is the runtime execution engine
 - Actions are Taurus add-ons that extend runtime functionality
@@ -64,6 +65,28 @@ Draco --> NATS
 Taurus --> NATS
 Aquila --> NATS
 ```
+
+## File Transfer for Actions
+
+Actions store and read files through Aquila's `ActionFileService`, but file content never passes through
+Aquila or gRPC. Aquila only hands out short-lived signed URLs; the action transfers the bytes over plain HTTP
+with the Sagittarius gateway.
+
+- `RequestUpload` (file name, content type, optional expiry, project, execution): Aquila asks the gateway's
+  `FileService.GetFileUploadUrl` and returns the storage object id and a URL accepting a single HTTP `PUT` of
+  the raw content. The `PUT` answers with the committed file metadata.
+- `RequestDownload` (id, project, execution): Aquila asks `FileService.GetFileDownloadUrl` and returns a URL
+  serving the content via HTTP `GET`, together with the file metadata.
+
+Every call must carry the action's JWT in the `authorization` metadata (the token the action logs on to the
+transfer stream with). Project and execution are authorized by Sagittarius, not by Aquila. Failures are
+returned as `failure` in the response:
+
+| Code | Meaning |
+|---|---|
+| `AQ-FILE-0001` | File storage is unavailable (static mode, no Sagittarius) |
+| `AQ-FILE-0002` | Invalid argument (empty file name or content type, missing id or project) |
+| `AQ-FILE-0004` | Sagittarius rejected the request (category `Rejected`) or could not be reached (category `Upstream`) |
 
 ## Static vs Dynamic Mode
 

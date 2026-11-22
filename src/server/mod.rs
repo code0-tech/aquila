@@ -12,5 +12,5 @@ mod runtime_status_service_server_impl;
 pub mod dynamic_server;
 pub mod static_server;
 
-pub use action_file_service_server_impl::{AquilaActionFileService, FileBackend};
+pub use action_file_service_server_impl::AquilaActionFileService;
 pub use interceptor::create_readiness_interceptor;
