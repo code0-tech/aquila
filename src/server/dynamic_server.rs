@@ -5,11 +5,13 @@
 use crate::{
     configuration::{config::Config, service::ServiceConfiguration, state::AppReadiness},
     sagittarius::{
+        file_service_client_impl::SagittariusFileServiceClient,
         module_service_client_impl::SagittariusModuleServiceClient,
         runtime_status_service_client_impl::SagittariusRuntimeStatusServiceClient,
         test_execution_client_impl::SagittariusExecutionResponseSender,
     },
     server::{
+        AquilaActionFileService,
         action_transfer::{
             ActionFlowExecutionRegistry, ActionShardRegistry, ActionTransferContext,
             AquilaActionTransferServiceServer,
@@ -26,6 +28,7 @@ use std::{net::SocketAddr, sync::Arc, time::Duration};
 use tokio::sync::Mutex;
 use tonic::transport::{Channel, Server};
 use tucana::aquila::{
+    action_file_service_server::ActionFileServiceServer,
     action_transfer_service_server::ActionTransferServiceServer,
     execution_service_server::ExecutionServiceServer, module_service_server::ModuleServiceServer,
     runtime_status_service_server::RuntimeStatusServiceServer,
@@ -157,6 +160,15 @@ impl AquilaDynamicServer {
                 concurrency_limit: self.action_transfer_concurrency_limit,
             });
 
+        let action_file_server = AquilaActionFileService::new(
+            self.service_configuration.clone(),
+            Some(SagittariusFileServiceClient::new(
+                self.channel.clone(),
+                self.token.clone(),
+                self.sagittarius_unary_rpc_timeout,
+            )),
+        );
+
         info!("Starting dynamic gRPC Server...");
 
         let readiness: Arc<AppReadiness> = Arc::new(self.app_readiness.clone());
@@ -186,6 +198,10 @@ impl AquilaDynamicServer {
                     action_transfer_server,
                     intercept.clone(),
                 ))
+                .add_service(ActionFileServiceServer::with_interceptor(
+                    action_file_server.clone(),
+                    intercept.clone(),
+                ))
                 .serve(self.address)
                 .await
         } else {
@@ -204,6 +220,10 @@ impl AquilaDynamicServer {
                 ))
                 .add_service(ActionTransferServiceServer::with_interceptor(
                     action_transfer_server,
+                    intercept.clone(),
+                ))
+                .add_service(ActionFileServiceServer::with_interceptor(
+                    action_file_server.clone(),
                     intercept.clone(),
                 ))
                 .serve(self.address)

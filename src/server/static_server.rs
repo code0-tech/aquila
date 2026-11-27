@@ -5,6 +5,7 @@
 use crate::{
     configuration::{config::Config, service::ServiceConfiguration, state::AppReadiness},
     server::{
+        AquilaActionFileService,
         action_transfer::{
             ActionFlowExecutionRegistry, ActionShardRegistry, ActionTransferContext,
             AquilaActionTransferServiceServer,
@@ -16,7 +17,10 @@ use async_nats::jetstream::kv::Store;
 use log::info;
 use std::{net::SocketAddr, sync::Arc};
 use tonic::transport::Server;
-use tucana::aquila::action_transfer_service_server::ActionTransferServiceServer;
+use tucana::aquila::{
+    action_file_service_server::ActionFileServiceServer,
+    action_transfer_service_server::ActionTransferServiceServer,
+};
 
 pub struct AquilaStaticServer {
     nats_url: String,
@@ -81,6 +85,11 @@ impl AquilaStaticServer {
                 concurrency_limit: self.action_transfer_concurrency_limit,
             });
 
+        // Static mode has no Sagittarius to store files in: calls authenticate,
+        // then report that file storage is unavailable.
+        let action_file_server =
+            AquilaActionFileService::new(self.service_configuration.clone(), None);
+
         info!("Starting static gRPC Server...");
 
         let readiness: Arc<AppReadiness> = Arc::new(self.app_readiness.clone());
@@ -98,12 +107,20 @@ impl AquilaStaticServer {
                     action_transfer_server,
                     intercept.clone(),
                 ))
+                .add_service(ActionFileServiceServer::with_interceptor(
+                    action_file_server.clone(),
+                    intercept.clone(),
+                ))
                 .serve(self.address)
                 .await
         } else {
             Server::builder()
                 .add_service(ActionTransferServiceServer::with_interceptor(
                     action_transfer_server,
+                    intercept.clone(),
+                ))
+                .add_service(ActionFileServiceServer::with_interceptor(
+                    action_file_server.clone(),
                     intercept.clone(),
                 ))
                 .serve(self.address)

@@ -87,6 +87,17 @@ impl ServiceConfiguration {
             .find(|x| verify_jwt(token, &x.token, &x.service_name))
     }
 
+    /// Identifies which pre-provisioned action `token` belongs to, for RPCs
+    /// that (unlike the transfer logon) don't name the action up front: the
+    /// token is verified against each action's secret with the action's own
+    /// identifier as the expected `sub`. Returns that identifier.
+    pub fn authenticate_action(&self, token: &str) -> Option<&str> {
+        self.actions
+            .iter()
+            .find(|x| verify_jwt(token, &x.token, &x.service_name))
+            .map(|x| x.service_name.as_str())
+    }
+
     pub fn has_runtime(&self, token: &String, runtime_name: &String) -> bool {
         self.find_runtime(token, runtime_name).is_some()
     }
@@ -312,6 +323,26 @@ mod tests {
             &String::from("action-other")
         ));
         assert!(!config.has_action(&String::from("action-secret"), &String::from("example")));
+    }
+
+    #[test]
+    fn authenticate_action_resolves_identifier_from_jwt_alone() {
+        let config = fixture();
+
+        assert_eq!(
+            config.authenticate_action(&jwt("action-secret", "action-identifier")),
+            Some("action-identifier")
+        );
+        // A runtime secret, a mismatching subject, and a non-JWT never authenticate.
+        assert_eq!(
+            config.authenticate_action(&jwt("taurus-secret", "taurus")),
+            None
+        );
+        assert_eq!(
+            config.authenticate_action(&jwt("action-secret", "someone-else")),
+            None
+        );
+        assert_eq!(config.authenticate_action("action-secret"), None);
     }
 
     #[test]
